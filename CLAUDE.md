@@ -6,7 +6,7 @@ RagAssistant is a .NET 10 demo of a Retrieval-Augmented Generation (RAG) assista
 
 It is a **modular monolith**: one backend deployable (the Host) composed of independent modules with strict boundaries. Each module owns its features, data (own DbContext + schema), and logic. Modules use **Vertical Slice Architecture** internally (moderate domain complexity, solo developer — keep ceremony low). The UI is a separate Blazor project (`RagAssistant.Web`) acting as a backend for frontend (BFF): it holds the session cookie and forwards `/api/**` (REST + SSE) to the Host through YARP with the user's access token.
 
-Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention).
+Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention) and [ADR 0005](docs/adr/0005-api-kernel-libraries.md) (API kernel libraries, Mediator topology, no Serilog).
 
 ### Planned Modules
 
@@ -30,9 +30,9 @@ Modules are added with `/scaffold` — none exist yet.
 - **Fluent UI Blazor** (`Microsoft.FluentUI.AspNetCore.Components`) — the only component suite; RAG domain components are app-owned. No Syncfusion or second design system
 - **Background ingestion** — `BackgroundService` + `Channel<T>`, stage state persisted in the `documents` schema
 - **HybridCache** — caching (e.g. query embeddings, retrieval results); no L2 backend yet
-- **Mediator** (source-generated, MIT) — intra-module command/query dispatch
+- **Mediator** (source-generated, MIT) — intra-module command/query dispatch; one scoped Mediator per module with `ValidationBehavior`, inject the module's concrete generated `Mediator` (aliased, e.g. `ModuleMediator`), never `IMediator`/`ISender` (ADR 0005)
 - **FluentValidation** — request validation
-- **Serilog** + OpenTelemetry — structured logging and tracing
+- **Logging** — built-in `ILogger` + OpenTelemetry (logs, traces, metrics) via ServiceDefaults; no Serilog (ADR 0005)
 - **TUnit** + **WebApplicationFactory** + **Testcontainers (PostgreSQL)** — testing, on Microsoft.Testing.Platform; **bUnit** for Blazor components
 - **Microsoft.Extensions.AI.Evaluation** — answer-quality evaluation in a separate harness, never in `dotnet test`
 - **Auth** — Keycloak (dev-only container, `Aspire.Hosting.Keycloak`, preview) configured entirely by the committed realm file `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` (no data volume — re-imported every run). Host: JWT bearer (`AddKeycloakJwtBearer`, audience `ragassistant-api`, `RoleClaimType = "roles"`). Web: OIDC code + PKCE, cookie session, tokens never sent to the browser. Roles `knowledge-seeker` ⊂ `content-owner` ⊂ `maintainer`; policies `KnowledgeSeeker`, `ContentOwner`, `Maintainer`
@@ -165,7 +165,7 @@ Load these dotnet-claude-kit skills for context:
 - `dependency-injection` — module-scoped registration
 - `error-handling` — Result pattern, ProblemDetails
 - `configuration` — Options pattern, per-module configuration sections
-- `serilog` / `opentelemetry` / `logging` — observability
+- `opentelemetry` / `logging` — observability
 - `resilience` / `httpclient-factory` — calls to the AI provider
 - `testing` / `tdd` — note: adapt its xUnit examples to TUnit per the Testing section above
 - `workflow-mastery`, `instinct-system`

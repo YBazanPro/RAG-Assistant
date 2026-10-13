@@ -74,10 +74,10 @@ Small, but everything depends on it:
 - `Result` / `Result<T>` and mapping to `TypedResults` + ProblemDetails (RFC 9457);
 - Mediator (source-generated) + validation pipeline behavior (FluentValidation);
 - `IEndpointGroup` + `app.MapEndpoints()` auto-discovery; remove the placeholder endpoint;
-- global exception handler, Serilog wiring, OpenAPI + Scalar (Development);
+- global exception handler, OpenAPI + Scalar (Development); built-in `ILogger` + OpenTelemetry, no Serilog (ADR 0005);
 - `TimeProvider` registration.
 
-**Kit:** `/plan` → implement → `/verify`. Skills: `error-handling`, `minimal-api`, `openapi`, `scalar`, `serilog`, `vertical-slice`.
+**Kit:** `/plan` → implement → `/verify`. Skills: `error-handling`, `minimal-api`, `openapi`, `scalar`, `vertical-slice`.
 **Done when:** a sample endpoint group returns ProblemDetails on validation failure, covered by an integration test.
 
 ### 0.4 Continuous integration
