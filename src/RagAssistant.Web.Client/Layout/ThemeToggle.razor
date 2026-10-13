@@ -1,0 +1,43 @@
+@inject IThemeService Themes
+
+<div class="theme-toggle" role="group" aria-label="Theme">
+    @foreach (var option in Options)
+    {
+        <FluentButton Appearance="@(_mode == option.Mode ? ButtonAppearance.Primary : ButtonAppearance.Subtle)"
+                      aria-pressed="@(_mode == option.Mode ? "true" : "false")"
+                      OnClick="() => SelectAsync(option.Mode)">@option.Label</FluentButton>
+    }
+</div>
+
+@code {
+    private static readonly (ThemeMode Mode, string Label)[] Options =
+    [
+        (ThemeMode.System, "System"),
+        (ThemeMode.Light, "Light"),
+        (ThemeMode.Dark, "Dark"),
+    ];
+
+    private ThemeMode _mode = ThemeMode.System;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        // Fluent restores and persists the choice itself; reflect it in the toggle.
+        var settings = await Themes.GetThemeSettingsAsync();
+        if (settings?.Mode is { } stored && stored != _mode)
+        {
+            _mode = stored;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SelectAsync(ThemeMode mode)
+    {
+        _mode = mode;
+        await Themes.SetThemeAsync(mode);
+    }
+}

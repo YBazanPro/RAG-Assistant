@@ -1,0 +1,21 @@
+@page "/status/{Code:int}"
+@attribute [Authorize]
+
+@* Target of the server's status code re-execution: the original 403/404 status is kept on the response. *@
+@if (Code == 403)
+{
+    <AccessDeniedContent />
+}
+else if (Code == 404)
+{
+    <NotFoundContent />
+}
+else
+{
+    <PageTitle>Something went wrong · RagAssistant</PageTitle>
+    <ErrorState Title="Something went wrong" Message="The request could not be completed." />
+}
+
+@code {
+    [Parameter] public int Code { get; set; }
+}

@@ -1,0 +1,26 @@
+<section class="state state-error" role="alert">
+    <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold">@Title</FluentText>
+    <FluentText Block="true">@Message</FluentText>
+    @if (Retry.HasDelegate || Action is not null)
+    {
+        <div class="state-action">
+            @if (Retry.HasDelegate)
+            {
+                <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Retry">@RetryLabel</FluentButton>
+            }
+            @Action
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired] public string Message { get; set; } = "";
+
+    [Parameter] public EventCallback Retry { get; set; }
+
+    [Parameter] public string RetryLabel { get; set; } = "Try again";
+
+    [Parameter] public RenderFragment? Action { get; set; }
+}
