@@ -211,3 +211,19 @@ The fallback policy requires an authenticated user on every Web endpoint; `/bff/
 ## Open Questions
 
 None.
+
+## Implementation Notes
+
+Choices made while implementing, none of which change the approved behavior (recorded 2026-10-13):
+
+- **Roles claim** comes from the ID token (`id.token.claim: true` on the web client's roles mapper); the BFF does not decode the access token.
+- **Theme persistence** is the toggle's own `localStorage` entry (`ragassistant.theme`), applied through Fluent's `IThemeService`. Fluent only stores the effective light/dark result, which cannot tell "System" from an explicit choice. A first paint may briefly show the system theme before the saved choice is applied.
+- **Status pages:** 403 and 404 are produced by re-executing `/status/{code}` (the original status code is kept). These views are rendered **statically**, without WebAssembly, because a re-executed request carries no persisted authentication state and the client would otherwise see an anonymous user (found in the manual run). `/access-denied` and `/not-found` also exist as routable pages for client-side navigation.
+- **Anonymous in the WebAssembly client:** the route-level fallback shows a "Sign in required" `ErrorState` with a link (no automatic redirect), as already specified for expired sessions. An automatic redirect looped when the state was missing.
+- **Proxy timeouts:** connect 10 s; activity timeout 2 min (configurable through `Bff:ProxyActivityTimeout`, used by the tests).
+- **Packages added** (all in the families approved by ADR 0001 and 0002): `Microsoft.Extensions.ServiceDiscovery.Yarp` (YARP destinations through Aspire service discovery) and `Microsoft.AspNetCore.Components.WebAssembly.Authentication` (`AddAuthenticationStateDeserialization`).
+- **Shared constants:** `RagAssistant.Shared` targets ASP.NET Core and cannot run in WebAssembly, so `PolicyNames.cs` and `RoleNames.cs` are linked into `Web.Client` as source files.
+- **Launch settings:** `RagAssistant.Web` has its own `launchSettings.json` (Development); without it Aspire starts the Web in Production, which breaks the OIDC metadata check.
+- **Keycloak is HTTPS** (`https://localhost:8180`, Aspire development certificate). The README recipe was corrected (`curl -k`).
+- **AC-19:** bUnit runs under TUnit (confirmed by a spike and by the component tests).
+- **AC-20** was run by hand against the AppHost on 2026-10-13: seeker, owner and maintainer sign-in, role-based navigation, Admin 403 for seeker and owner, sign-out returning to the Keycloak login, theme toggle (remembered across reloads), narrow-viewport menu, and a real Keycloak token accepted by the Host through the proxy.
