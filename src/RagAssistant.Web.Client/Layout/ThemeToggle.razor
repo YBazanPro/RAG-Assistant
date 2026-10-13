@@ -30,7 +30,7 @@
         }
 
         // The toggle owns the choice (Fluent only knows the effective light/dark result, which cannot tell "System" from a pick).
-        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+        var saved = await ReadSavedAsync();
         if (Enum.TryParse<ThemeMode>(saved, out var mode) && mode != _mode)
         {
             _mode = mode;
@@ -43,6 +43,25 @@
     {
         _mode = mode;
         await Themes.SetThemeAsync(mode);
-        await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, mode.ToString());
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, mode.ToString());
+        }
+        catch (JSException)
+        {
+            // Storage can be blocked (private window, site data disabled): the theme still applies for this visit.
+        }
+    }
+
+    private async Task<string?> ReadSavedAsync()
+    {
+        try
+        {
+            return await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+        }
+        catch (JSException)
+        {
+            return null;
+        }
     }
 }

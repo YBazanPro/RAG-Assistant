@@ -23,8 +23,10 @@
 @code {
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
 
-    // The 403/404 views are re-executed requests: they carry no persisted authentication state, so they stay static.
+    // The 403/404/500 views are re-executed requests: they carry no persisted authentication state, so they stay static.
     // If WebAssembly took them over it would see an anonymous user.
     private IComponentRenderMode? PageRenderMode =>
-        HttpContext.Features.Get<IStatusCodeReExecuteFeature>() is null ? InteractiveWebAssembly : null;
+        HttpContext.Features.Get<IStatusCodeReExecuteFeature>() is null && HttpContext.Features.Get<IExceptionHandlerFeature>() is null
+            ? InteractiveWebAssembly
+            : null;
 }

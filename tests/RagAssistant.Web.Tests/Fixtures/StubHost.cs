@@ -14,12 +14,13 @@ public sealed record EchoedRequest(string Method, string Path, string? Authoriza
 public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
 {
     private WebApplication? _app;
-    private int _requestCount;
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> _paths = new();
     private TaskCompletionSource _streamCancelled = NewSignal();
 
     public string Url { get; private set; } = "";
 
-    public int RequestCount => Volatile.Read(ref _requestCount);
+    // Tests run in parallel against this shared stub, so assert on a path no other test uses rather than on a counter.
+    public bool Received(string path) => _paths.Contains(path);
 
     public Task StreamCancelled => _streamCancelled.Task;
 
@@ -34,7 +35,7 @@ public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
 
         app.Use((context, next) =>
         {
-            Interlocked.Increment(ref _requestCount);
+            _paths.Enqueue(context.Request.Path.Value ?? "");
             return next();
         });
 
@@ -57,14 +58,6 @@ public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
         await app.StartAsync();
         _app = app;
         Url = app.Urls.First();
-    }
-
-    public async ValueTask StopAsync()
-    {
-        if (_app is not null)
-        {
-            await _app.StopAsync();
-        }
     }
 
     public async ValueTask DisposeAsync()
