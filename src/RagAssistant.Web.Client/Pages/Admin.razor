@@ -1,0 +1,7 @@
+@page "/admin"
+@attribute [Authorize(Policy = PolicyNames.Maintainer)]
+
+<PageTitle>Admin · RagAssistant</PageTitle>
+
+<PageHeader Title="Administration" />
+<EmptyState Title="Nothing to review yet" Description="Request traces, ingestion failures and evaluation results will appear here." />

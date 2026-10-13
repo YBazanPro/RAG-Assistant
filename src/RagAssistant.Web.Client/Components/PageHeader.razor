@@ -1,0 +1,21 @@
+<div class="page-header">
+    <div class="page-header-text">
+        <FluentText As="TextTag.H1" Size="TextSize.Size700" Weight="TextWeight.Semibold">@Title</FluentText>
+        @if (!string.IsNullOrEmpty(Description))
+        {
+            <FluentText Block="true" Class="page-header-description">@Description</FluentText>
+        }
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="page-header-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter] public string? Description { get; set; }
+
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

@@ -1,0 +1,7 @@
+@page "/documents"
+@attribute [Authorize(Policy = PolicyNames.KnowledgeSeeker)]
+
+<PageTitle>Documents · RagAssistant</PageTitle>
+
+<PageHeader Title="Documents" />
+<EmptyState Title="No documents yet" Description="Imported documents and their passages will be listed here." />

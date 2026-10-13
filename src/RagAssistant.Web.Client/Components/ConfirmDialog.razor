@@ -1,0 +1,64 @@
+<div @onkeydown="OnKeyDownAsync">
+    <FluentDialog @ref="_dialog" Modal="true" PreventDismissOnEscape="true" OnStateChange="OnStateChangeAsync" aria-label="@Title">
+        <FluentDialogBody>
+            <TitleTemplate>@Title</TitleTemplate>
+            <ChildContent>
+                <FluentText Block="true">@Message</FluentText>
+            </ChildContent>
+            <ActionTemplate>
+                <FluentButton Appearance="@(Destructive ? ButtonAppearance.Primary : ButtonAppearance.Primary)"
+                              Class="@(Destructive ? "confirm-destructive" : null)"
+                              OnClick="ConfirmAsync">@ConfirmLabel</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="CancelAsync">@CancelLabel</FluentButton>
+            </ActionTemplate>
+        </FluentDialogBody>
+    </FluentDialog>
+</div>
+
+@code {
+    private FluentDialog? _dialog;
+    private bool _shown;
+
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter, EditorRequired] public string Message { get; set; } = "";
+
+    [Parameter] public string ConfirmLabel { get; set; } = "Confirm";
+
+    [Parameter] public string CancelLabel { get; set; } = "Cancel";
+
+    [Parameter] public bool Destructive { get; set; }
+
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_dialog is null || Open == _shown)
+        {
+            return;
+        }
+
+        _shown = Open;
+        if (Open)
+        {
+            await _dialog.ShowAsync();
+        }
+        else
+        {
+            await _dialog.HideAsync();
+        }
+    }
+
+    private Task ConfirmAsync() => OnConfirm.InvokeAsync();
+
+    private Task CancelAsync() => OnCancel.InvokeAsync();
+
+    // Escape is handled here (not by the web component) so the parent's state stays the single source of truth.
+    private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
+
+    private Task OnStateChangeAsync(DialogEventArgs args) => Task.CompletedTask;
+}

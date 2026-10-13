@@ -1,0 +1,8 @@
+<div class="state state-loading" role="status">
+    <FluentSpinner />
+    <FluentText>@Label</FluentText>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Loading";
+}

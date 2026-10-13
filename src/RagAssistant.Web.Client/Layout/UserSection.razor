@@ -1,0 +1,17 @@
+<AuthorizeView>
+    <Authorized>
+        <div class="user-section">
+            <span class="user-name">@DisplayName(context.User)</span>
+            <form method="post" action="/bff/logout">
+                <AntiforgeryToken />
+                <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Outline">Sign out</FluentButton>
+            </form>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    // Display only: identity is the "sub" claim, never the name.
+    private static string DisplayName(System.Security.Claims.ClaimsPrincipal user) =>
+        user.FindFirst("name")?.Value ?? user.FindFirst("preferred_username")?.Value ?? "Signed in";
+}

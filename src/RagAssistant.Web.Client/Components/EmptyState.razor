@@ -1,0 +1,25 @@
+<section class="state state-empty">
+    @if (Icon is not null)
+    {
+        <div class="state-icon" aria-hidden="true">@Icon</div>
+    }
+    <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold">@Title</FluentText>
+    @if (!string.IsNullOrEmpty(Description))
+    {
+        <FluentText Block="true">@Description</FluentText>
+    }
+    @if (Action is not null)
+    {
+        <div class="state-action">@Action</div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    [Parameter] public string? Description { get; set; }
+
+    [Parameter] public RenderFragment? Icon { get; set; }
+
+    [Parameter] public RenderFragment? Action { get; set; }
+}

@@ -1,0 +1,11 @@
+@page "/"
+@attribute [Authorize]
+
+<PageTitle>Home · RagAssistant</PageTitle>
+
+<PageHeader Title="RagAssistant"
+            Description="Get answers grounded in your documents, with the sources to check them." />
+
+<AuthorizeView Policy="@PolicyNames.KnowledgeSeeker">
+    <FluentAnchorButton Href="chat" Appearance="ButtonAppearance.Primary">Ask a question</FluentAnchorButton>
+</AuthorizeView>
