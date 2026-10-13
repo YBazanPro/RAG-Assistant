@@ -2,6 +2,8 @@
 const string PostgresImageTag = "0.8.7-pg18-trixie";
 // Keep in sync with KeycloakFixture.ImageTag in tests/RagAssistant.Integration.Tests.
 const string KeycloakImageTag = "26.8";
+// Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
+const string WebClientSecret = "ragassistant-web-dev-secret";
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -26,11 +28,19 @@ var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("mig
     .WithReference(database)
     .WaitFor(database);
 
-builder.AddProject<Projects.RagAssistant_Host>("host")
+var host = builder.AddProject<Projects.RagAssistant_Host>("host")
     .WithReference(database)
     .WithReference(keycloak)
     .WaitFor(database)
     .WaitFor(keycloak)
     .WaitForCompletion(migrations);
+
+builder.AddProject<Projects.RagAssistant_Web>("web")
+    .WithReference(host)
+    .WithReference(keycloak)
+    .WithEnvironment("Keycloak__ClientSecret", WebClientSecret)
+    .WaitFor(host)
+    .WaitFor(keycloak)
+    .WithExternalHttpEndpoints();
 
 await builder.Build().RunAsync();

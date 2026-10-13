@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- RagAssistant.Shared targets ASP.NET Core and cannot run in the browser; these two files are plain constants shared by linking. -->
+    <Compile Include="..\RagAssistant.Shared\Common\Security\PolicyNames.cs" Link="Security\PolicyNames.cs" />
+    <Compile Include="..\RagAssistant.Shared\Common\Security\RoleNames.cs" Link="Security\RoleNames.cs" />
+  </ItemGroup>
+
+</Project>
