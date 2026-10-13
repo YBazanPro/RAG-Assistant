@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Npgsql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RagAssistant.ServiceDefaults\RagAssistant.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\RagAssistant.Shared\RagAssistant.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,19 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.1">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>da96cd28-f467-4a7d-9cd3-afb3bd9c449b</UserSecretsId>
+    <!-- Run via `dotnet run`; the Aspire CLI bundle is not used -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RagAssistant.Host\RagAssistant.Host.csproj" />
+    <ProjectReference Include="..\RagAssistant.MigrationService\RagAssistant.MigrationService.csproj" />
+  </ItemGroup>
+
+</Project>
