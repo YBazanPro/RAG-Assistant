@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -154,17 +155,10 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
         var request = client.GetAsync(new Uri("/api/_test/slow", UriKind.Relative), cts.Token);
         await Task.Delay(TimeSpan.FromMilliseconds(300));
         await cts.CancelAsync();
-        try
-        {
-            await request;
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected: the client gave up.
-        }
+        await Assert.That(async () => await request).Throws<OperationCanceledException>();
 
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (DateTime.UtcNow < deadline && !AbortLogged())
+        var waited = Stopwatch.StartNew();
+        while (waited.Elapsed < TimeSpan.FromSeconds(5) && !AbortLogged())
         {
             await Task.Delay(50);
         }
