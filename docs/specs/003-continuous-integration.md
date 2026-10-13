@@ -15,4 +15,4 @@ Every pull request and every push to `main` is validated automatically.
 7. The workflow has read-only permissions and uses no secrets.
 
 ## Out of scope
-Deployment, coverage gates, the Keycloak smoke test (step 0.5), dependency update bots.
+Deployment, coverage gates, the Keycloak smoke test (added to the standard test run by [spec 004](004-identity.md)), dependency update bots.

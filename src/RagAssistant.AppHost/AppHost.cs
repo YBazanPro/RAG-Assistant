@@ -1,5 +1,7 @@
 // Keep in sync with PostgresFixture.ImageTag in tests/RagAssistant.Integration.Tests.
 const string PostgresImageTag = "0.8.7-pg18-trixie";
+// Keep in sync with KeycloakFixture.ImageTag in tests/RagAssistant.Integration.Tests.
+const string KeycloakImageTag = "26.8";
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -15,13 +17,20 @@ var postgres = builder.AddPostgres("postgres")
 
 var database = postgres.AddDatabase("ragassistant");
 
+// No data volume and the default session lifetime: the container re-imports the committed realm file on every run.
+var keycloak = builder.AddKeycloak("keycloak", port: 8180)
+    .WithImageTag(KeycloakImageTag)
+    .WithRealmImport("./Realms");
+
 var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("migrations")
     .WithReference(database)
     .WaitFor(database);
 
 builder.AddProject<Projects.RagAssistant_Host>("host")
     .WithReference(database)
+    .WithReference(keycloak)
     .WaitFor(database)
+    .WaitFor(keycloak)
     .WaitForCompletion(migrations);
 
 await builder.Build().RunAsync();

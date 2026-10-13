@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using RagAssistant.Integration.Tests.Sample;
 using RagAssistant.Shared.Persistence;
 using TUnit.Core.Interfaces;
@@ -30,6 +32,20 @@ public sealed class RagAssistantAppFactory : WebApplicationFactory<Program>, IAs
         {
             services.AddDatabaseMigrator();
             services.AddSampleSlice();
+
+            // Same issuer, audience and "roles" shape as Keycloak, but signed with a test key and with no metadata fetch.
+            // Configure (not PostConfigure): the framework's post-configure would otherwise build a metadata manager from the Keycloak authority first.
+            services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            {
+                options.Authority = null;
+                options.MetadataAddress = null!;
+                options.RequireHttpsMetadata = false;
+                options.Configuration = new OpenIdConnectConfiguration();
+                options.TokenValidationParameters.IssuerSigningKey = TestTokens.SigningKey;
+                options.TokenValidationParameters.ValidIssuer = TestTokens.Issuer;
+                options.TokenValidationParameters.ValidAudience = TestTokens.Audience;
+                options.TokenValidationParameters.ClockSkew = TimeSpan.Zero;
+            });
         });
     }
 }

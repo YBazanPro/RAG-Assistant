@@ -19,7 +19,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Echo_validRequest_returnsEchoedValue()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.PostAsJsonAsync("/api/_test/echo", new { text = "hello" });
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -31,7 +31,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Echo_invalidRequest_returnsValidationProblemAndSkipsHandler()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
         var tooLong = new string('x', 25);
 
         var response = await client.PostAsJsonAsync("/api/_test/echo", new { text = tooLong });
@@ -48,7 +48,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task NotFound_handlerFailure_returns404WithErrorCode()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.GetAsync(new Uri("/api/_test/not-found", UriKind.Relative));
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -61,7 +61,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Conflict_handlerFailure_returns409WithErrorCode()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.GetAsync(new Uri("/api/_test/conflict", UriKind.Relative));
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -74,7 +74,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     public async Task Throws_inProduction_returnsGenericProblemAndLogsOnce()
     {
         using var production = factory.WithWebHostBuilder(b => b.UseEnvironment("Production"));
-        using var client = production.CreateClient();
+        using var client = production.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.GetAsync(new Uri("/api/_test/throws?message=boom-prod", UriKind.Relative));
         var text = await response.Content.ReadAsStringAsync();
@@ -89,7 +89,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Throws_inDevelopment_includesExceptionTextInDetail()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.GetAsync(new Uri("/api/_test/throws?message=boom-dev", UriKind.Relative));
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -101,7 +101,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task UnknownRoute_underApi_returns404Problem()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.GetAsync(new Uri("/api/does-not-exist", UriKind.Relative));
 
@@ -112,7 +112,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task WrongMethod_onKnownRoute_returns405Problem()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.PostAsync(new Uri("/api/_test/not-found", UriKind.Relative), content: null);
 
@@ -123,7 +123,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Echo_malformedJson_returns400WithMalformedCode()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
         using var content = new StringContent("{ not json", Encoding.UTF8, "application/json");
 
         var response = await client.PostAsync(new Uri("/api/_test/echo", UriKind.Relative), content);
@@ -137,7 +137,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Echo_unsupportedContentType_returns415Problem()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
         using var content = new StringContent("hello", Encoding.UTF8, "text/plain");
 
         var response = await client.PostAsync(new Uri("/api/_test/echo", UriKind.Relative), content);
@@ -149,7 +149,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Slow_clientAborts_logsNoErrorAndServerStaysHealthy()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
         using var cts = new CancellationTokenSource();
 
         var request = client.GetAsync(new Uri("/api/_test/slow", UriKind.Relative), cts.Token);
@@ -174,7 +174,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Startup_mapsEndpointGroupsUnderApiAndKeepsHealthEndpoints()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var sample = await client.GetAsync(new Uri("/api/_test/conflict", UriKind.Relative));
         var health = await client.GetAsync(new Uri("/health", UriKind.Relative));
@@ -188,7 +188,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task Root_noPlaceholder_returns404Problem()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var response = await client.GetAsync(new Uri("/", UriKind.Relative));
 
@@ -199,7 +199,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     [Test]
     public async Task ApiDocs_inDevelopment_areServed()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
 
         var openApi = await client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative));
         var scalar = await client.GetAsync(new Uri("/scalar", UriKind.Relative));
@@ -212,7 +212,7 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     public async Task ApiDocs_inProduction_return404()
     {
         using var production = factory.WithWebHostBuilder(b => b.UseEnvironment("Production"));
-        using var client = production.CreateClient();
+        using var client = production.CreateClientAs(Persona.KnowledgeSeeker);
 
         var openApi = await client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative));
         var scalar = await client.GetAsync(new Uri("/scalar", UriKind.Relative));
