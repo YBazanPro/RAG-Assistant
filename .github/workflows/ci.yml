@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - name: Restore
+        run: dotnet restore RagAssistant.slnx
+
+      - name: Build
+        run: dotnet build RagAssistant.slnx --no-restore -c Release
+
+      - name: Format check
+        run: dotnet format RagAssistant.slnx --verify-no-changes --no-restore
+
+      # Integration tests start PostgreSQL through Testcontainers (Docker is preinstalled on ubuntu-latest).
+      - name: Test
+        run: dotnet test --solution RagAssistant.slnx --no-build -c Release
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: "**/TestResults/**"
+          if-no-files-found: ignore

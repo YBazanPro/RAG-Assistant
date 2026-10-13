@@ -67,7 +67,7 @@ These block specs and must be answered first (`product.md`, "Open questions"):
 
 See [Skills and tooling](#skills-and-tooling) below. Install the extra plugins **before** writing Blazor or test code.
 
-### 0.3 Shared kernel and API conventions
+### 0.3 Shared kernel and API conventions — ✅ Done
 
 Small, but everything depends on it:
 
@@ -80,7 +80,9 @@ Small, but everything depends on it:
 **Kit:** `/plan` → implement → `/verify`. Skills: `error-handling`, `minimal-api`, `openapi`, `scalar`, `vertical-slice`.
 **Done when:** a sample endpoint group returns ProblemDetails on validation failure, covered by an integration test.
 
-### 0.4 Continuous integration
+### 0.4 Continuous integration — ✅ Done
+
+[Spec 003](specs/003-continuous-integration.md): `.github/workflows/ci.yml` runs restore, Release build, format check and tests on every PR and push to `main`.
 
 GitHub Actions: restore, build (warnings as errors), `dotnet format --verify-no-changes`, and `dotnet test` with Docker (Testcontainers runs on `ubuntu-latest`).
 
