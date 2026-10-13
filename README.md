@@ -20,7 +20,7 @@ Open the dashboard via the login URL printed in the console. The AppHost starts:
 | `ragassistant` | Application database | — |
 | `pgweb` | Database browser | link in the dashboard |
 | `migrations` | Applies EF Core migrations, then exits | — |
-| `keycloak` | Identity provider (dev only, `quay.io/keycloak/keycloak:26.8`), realm imported from `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` | `http://localhost:8180` |
+| `keycloak` | Identity provider (dev only, `quay.io/keycloak/keycloak:26.8`), realm imported from `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` | `https://localhost:8180` (Aspire dev certificate) |
 | `host` | The API (starts after migrations and Keycloak) | `https://localhost:7043` |
 | `web` | The UI and its backend for frontend (starts after the Host and Keycloak): sign-in, session cookie, `/api/**` forwarded to the Host | link in the dashboard |
 
@@ -61,10 +61,10 @@ Open the `web` link from the dashboard and sign in with one of these users (sign
 The browser only calls the Web, which forwards `/api/**` to the Host with your access token (tokens never reach the browser). Every `/api` endpoint on the Host requires a bearer token. To call the Host directly, get a token by hand with the public dev client `ragassistant-dev` (password grant):
 
 ```bash
-curl -s -X POST http://localhost:8180/realms/ragassistant/protocol/openid-connect/token -d grant_type=password -d client_id=ragassistant-dev -d username=maintainer -d password=maintainer-dev
+curl -sk -X POST https://localhost:8180/realms/ragassistant/protocol/openid-connect/token -d grant_type=password -d client_id=ragassistant-dev -d username=maintainer -d password=maintainer-dev
 ```
 
-Send the returned `access_token` as `Authorization: Bearer <token>`. Tokens last one hour.
+Keycloak is served over HTTPS with the Aspire development certificate, hence `curl -k`. Send the returned `access_token` as `Authorization: Bearer <token>`. Tokens last one hour.
 
 ## Test
 
