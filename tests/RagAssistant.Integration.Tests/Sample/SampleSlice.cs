@@ -9,6 +9,7 @@ using ModuleMediator = RagAssistant.Integration.Tests.Generated.Mediator;
 using RagAssistant.Shared.Common;
 using RagAssistant.Shared.Common.Behaviors;
 using RagAssistant.Shared.Common.Extensions;
+using RagAssistant.Shared.Common.Security;
 
 namespace RagAssistant.Integration.Tests.Sample;
 
@@ -16,6 +17,8 @@ namespace RagAssistant.Integration.Tests.Sample;
 public sealed record EchoCommand(string? Text) : IRequest<Result<EchoResponse>>;
 
 public sealed record EchoResponse(string Text);
+
+public sealed record Ok(bool Value);
 
 public sealed class EchoValidator : AbstractValidator<EchoCommand>
 {
@@ -75,6 +78,12 @@ public sealed class SampleEndpoints : IEndpointGroup
         group.MapGet("/throws", async (string? message, ModuleMediator mediator, CancellationToken ct) =>
             (await mediator.Send(new FailCommand("throws", message), ct)).ToHttpResult());
         group.MapGet("/slow", Fail("slow"));
+
+        group.MapGet("/anonymous", () => TypedResults.Ok(new Ok(true))).AllowAnonymous();
+        group.MapGet("/authenticated", () => TypedResults.Ok(new Ok(true)));
+        group.MapGet("/seeker", () => TypedResults.Ok(new Ok(true))).RequireAuthorization(PolicyNames.KnowledgeSeeker);
+        group.MapGet("/owner", () => TypedResults.Ok(new Ok(true))).RequireAuthorization(PolicyNames.ContentOwner);
+        group.MapGet("/maintainer", () => TypedResults.Ok(new Ok(true))).RequireAuthorization(PolicyNames.Maintainer);
     }
 
     private static Func<ModuleMediator, CancellationToken, Task<IResult>> Fail(string kind) =>

@@ -13,7 +13,7 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001) | Shared kernel (Result, Mediator, validation, ProblemDetails, endpoint discovery), modules, Keycloak, Web project, CI, project skills |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004) | Modules, Web project, project skills |
 
 The Host still has a placeholder `MapGet("/")` in `Program.cs`. It is removed in step 0.3.
 
@@ -89,7 +89,9 @@ GitHub Actions: restore, build (warnings as errors), `dotnet format --verify-no-
 **Why now:** every following PR is validated automatically (`product.md`, "Delivery workflow").
 **Kit:** `ci-cd` skill. **Extra skill:** `run-tests` (dotnet/skills) for the exact Microsoft.Testing.Platform/TUnit command line.
 
-### 0.5 Identity (ADR 0002)
+### 0.5 Identity (ADR 0002) — ✅ Done
+
+[Spec 004](specs/004-identity.md): Keycloak 26.8 in the AppHost, JWT bearer + role policies + fallback policy on the Host, persona test helper, Keycloak realm smoke test. Sign-in through the browser arrives with step 0.6.
 
 - Keycloak in the AppHost with the committed realm file (clients, three roles, test users, flat `roles` claim, audience mapper).
 - Host: JWT bearer, policies `KnowledgeSeeker` / `ContentOwner` / `Maintainer`, policy name constants in Shared.

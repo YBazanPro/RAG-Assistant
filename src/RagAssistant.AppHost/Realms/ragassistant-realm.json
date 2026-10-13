@@ -1,0 +1,201 @@
+{
+  "realm": "ragassistant",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 3600,
+  "roles": {
+    "realm": [
+      {
+        "name": "knowledge-seeker",
+        "description": "Knowledge Seeker: asks questions"
+      },
+      {
+        "name": "content-owner",
+        "description": "Content Owner: manages the corpus",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "knowledge-seeker"
+          ]
+        }
+      },
+      {
+        "name": "maintainer",
+        "description": "System Maintainer: diagnoses the system",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "content-owner"
+          ]
+        }
+      }
+    ]
+  },
+  "scopeMappings": [
+    {
+      "client": "ragassistant-web",
+      "roles": [
+        "knowledge-seeker",
+        "content-owner",
+        "maintainer"
+      ]
+    },
+    {
+      "client": "ragassistant-dev",
+      "roles": [
+        "knowledge-seeker",
+        "content-owner",
+        "maintainer"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "ragassistant-web",
+      "name": "RagAssistant Web (BFF)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "ragassistant-web-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "ragassistant-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "ragassistant-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-flat",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "ragassistant-api",
+      "name": "RagAssistant API (audience only)",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false
+    },
+    {
+      "clientId": "ragassistant-dev",
+      "name": "RagAssistant dev token client (password grant)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "fullScopeAllowed": false,
+      "protocolMappers": [
+        {
+          "name": "ragassistant-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "ragassistant-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles-flat",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "seeker",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Seeker",
+      "lastName": "Dev",
+      "email": "seeker@ragassistant.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "seeker-dev",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "knowledge-seeker"
+      ]
+    },
+    {
+      "username": "owner",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Owner",
+      "lastName": "Dev",
+      "email": "owner@ragassistant.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "owner-dev",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "content-owner"
+      ]
+    },
+    {
+      "username": "maintainer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Maintainer",
+      "lastName": "Dev",
+      "email": "maintainer@ragassistant.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "maintainer-dev",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "maintainer"
+      ]
+    }
+  ]
+}

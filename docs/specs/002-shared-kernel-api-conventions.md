@@ -149,7 +149,7 @@ None in this step. All endpoints, including the test-only group, are anonymous. 
 | ~~Does per-module Mediator work?~~ **Resolved 2026-10-13:** yes, with the rule that modules inject their concrete generated `Mediator`, not `IMediator`/`ISender`. A single Host-level Mediator was rejected (sees all modules, needs public handlers). | n/a | n/a |
 | Pagination convention | Defined by the first listing slice (Phase 1.5) | Step 1.5 spec |
 | Error `Code` uniqueness / catalog | No enforcement; codes are `<area>.<reason>` by convention | A duplicate code causes confusion |
-| Auth challenge/forbidden ProblemDetails bodies | Added with step 0.5 | Step 0.5 spec |
+| Auth challenge/forbidden ProblemDetails bodies | Added in [spec 004](004-identity.md) (`auth.unauthenticated`, `auth.forbidden`) | Done |
 
 ## Open Questions
 

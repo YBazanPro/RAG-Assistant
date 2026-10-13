@@ -18,7 +18,7 @@ internal static class ApiConventionsExtensions
         services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
 
         services.AddSingleton(TimeProvider.System);
-        services.AddOpenApi();
+        services.AddOpenApi(options => options.AddBearerSecurity());
         return services;
     }
 
@@ -33,8 +33,8 @@ internal static class ApiConventionsExtensions
     {
         if (app.Environment.IsDevelopment())
         {
-            app.MapOpenApi();
-            app.MapScalarApiReference();
+            app.MapOpenApi().AllowAnonymous();
+            app.MapScalarApiReference().AllowAnonymous();
         }
 
         return app;
