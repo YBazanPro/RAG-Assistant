@@ -1,0 +1,3 @@
+[*.cs]
+# Test names use underscores: Method_scenario_expected
+dotnet_diagnostic.CA1707.severity = none
