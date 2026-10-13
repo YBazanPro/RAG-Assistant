@@ -106,6 +106,31 @@ public class LayoutComponentTests
     }
 
     [Test]
+    public async Task ThemeToggle_restores_the_saved_choice_on_load()
+    {
+        using var ctx = NewContext();
+        ctx.JSInterop.Setup<string?>("localStorage.getItem", "ragassistant.theme").SetResult("Dark");
+
+        var cut = ctx.Render<ThemeToggle>();
+
+        var pressed = cut.FindAll("fluent-button").Single(b => b.GetAttribute("aria-pressed") == "true");
+        await Assert.That(pressed.TextContent.Trim()).IsEqualTo("Dark");
+    }
+
+    [Test]
+    public async Task ThemeToggle_remembers_the_choice_in_local_storage()
+    {
+        using var ctx = NewContext();
+        var cut = ctx.Render<ThemeToggle>();
+
+        cut.FindAll("fluent-button").Single(b => b.TextContent.Trim() == "Light").Click();
+
+        var call = ctx.JSInterop.Invocations.Single(i => i.Identifier == "localStorage.setItem");
+        await Assert.That(call.Arguments[0]).IsEqualTo("ragassistant.theme");
+        await Assert.That(call.Arguments[1]).IsEqualTo("Light");
+    }
+
+    [Test]
     public async Task RequestedWithHandler_adds_the_header_to_every_request()
     {
         var inner = new CapturingHandler();

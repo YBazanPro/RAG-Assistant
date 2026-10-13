@@ -362,7 +362,7 @@ Answer Generation produces a user-facing response from the retrieved material. I
 
 - Construct an answer from retrieved context.
 - Respect the constraints imposed by available evidence.
-- Produce a response in the user’s language.
+- Produce a response in English.
 - Indicate uncertainty when evidence is partial or conflicting.
 - Refuse to answer when the corpus does not provide sufficient support.
 - Preserve the connection between claims and supporting passages.
@@ -647,7 +647,7 @@ The UI must communicate clarity, control, and trust. It should feel like a profe
 - **Explicit states:** loading, streaming, complete, partial, refused, and failed states must be visually distinct.
 - **Progressive disclosure:** show essential information first; expose scores, technical details, and diagnostics on demand.
 - **Accessible by default:** keyboard navigation, visible focus, semantic HTML, sufficient contrast, and clear labels.
-- **Bilingual by design:** French and English are first-class experiences, not an afterthought. This goes beyond UI translation: the embedding model must be multilingual, keyword search needs French and English text configurations, a question in one language may retrieve documents in the other, and answers follow the user's language.
+- **English only:** the UI, the documents, the questions and the answers are in English. There is no localization and no language switching (decided in spec 005). A multilingual embedding model is still acceptable.
 - **Responsive by design:** answers stream as they are generated, retrieval and ingestion progress are visible while they run, and the user can cancel a running answer.
 - **Separate product surfaces:** the functional assistant and the public portfolio site remain distinct applications.
 
@@ -787,7 +787,7 @@ The functional application contains six primary areas.
 │ Title | Status | Language | Updated | Passages | …    │
 ├──────────────────────────────────────────────────────┤
 │ Budget Policy | Active | EN | 2026-10-01 | 42 | …     │
-│ Support Guide | Processing | FR | — | — | …           │
+│ Support Guide | Processing | EN | — | — | …           │
 │ Old Policy | Archived | EN | 2025-06-12 | 18 | …      │
 └──────────────────────────────────────────────────────┘
 ```
@@ -900,7 +900,6 @@ This area may be protected and intentionally technical.
 | `LoadingState` | Indicate an operation in progress |
 | `ConfirmDialog` | Confirm sensitive actions |
 | `Toast` | Communicate a transient result |
-| `LanguageSwitcher` | Switch between French and English |
 | `CorpusSelector` | Select a corpus or collection |
 | `Tag` | Display categories and filters |
 
@@ -1253,7 +1252,7 @@ The project is successful when a user can:
 
 These must be answered before or during the Documents and Chat specifications:
 
-- **Model provider:** which chat and embedding models (hosted or local)? The embedding model fixes the vector dimension and must be multilingual (FR/EN).
+- **Model provider:** which chat and embedding models (hosted or local)? The embedding model fixes the vector dimension.
 - **Targets:** expected corpus size (documents, passages), acceptable time to first streamed token, and acceptable ingestion time per document.
 - **Retention:** how long conversations and request traces are kept.
 - **Document versioning model:** confirm versioned documents with stable passage identifiers and per-answer snapshots of cited passages (challenge 5). This must be settled in the first Documents specification.

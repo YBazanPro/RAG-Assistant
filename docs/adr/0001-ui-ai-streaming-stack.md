@@ -32,7 +32,7 @@ The whole solution stays on `net10.0`.
 
 - It provides the generic primitives listed in `product.md` (layout, navigation, buttons, inputs, dialogs, badges, tabs, cards, tooltips, data grid, light/dark theming).
 - The RAG domain components (`AnswerMessage`, `CitationList`, `CitationItem`, `SourcePreview`, `RefusalNotice`, `DocumentStatusBadge`, `PassageCard`, `RetrievalInspector`, …) are application-owned and built on Fluent primitives.
-- Pick v4 or v5 when the UI project is created, based on whether v5 is stable at that point. Pin the version in `Directory.Packages.props`.
+- Pick v4 or v5 when the UI project is created, based on whether v5 is stable at that point. Pin the version in `Directory.Packages.props`. **Decided in [spec 005](../specs/005-web-shell.md): v5.0.0** (stable at that point).
 
 **Rejected: Syncfusion Blazor.** It is commercial, not open source. It is free only under the Community License, which has revenue, headcount and funding limits and is granted at Syncfusion's discretion. In a public demo repository, anyone cloning the project would need their own license key. Its distinctive components (PDF viewer, diagram, AI AssistView) are not needed for the first release. Mixing two design systems is also rejected.
 

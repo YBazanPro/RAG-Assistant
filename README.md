@@ -22,6 +22,7 @@ Open the dashboard via the login URL printed in the console. The AppHost starts:
 | `migrations` | Applies EF Core migrations, then exits | — |
 | `keycloak` | Identity provider (dev only, `quay.io/keycloak/keycloak:26.8`), realm imported from `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` | `http://localhost:8180` |
 | `host` | The API (starts after migrations and Keycloak) | `https://localhost:7043` |
+| `web` | The UI and its backend for frontend (starts after the Host and Keycloak): sign-in, session cookie, `/api/**` forwarded to the Host | link in the dashboard |
 
 The `postgres` and `pgweb` containers are persistent: they keep running after the AppHost stops, and data lives in the Docker volume `ragassistant-postgres-data`.
 
@@ -55,7 +56,9 @@ Dev-only users (the realm file is never deployed):
 | `owner` | `owner-dev` | Content Owner | `content-owner`, `knowledge-seeker` |
 | `maintainer` | `maintainer-dev` | System Maintainer | `maintainer`, `content-owner`, `knowledge-seeker` |
 
-Every `/api` endpoint requires a bearer token (the Web sign-in arrives with the BFF). To get a token by hand with the public dev client `ragassistant-dev` (password grant):
+Open the `web` link from the dashboard and sign in with one of these users (sign out first to switch: sign-out also ends the Keycloak session, so the next sign-in asks for credentials again). Only the maintainer sees the Admin page. The UI is English only and has a System / Light / Dark theme toggle.
+
+The browser only calls the Web, which forwards `/api/**` to the Host with your access token (tokens never reach the browser). Every `/api` endpoint on the Host requires a bearer token. To call the Host directly, get a token by hand with the public dev client `ragassistant-dev` (password grant):
 
 ```bash
 curl -s -X POST http://localhost:8180/realms/ragassistant/protocol/openid-connect/token -d grant_type=password -d client_id=ragassistant-dev -d username=maintainer -d password=maintainer-dev
@@ -68,5 +71,7 @@ Send the returned `access_token` as `Authorization: Bearer <token>`. Tokens last
 ```bash
 dotnet test --solution RagAssistant.slnx
 ```
+
+The Web tests (`tests/RagAssistant.Web.Tests`) need no Docker: they run bUnit component tests and exercise the BFF against an in-process stub Host.
 
 Integration tests start their own throwaway PostgreSQL container (same image) through Testcontainers, so Docker must be running. They validate tokens signed with a test key, so only one smoke test starts Keycloak (same image and realm file as the AppHost).

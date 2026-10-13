@@ -159,4 +159,18 @@ public class SharedComponentTests
         await Assert.That(normal.Markup).DoesNotContain("confirm-destructive");
         await Assert.That(destructive.Markup).Contains("confirm-destructive");
     }
+
+    [Test]
+    public async Task SignInRequired_offers_a_sign_in_link_that_returns_to_the_current_page_without_redirecting()
+    {
+        using var ctx = NewContext();
+        var navigation = ctx.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo("/documents?page=2");
+
+        var cut = ctx.Render<SignInRequired>();
+
+        await Assert.That(cut.Find("section").GetAttribute("role")).IsEqualTo("alert");
+        await Assert.That(cut.Markup).Contains("href=\"bff/login?returnUrl=%2Fdocuments%3Fpage%3D2\"");
+        await Assert.That(navigation.Uri).EndsWith("/documents?page=2");
+    }
 }

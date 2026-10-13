@@ -105,8 +105,8 @@ ADR 0001 had the WebAssembly client call the Host directly. With authentication,
   - Response buffering stays disabled so SSE events reach the browser as they are produced.
 - The WebAssembly client calls only its own origin (`/api/...`) with the cookie. It never sees a token.
 - Authentication state reaches WebAssembly components through `AddAuthenticationStateSerialization` (server) and `AddAuthenticationStateDeserialization` (client).
-- **Access-token refresh** (refresh-token grant) is handled in the BFF before tokens are forwarded. The library, if any, is chosen at implementation time and must be free and open source.
-- **Antiforgery:** state-changing `/api/**` calls from the client require antiforgery protection, as the cookie authenticates them.
+- **Access-token refresh** (refresh-token grant) is handled in the BFF before tokens are forwarded. The library, if any, is chosen at implementation time and must be free and open source. *Amended by [spec 005](../specs/005-web-shell.md): no refresh is implemented. The session lasts as long as the access token (1 hour); after that the next request re-challenges and the Keycloak SSO session signs the user back in without a password prompt.*
+- **Antiforgery:** state-changing `/api/**` calls from the client require antiforgery protection, as the cookie authenticates them. *Amended by [spec 005](../specs/005-web-shell.md): the protection is a required `X-Requested-With: ragassistant` header on POST/PUT/PATCH/DELETE plus a `SameSite=Lax` cookie; antiforgery tokens are used only for the sign-out form.*
 
 The rest of ADR 0001 decision 5 still holds: WebAssembly interactivity for streaming pages, and the Host remains the only backend.
 

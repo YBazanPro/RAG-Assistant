@@ -1,0 +1,14 @@
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in required · RagAssistant</PageTitle>
+@* No automatic redirect: it would loop if the session is valid but its state did not reach this component, and it would drop typed input. *@
+<ErrorState Title="Sign in required" Message="Your session has ended or you are not signed in.">
+    <Action>
+        <FluentAnchorButton Href="@SignInUrl" Appearance="ButtonAppearance.Primary" ForceLoad="true">Sign in</FluentAnchorButton>
+    </Action>
+</ErrorState>
+
+@code {
+    private string SignInUrl =>
+        $"bff/login?returnUrl={Uri.EscapeDataString("/" + Navigation.ToBaseRelativePath(Navigation.Uri))}";
+}
