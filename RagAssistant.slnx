@@ -4,9 +4,12 @@
     <Project Path="src/RagAssistant.Host/RagAssistant.Host.csproj" />
     <Project Path="src/RagAssistant.MigrationService/RagAssistant.MigrationService.csproj" />
     <Project Path="src/RagAssistant.ServiceDefaults/RagAssistant.ServiceDefaults.csproj" />
+    <Project Path="src/RagAssistant.Web.Client/RagAssistant.Web.Client.csproj" />
+    <Project Path="src/RagAssistant.Web/RagAssistant.Web.csproj" />
     <Project Path="src/RagAssistant.Shared/RagAssistant.Shared.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/RagAssistant.Integration.Tests/RagAssistant.Integration.Tests.csproj" />
+    <Project Path="tests/RagAssistant.Web.Tests/RagAssistant.Web.Tests.csproj" />
   </Folder>
 </Solution>
