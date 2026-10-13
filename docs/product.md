@@ -218,6 +218,21 @@ The application is organized into modules that own distinct business capabilitie
 - Administration controls corpus lifecycle and operational settings.
 - Observability is cross-cutting and must not become a business dependency.
 
+### Capabilities versus code modules
+
+The blocks above are **functional capabilities**, not one code module each. They map to code modules as follows:
+
+| Code module | Capabilities | Release |
+|---|---|---|
+| `Documents` | Corpus Management, Content Ingestion, Retrieval | First |
+| `Chat` | Conversation, Answer Generation, Citations and Provenance | First |
+| `Knowledge` | Knowledge Relationships | Later |
+| `Evaluation` | Evaluation (separate harness, see below) | First (basic) |
+| — | Administration: a UI area over the other modules' endpoints, not a module. Sign-in and roles come from the identity provider (ADR 0002) | First (read-mostly) |
+| — | Observability: cross-cutting (`ServiceDefaults`, OpenTelemetry), plus request traces stored by `Chat` | First (basic) |
+
+The technical stack (.NET 10, Fluent UI Blazor, Microsoft.Extensions.AI, Server-Sent Events, TUnit) is recorded in [ADR 0001](adr/0001-ui-ai-streaming-stack.md).
+
 ## Corpus Management
 
 ### Purpose
@@ -273,6 +288,12 @@ Content Ingestion transforms source material into searchable knowledge. It recei
 - Preserve the relationship between a passage and its source.
 - Record ingestion status and errors.
 - Support reprocessing when ingestion rules change.
+
+### First-release formats
+
+Markdown and plain text only. Markdown headings provide the structure needed for section-aware chunking. DOCX and simple PDFs may follow; large-scale PDF extraction remains out of scope.
+
+Ingestion runs in the background: an import is accepted immediately, and the user follows its progress (queued, extracting, chunking, embedding, indexed or failed) as it happens.
 
 ### Functional rules
 
@@ -421,6 +442,7 @@ Conversation manages the interaction between the user and the assistant. It pres
 - A failed answer must not corrupt the conversation.
 - The user must be able to start a new topic without carrying irrelevant context.
 - Sensitive or unnecessary conversation data must not be retained indefinitely.
+- A conversation belongs to the user who started it; other users cannot see it. Maintainers can inspect request traces for diagnosis.
 
 ### Example
 
@@ -511,6 +533,7 @@ This module prevents the project from becoming a system that looks impressive in
 - A change that improves one metric must not silently damage another.
 - Evaluation failures must be actionable.
 - Results must be reproducible and comparable across runs.
+- Evaluation needs the real models (the embedding model for retrieval quality, the chat model for answer quality), so it runs in a dedicated harness on demand, never in the automated test suite.
 
 ### Example
 
@@ -538,13 +561,29 @@ It ensures that the assistant remains manageable as the corpus grows and require
 
 ### Responsibilities
 
-- Manage users, roles, and permissions.
+- Manage users, roles, and permissions *(first release: defined in configuration, see below)*.
 - Control who can import, update, or remove content.
-- Manage corpus visibility and access rules.
+- Manage corpus visibility and access rules *(later)*.
 - Configure retrieval and answer-generation behavior.
 - Monitor ingestion and processing status.
-- Manage feature flags and operational settings.
+- Manage feature flags and operational settings *(later)*.
 - Provide tools for reviewing failures and correcting content.
+
+### First-release scope
+
+Users sign in, and access is controlled by **one role per persona**. Each role includes the rights of the roles before it:
+
+| Role | Persona | Can |
+|---|---|---|
+| `knowledge-seeker` | Knowledge Seeker | Ask questions, read their own conversations, inspect citations and active documents |
+| `content-owner` | Content Owner | Everything above, plus import, update, archive and reprocess documents |
+| `maintainer` | System Maintainer | Everything above, plus the `/admin` area: all request traces, failures, evaluation results |
+
+Users and roles are defined in configuration committed with the project. A fresh copy of the repository starts with one ready-to-use test user per persona. There is no user-management screen in the first release.
+
+Per-document or per-corpus access rules remain out of scope ("complex role-based document security"). Administration is otherwise a read-mostly area for monitoring corpus health, ingestion failures, recent requests and evaluation results. Feature flags come later.
+
+The identity provider and its configuration are recorded in [ADR 0002](adr/0002-identity-and-authentication.md).
 
 ### Functional rules
 
@@ -581,6 +620,7 @@ This module is not only for engineers. It supports the product question: *why di
 - Metrics must answer practical questions, not merely collect data.
 - A failure must be identifiable without manually reproducing the entire request.
 - Quality signals must be connected to specific conversations and corpus versions.
+- Traces in the telemetry dashboard are short-lived. To support Journey 4, each request's retrieval and answer record (question, rewritten query, retrieved passages and scores, answer status, citations, timings) is stored with the conversation, without full document text.
 
 ### Example
 
@@ -607,7 +647,8 @@ The UI must communicate clarity, control, and trust. It should feel like a profe
 - **Explicit states:** loading, streaming, complete, partial, refused, and failed states must be visually distinct.
 - **Progressive disclosure:** show essential information first; expose scores, technical details, and diagnostics on demand.
 - **Accessible by default:** keyboard navigation, visible focus, semantic HTML, sufficient contrast, and clear labels.
-- **Bilingual by design:** French and English are first-class experiences, not an afterthought.
+- **Bilingual by design:** French and English are first-class experiences, not an afterthought. This goes beyond UI translation: the embedding model must be multilingual, keyword search needs French and English text configurations, a question in one language may retrieve documents in the other, and answers follow the user's language.
+- **Responsive by design:** answers stream as they are generated, retrieval and ingestion progress are visible while they run, and the user can cancel a running answer.
 - **Separate product surfaces:** the functional assistant and the public portfolio site remain distinct applications.
 
 ### Visual direction
@@ -917,7 +958,7 @@ Displays:
 - The component displays a passage excerpt.
 - The component opens the source preview when selected.
 - The component does not display a raw internal ID as the primary label.
-- The component remains usable without JavaScript where possible.
+- The citation's document title and location are rendered as plain, readable content, even before the interactive UI is loaded.
 ```
 
 ## Major functional challenges
@@ -1207,6 +1248,15 @@ The project is successful when a user can:
 6. understand why a particular result was returned;
 7. trust that content changes are reflected in future answers;
 8. see failures and quality issues rather than having them hidden.
+
+## Open questions
+
+These must be answered before or during the Documents and Chat specifications:
+
+- **Model provider:** which chat and embedding models (hosted or local)? The embedding model fixes the vector dimension and must be multilingual (FR/EN).
+- **Targets:** expected corpus size (documents, passages), acceptable time to first streamed token, and acceptable ingestion time per document.
+- **Retention:** how long conversations and request traces are kept.
+- **Document versioning model:** confirm versioned documents with stable passage identifiers and per-answer snapshots of cited passages (challenge 5). This must be settled in the first Documents specification.
 
 ## Guiding decision
 
