@@ -21,13 +21,24 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+// Baseline headers for every response, including redirects and errors. The CSP only forbids framing (clickjacking);
+// a full script policy needs care with the WebAssembly runtime and is left for later.
+app.Use((context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers.XContentTypeOptions = "nosniff";
+    headers["Referrer-Policy"] = "same-origin";
+    headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+    return next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
 }
 else
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseExceptionHandler("/status/500", createScopeForErrors: true);
     app.UseHsts();
 }
 

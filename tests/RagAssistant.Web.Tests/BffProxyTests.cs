@@ -26,17 +26,16 @@ public class BffProxyTests(WebAppFactory factory)
     [Test]
     public async Task Proxy_anonymous_returns_401_problem_and_forwards_nothing()
     {
-        var before = factory.Host.RequestCount;
         var client = factory.CreateBrowser();
 
-        var response = await client.GetAsync(new Uri("/api/echo/x", UriKind.Relative));
+        var response = await client.GetAsync(new Uri("/api/echo/never-reached-anonymous", UriKind.Relative));
 
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await Assert.That(response.Content.Headers.ContentType?.MediaType).IsEqualTo("application/problem+json");
         var problem = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         await Assert.That(problem.GetProperty("code").GetString()).IsEqualTo("auth.unauthenticated");
         await Assert.That(problem.TryGetProperty("traceId", out _)).IsTrue();
-        await Assert.That(factory.Host.RequestCount).IsEqualTo(before);
+        await Assert.That(factory.Host.Received("/api/echo/never-reached-anonymous")).IsFalse();
     }
 
     [Test]

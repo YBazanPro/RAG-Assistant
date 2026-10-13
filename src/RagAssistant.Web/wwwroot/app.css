@@ -165,3 +165,9 @@ html, body {
         padding: 16px;
     }
 }
+
+.confirm-destructive {
+    --colorBrandBackground: var(--colorStatusDangerBackground3);
+    --colorBrandBackgroundHover: var(--colorStatusDangerBackground3Hover);
+    --colorBrandBackgroundPressed: var(--colorStatusDangerBackground3Pressed);
+}

@@ -131,6 +131,20 @@ public class LayoutComponentTests
     }
 
     [Test]
+    public async Task ThemeToggle_still_works_when_browser_storage_is_blocked()
+    {
+        using var ctx = NewContext();
+        ctx.JSInterop.Setup<string?>("localStorage.getItem", "ragassistant.theme").SetException(new Microsoft.JSInterop.JSException("blocked"));
+        ctx.JSInterop.SetupVoid("localStorage.setItem", _ => true).SetException(new Microsoft.JSInterop.JSException("blocked"));
+
+        var cut = ctx.Render<ThemeToggle>();
+        cut.FindAll("fluent-button").Single(b => b.TextContent.Trim() == "Dark").Click();
+
+        var pressed = cut.FindAll("fluent-button").Single(b => b.GetAttribute("aria-pressed") == "true");
+        await Assert.That(pressed.TextContent.Trim()).IsEqualTo("Dark");
+    }
+
+    [Test]
     public async Task RequestedWithHandler_adds_the_header_to_every_request()
     {
         var inner = new CapturingHandler();

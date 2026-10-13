@@ -6,7 +6,7 @@
                 <FluentText Block="true">@Message</FluentText>
             </ChildContent>
             <ActionTemplate>
-                <FluentButton Appearance="@(Destructive ? ButtonAppearance.Primary : ButtonAppearance.Primary)"
+                <FluentButton Appearance="ButtonAppearance.Primary"
                               Class="@(Destructive ? "confirm-destructive" : null)"
                               OnClick="ConfirmAsync">@ConfirmLabel</FluentButton>
                 <FluentButton Appearance="ButtonAppearance.Outline" OnClick="CancelAsync">@CancelLabel</FluentButton>
