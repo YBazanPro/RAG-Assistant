@@ -1,4 +1,5 @@
 @inject IThemeService Themes
+@inject IJSRuntime JS
 
 <div class="theme-toggle" role="group" aria-label="Theme">
     @foreach (var option in Options)
@@ -10,6 +11,8 @@
 </div>
 
 @code {
+    private const string StorageKey = "ragassistant.theme";
+
     private static readonly (ThemeMode Mode, string Label)[] Options =
     [
         (ThemeMode.System, "System"),
@@ -26,11 +29,12 @@
             return;
         }
 
-        // Fluent restores and persists the choice itself; reflect it in the toggle.
-        var settings = await Themes.GetThemeSettingsAsync();
-        if (settings?.Mode is { } stored && stored != _mode)
+        // The toggle owns the choice (Fluent only knows the effective light/dark result, which cannot tell "System" from a pick).
+        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+        if (Enum.TryParse<ThemeMode>(saved, out var mode) && mode != _mode)
         {
-            _mode = stored;
+            _mode = mode;
+            await Themes.SetThemeAsync(mode);
             StateHasChanged();
         }
     }
@@ -39,5 +43,6 @@
     {
         _mode = mode;
         await Themes.SetThemeAsync(mode);
+        await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, mode.ToString());
     }
 }

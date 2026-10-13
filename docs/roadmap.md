@@ -13,9 +13,9 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004) | Modules, Web project, project skills |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005) | Modules, project skills |
 
-The Host still has a placeholder `MapGet("/")` in `Program.cs`. It is removed in step 0.3.
+
 
 ---
 
@@ -54,7 +54,7 @@ These block specs and must be answered first (`product.md`, "Open questions"):
 
 | # | Decision | Blocks | Notes |
 |---|---|---|---|
-| D1 | **Model provider** (chat + embeddings) | 1.3, 3.x | The embedding model fixes `vector(n)` and must be multilingual (FR/EN). For "clone and run" without API keys, consider a **local model container in the AppHost** (e.g. Ollama through the Aspire Community Toolkit), with a hosted provider as an option. Also consider a deterministic **demo mode** (fake `IChatClient`) so the UI runs with no model at all. |
+| D1 | **Model provider** (chat + embeddings) | 1.3, 3.x | The embedding model fixes `vector(n)`. For "clone and run" without API keys, consider a **local model container in the AppHost** (e.g. Ollama through the Aspire Community Toolkit), with a hosted provider as an option. Also consider a deterministic **demo mode** (fake `IChatClient`) so the UI runs with no model at all. |
 | D2 | **Document versioning model** | 1.1 | Versioned documents + stable passage IDs + snapshot of cited passages per answer (challenge 5). Expensive to change later. |
 | D3 | Targets: corpus size, time to first token, ingestion time | 1.3, 2.x | Rough orders of magnitude are enough. |
 | D4 | Retention of conversations and traces | 3.2, 4.1 | Can be "keep everything" for a demo, but write it down. |
@@ -101,13 +101,15 @@ GitHub Actions: restore, build (warnings as errors), `dotnet format --verify-no-
 **Kit:** `/spec` → `/plan` → `/tdd`. Skills: `authentication`, `aspire`, `testing`, `security-scan` at the end.
 **Done when:** a protected sample endpoint returns 401 / 403 / 200 per persona in tests, and sign-in works against Keycloak from the AppHost.
 
-### 0.6 Web shell (ADR 0001 + 0002)
+### 0.6 Web shell (ADR 0001 + 0002) — ✅ Done
 
 - `RagAssistant.Web`: Blazor Web App, `InteractiveWebAssembly`, Fluent UI, wired into the AppHost.
 - BFF: OIDC sign-in/sign-out, cookie session, YARP `/api/**` → Host with token forwarding, no response buffering, antiforgery, auth state serialization to WebAssembly.
-- App layout: header, navigation (`/`, `/chat`, `/documents`, `/knowledge` hidden, `/admin` visible to maintainers only), light/dark theme, `LanguageSwitcher`.
-- **Localization FR/EN from the first page:** resource files and culture switching. Retrofitting them is costly.
+- App layout: header, navigation (`/`, `/chat`, `/documents`, `/admin` visible to maintainers only; no `/knowledge` route yet), System/Light/Dark theme.
+- **English only** (decided in spec 005): plain English text, no resource files, no language switching.
 - Shared components: `PageHeader`, `EmptyState`, `ErrorState`, `LoadingState`, `ConfirmDialog`.
+
+[Spec 005](specs/005-web-shell.md): `RagAssistant.Web` (BFF, YARP `/api/**` pass-through to the Host, cookie session) and `RagAssistant.Web.Client` (WebAssembly, Fluent UI Blazor 5.0.0), with `tests/RagAssistant.Web.Tests` (bUnit and BFF integration tests).
 
 **Kit:** `/spec` → `/plan`. **Extra skills:** `create-blazor-project`, `configure-auth`, `plan-ui-change`, `author-component`, `support-prerendering`, `fetch-and-send-data`. Kit skills: `aspire`, `authentication`.
 **Done when:** clone → run AppHost → sign in as each test user → see the role-appropriate navigation in both languages and both themes.
@@ -174,7 +176,7 @@ Order inside the phase matters: **the refusal path first.** It needs no LLM, pro
 
 | Step | Slice | Key points |
 |---|---|---|
-| 5.1 | **Golden dataset** | Versioned file: questions (FR + EN), expected passages, expected behavior (answer / partial / refusal), on a small committed sample corpus that is also used for demos. |
+| 5.1 | **Golden dataset** | Versioned file: questions, expected passages, expected behavior (answer / partial / refusal), on a small committed sample corpus that is also used for demos. |
 | 5.2 | **Evaluation harness** | Console project, run on demand (never in `dotnet test`): retrieval metrics (recall@k, MRR against expected passages) and answer checks with `Microsoft.Extensions.AI.Evaluation` (groundedness, relevance, refusal correctness). Reproducible report per run, keyed by configuration and corpus version. |
 | 5.3 | **Results in admin** | Latest runs and their comparison, visible to maintainers. |
 
@@ -183,7 +185,7 @@ Order inside the phase matters: **the refusal path first.** It needs no LLM, pro
 ## Phase 6 — First-release hardening
 
 - Home page (`/`): value statement, ask CTA, suggested questions, corpus summary.
-- Bilingual completion: every page and state in FR and EN; answers in the user's language; cross-language retrieval check in the golden dataset.
+- English only: every page and state is in English and answers are in English (decided in [spec 005](specs/005-web-shell.md)); there is no localization work in this phase.
 - Accessibility pass: keyboard paths through Journeys 1–3, focus, contrast, screen-reader labels for citations.
 - Version UX: superseded/archived badges on old citations; "this source has changed" in `SourcePreview`.
 - README: clone-and-run instructions, test users, sample corpus, model setup (D1).
@@ -195,7 +197,7 @@ Order inside the phase matters: **the refusal path first.** It needs no LLM, pro
 
 | Item | Trigger |
 |---|---|
-| Hybrid search (Postgres full-text FR/EN + vector) | Evaluation shows term-sensitive misses |
+| Hybrid search (Postgres full-text English + vector) | Evaluation shows term-sensitive misses |
 | Reranking | Evaluation shows good recall but poor ordering |
 | Conflict surfacing between sources | Golden-dataset cases with conflicting documents |
 | Knowledge module (entities, relationships, `/knowledge`) | Questions that need relationships, after the first release |

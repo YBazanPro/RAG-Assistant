@@ -1,3 +1,4 @@
+@using Microsoft.AspNetCore.Diagnostics
 <!DOCTYPE html>
 <html lang="en">
 
@@ -9,12 +10,21 @@
     <link rel="stylesheet" href="@Assets["_content/Microsoft.FluentUI.AspNetCore.Components/Microsoft.FluentUI.AspNetCore.Components.bundle.scp.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <ImportMap />
-    <HeadOutlet @rendermode="InteractiveWebAssembly" />
+    <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveWebAssembly" />
+    <Routes @rendermode="PageRenderMode" />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // The 403/404 views are re-executed requests: they carry no persisted authentication state, so they stay static.
+    // If WebAssembly took them over it would see an anonymous user.
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext.Features.Get<IStatusCodeReExecuteFeature>() is null ? InteractiveWebAssembly : null;
+}

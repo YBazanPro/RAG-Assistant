@@ -26,7 +26,7 @@ Modules are added with `/scaffold` — none exist yet.
 - **pgvector** (`Pgvector.EntityFrameworkCore`) — embedding storage and similarity search (`vector` columns, HNSW index, cosine distance)
 - **Microsoft.Extensions.AI** — `IChatClient` and `IEmbeddingGenerator<string, Embedding<float>>` abstractions; the concrete provider is wired only in the Host: local Ollama in the AppHost by default (multilingual embeddings, `bge-m3` / 1024 dims initially) plus a deterministic fake-chat demo mode (ADR 0003). The answer flow is a fixed pipeline in handler code — **Microsoft Agent Framework and AG-UI are deferred** (ADR 0001)
 - **Server-Sent Events** — native .NET 10 `TypedResults.ServerSentEvents` with typed event DTOs for answer streaming and ingestion progress; clients parse with `SseParser`
-- **Blazor Web App** (`RagAssistant.Web`) — `InteractiveWebAssembly` for streaming pages, prerendering on
+- **Blazor Web App** (`RagAssistant.Web` server/BFF + `RagAssistant.Web.Client` WebAssembly; layout, pages and shared components live in the client) — `InteractiveWebAssembly`, prerendering on. English only: plain English text, no localization ([spec 005](docs/specs/005-web-shell.md)). The BFF forwards `/api/**` to the Host through YARP as a pass-through (no path rewriting), attaches the session's access token, requires `X-Requested-With: ragassistant` on POST/PUT/PATCH/DELETE (CSRF), and returns ProblemDetails for 401/403/502/504. No token refresh: an expired session re-challenges and the Keycloak SSO session signs the user back in
 - **Fluent UI Blazor** (`Microsoft.FluentUI.AspNetCore.Components`) — the only component suite; RAG domain components are app-owned. No Syncfusion or second design system
 - **Background ingestion** — `BackgroundService` + `Channel<T>`, stage state persisted in the `documents` schema
 - **HybridCache** — caching (e.g. query embeddings, retrieval results); no L2 backend yet
@@ -58,7 +58,8 @@ src/
   RagAssistant.Host/                     # Startup host — wires modules, AI providers, middleware
     Program.cs
     appsettings.json
-  RagAssistant.Web/                      # Blazor Web App (Fluent UI) + BFF: OIDC sign-in, YARP to the Host (planned)
+  RagAssistant.Web/                      # Blazor Web App server + BFF: OIDC sign-in, cookie session, YARP to the Host
+  RagAssistant.Web.Client/               # WebAssembly client: layout, pages, shared components (Fluent UI Blazor 5)
 
   RagAssistant.Shared/                   # Shared kernel (thin!)
     Contracts/                           # Public cross-module contracts (interfaces + DTO records)
@@ -82,6 +83,7 @@ src/
 
 tests/
   RagAssistant.Integration.Tests/        # Full-app tests (WebApplicationFactory + Testcontainers)
+  RagAssistant.Web.Tests/                # bUnit component tests + BFF tests against an in-process stub Host (no Docker)
   Modules/
     RagAssistant.Modules.[Module].Tests/
 ```
@@ -150,6 +152,7 @@ One PostgreSQL database (`ragassistant`, connection string name `ragassistant`),
 - Use `RagAssistantAppFactory` (`tests/RagAssistant.Integration.Tests/Fixtures/`) via `[ClassDataSource<RagAssistantAppFactory>(Shared = SharedType.PerTestSession)]`; it starts `PostgresFixture` (image `pgvector/pgvector:0.8.7-pg18-trixie`, same as the AppHost — keep both in sync) and runs `DatabaseMigrator`.
 - Integration tests require Docker.
 - Authorization tests do **not** start Keycloak: `RagAssistantAppFactory` validates tokens signed with a test key (same issuer, audience and `roles` claim as Keycloak); use the persona helper `factory.CreateClientAs(Persona.ContentOwner)` (`tests/RagAssistant.Integration.Tests/Fixtures/TestTokens.cs`) and cover 401 / 403 / success per policy. A single smoke test runs Keycloak via Testcontainers with the same realm file and the same pinned image tag as the AppHost.
+- Web tests (`tests/RagAssistant.Web.Tests`) need no Docker or Keycloak: `WebAppFactory` signs a persona in through the real cookie handler (`/test/sign-in`), points YARP at a real Kestrel `StubHost` through the same `services:host` configuration keys Aspire uses, and uses a static OIDC configuration. bUnit runs under TUnit.
 - Test names: `Method_scenario_expected`.
 
 ## Skills

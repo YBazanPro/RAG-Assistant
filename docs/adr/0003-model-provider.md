@@ -8,6 +8,8 @@
 
 The assistant needs a chat model and an embedding model. The embedding model fixes the `vector(n)` column size and must handle French and English. The project must stay "clone and run" without paid accounts or API keys (see [ADR 0002](0002-identity-and-authentication.md) for the same rule applied to identity).
 
+> **Note ([spec 005](../specs/005-web-shell.md)):** the product is now English only, so the French requirement above no longer applies. `bge-m3` stays the initial choice; nothing else in this decision changes.
+
 ADR 0001 fixed the abstractions (`IChatClient`, `IEmbeddingGenerator<string, Embedding<float>>`); only the concrete provider was open.
 
 ## Decisions
