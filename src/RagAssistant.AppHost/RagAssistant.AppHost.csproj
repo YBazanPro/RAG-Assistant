@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\RagAssistant.Host\RagAssistant.Host.csproj" />
     <ProjectReference Include="..\RagAssistant.MigrationService\RagAssistant.MigrationService.csproj" />
+    <ProjectReference Include="..\RagAssistant.Web\RagAssistant.Web.csproj" />
   </ItemGroup>
 
 </Project>
