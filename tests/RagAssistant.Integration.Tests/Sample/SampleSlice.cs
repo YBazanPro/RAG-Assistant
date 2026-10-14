@@ -98,6 +98,7 @@ public static class SampleSliceRegistration
         {
             options.Namespace = "RagAssistant.Integration.Tests.Generated";
             options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.Assemblies = [typeof(SampleSliceRegistration)];
             options.PipelineBehaviors = [typeof(ValidationBehavior<,>)];
         });
         services.AddValidatorsFromAssembly(typeof(SampleSliceRegistration).Assembly);

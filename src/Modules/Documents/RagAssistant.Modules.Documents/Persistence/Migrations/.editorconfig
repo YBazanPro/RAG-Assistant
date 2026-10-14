@@ -1,0 +1,3 @@
+[*.cs]
+# EF Core scaffolds these files; analyzers and the format check skip generated code.
+generated_code = true
