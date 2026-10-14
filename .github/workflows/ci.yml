@@ -35,13 +35,23 @@ jobs:
         run: dotnet format RagAssistant.slnx --verify-no-changes --no-restore
 
       # Integration tests start PostgreSQL through Testcontainers (Docker is preinstalled on ubuntu-latest).
+      # --coverage is built into the Microsoft Testing Platform extension that TUnit ships; Cobertura files land next to the HTML test reports.
       - name: Test
-        run: dotnet test --solution RagAssistant.slnx --no-build -c Release
+        run: >
+          dotnet test --solution RagAssistant.slnx --no-build -c Release
+          --coverage --coverage-output-format cobertura
+          --results-directory "${{ github.workspace }}/TestResults"
 
-      - name: Upload test results
-        if: failure()
+      # Report only, no threshold: the table is added to the run summary.
+      - name: Coverage summary
+        if: ${{ !cancelled() }}
+        run: python3 .github/scripts/coverage-summary.py TestResults >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results and coverage
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: "**/TestResults/**"
+          path: TestResults/**
+          retention-days: 14
           if-no-files-found: ignore
