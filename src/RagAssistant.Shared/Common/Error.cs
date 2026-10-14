@@ -12,13 +12,19 @@ public enum ErrorType
 /// <param name="Code">Stable machine-readable identifier, "area.reason" (e.g. "documents.not_found").</param>
 /// <param name="Message">User-facing English text.</param>
 /// <param name="Type">Decides the HTTP status.</param>
-public sealed record Error(string Code, string Message, ErrorType Type)
+/// <param name="Extensions">Extra ProblemDetails members (camelCase names), e.g. the id of the conflicting resource.</param>
+public sealed record Error(
+    string Code,
+    string Message,
+    ErrorType Type,
+    IReadOnlyDictionary<string, object?>? Extensions = null)
 {
     public static Error Validation(string code, string message) => new(code, message, ErrorType.Validation);
 
     public static Error NotFound(string code, string message) => new(code, message, ErrorType.NotFound);
 
-    public static Error Conflict(string code, string message) => new(code, message, ErrorType.Conflict);
+    public static Error Conflict(string code, string message, IReadOnlyDictionary<string, object?>? extensions = null) =>
+        new(code, message, ErrorType.Conflict, extensions);
 
     public static Error Forbidden(string code, string message) => new(code, message, ErrorType.Forbidden);
 

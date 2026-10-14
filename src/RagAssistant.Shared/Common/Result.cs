@@ -38,6 +38,10 @@ public class Result : IFailureFactory<Result>
 
     public static Result<T> Failure<T>(Error error) => new(default, error, null);
 
+    /// <summary>A failure with its own code that also points at the offending fields (camelCase name to messages).</summary>
+    public static Result<T> Failure<T>(Error error, IReadOnlyDictionary<string, string[]> fieldErrors) =>
+        new(default, error, fieldErrors);
+
     public static Result FromValidation(IReadOnlyDictionary<string, string[]> fieldErrors) =>
         new(ValidationError, fieldErrors);
 }
