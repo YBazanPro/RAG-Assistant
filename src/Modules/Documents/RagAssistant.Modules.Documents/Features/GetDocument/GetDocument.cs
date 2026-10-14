@@ -18,7 +18,19 @@ internal static class GetDocument
         string SourceFormat,
         string OriginalFileName,
         int SizeBytes,
+        int? PassageCount,
         DateTimeOffset CreatedAt);
+
+    public sealed record LatestRun(
+        Guid Id,
+        int Attempt,
+        string Status,
+        string Stage,
+        string? ErrorCode,
+        string? ErrorMessage,
+        DateTimeOffset QueuedAt,
+        DateTimeOffset? StartedAt,
+        DateTimeOffset? FinishedAt);
 
     public sealed record Response(
         Guid Id,
@@ -31,6 +43,7 @@ internal static class GetDocument
         string Status,
         Guid? ActiveVersionId,
         LatestVersion? LatestVersion,
+        LatestRun? LatestRun,
         DateTimeOffset CreatedAt,
         string CreatedBy,
         DateTimeOffset UpdatedAt,
@@ -51,7 +64,15 @@ internal static class GetDocument
                     Document = d,
                     Latest = d.Versions
                         .OrderByDescending(v => v.Number)
-                        .Select(v => new VersionRow(v.Id, v.Number, v.Status, v.SourceFormat, v.OriginalFileName, v.SizeBytes, v.CreatedAt))
+                        .Select(v => new VersionRow(v.Id, v.Number, v.Status, v.SourceFormat, v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt))
+                        .FirstOrDefault(),
+                    Run = d.Versions
+                        .OrderByDescending(v => v.Number)
+                        .Take(1)
+                        .SelectMany(v => v.Runs)
+                        .OrderByDescending(r => r.Attempt)
+                        .Select(r => new RunRow(
+                            r.Id, r.Attempt, r.Status, r.CurrentStage, r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt))
                         .FirstOrDefault(),
                 })
                 .FirstOrDefaultAsync(cancellationToken);
@@ -63,16 +84,23 @@ internal static class GetDocument
 
             var d = row.Document;
             var latest = row.Latest is { } v
-                ? new LatestVersion(v.Id, v.Number, v.Status.ToApi(), v.SourceFormat.ToApi(), v.OriginalFileName, v.SizeBytes, v.CreatedAt)
+                ? new LatestVersion(v.Id, v.Number, v.Status.ToApi(), v.SourceFormat.ToApi(), v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt)
+                : null;
+            var run = row.Run is { } r
+                ? new LatestRun(r.Id, r.Attempt, r.Status.ToApi(), r.Stage.ToApi(), r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt)
                 : null;
 
             return new Response(
                 d.Id, d.Title, d.OwnerName, d.Language, d.Tags, d.EffectiveDate, d.Source,
                 DocumentStatusRules.Derive(d.Status, row.Latest?.Status),
-                d.ActiveVersionId, latest, d.CreatedAt, d.CreatedBy, d.UpdatedAt, d.UpdatedBy);
+                d.ActiveVersionId, latest, run, d.CreatedAt, d.CreatedBy, d.UpdatedAt, d.UpdatedBy);
         }
 
         private sealed record VersionRow(
-            Guid Id, int Number, VersionStatus Status, SourceFormat SourceFormat, string OriginalFileName, int SizeBytes, DateTimeOffset CreatedAt);
+            Guid Id, int Number, VersionStatus Status, SourceFormat SourceFormat, string OriginalFileName, int SizeBytes, int? PassageCount, DateTimeOffset CreatedAt);
+
+        private sealed record RunRow(
+            Guid Id, int Attempt, RunStatus Status, IngestionStage Stage, string? ErrorCode, string? ErrorMessage,
+            DateTimeOffset QueuedAt, DateTimeOffset? StartedAt, DateTimeOffset? FinishedAt);
     }
 }

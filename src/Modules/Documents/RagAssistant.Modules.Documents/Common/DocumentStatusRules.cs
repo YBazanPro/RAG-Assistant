@@ -19,5 +19,11 @@ internal static class DocumentStatusRules
 
     public static string ToApi(this VersionStatus status) => status.ToString().ToLowerInvariant();
 
+    public static string ToApi(this RunStatus status) => status.ToString().ToLowerInvariant();
+
+    public static string ToApi(this IngestionStage stage) => stage.ToString().ToLowerInvariant();
+
+    public static string ToApi(this EventStatus status) => status.ToString().ToLowerInvariant();
+
     public static string ToApi(this SourceFormat format) => format.ToString().ToLowerInvariant();
 }

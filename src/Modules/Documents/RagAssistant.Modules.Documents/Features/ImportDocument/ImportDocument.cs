@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
+using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.Modules.Documents.Persistence.Configurations;
@@ -81,6 +82,7 @@ internal static partial class ImportDocument
         DocumentsDbContext db,
         IOptions<ImportOptions> options,
         DocumentsMetrics metrics,
+        IngestionQueue queue,
         TimeProvider clock,
         ILogger<Handler> logger) : IRequestHandler<Command, Result<Response>>
     {
@@ -209,6 +211,8 @@ internal static partial class ImportDocument
                 return Duplicate(await FindActiveDuplicateAsync(hash, cancellationToken));
             }
 
+            // After commit: if the process dies before this line the run is still Queued in the table and startup recovery picks it up.
+            queue.Enqueue(run.Id);
             metrics.Imported(format);
             LogImported(logger, document.Id, version.Id, read, format);
             return new Response(document.Id, version.Id, version.Number, run.Id, "queued");
