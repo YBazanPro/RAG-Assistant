@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using RagAssistant.Integration.Tests.Fixtures;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 
@@ -14,18 +15,20 @@ internal sealed class PassageEmbedderTests
         ScriptedGenerator generator,
         int batchSize = 3,
         int maxRetries = 3,
-        TimeSpan? timeout = null) =>
+        TimeSpan? timeout = null,
+        TimeProvider? clock = null,
+        TimeSpan? retryDelay = null) =>
         new(
             generator,
             Microsoft.Extensions.Options.Options.Create(new IngestionOptions
             {
                 EmbeddingBatchSize = batchSize,
                 EmbeddingMaxRetries = maxRetries,
-                EmbeddingRetryBaseDelay = TimeSpan.FromMilliseconds(1),
+                EmbeddingRetryBaseDelay = retryDelay ?? TimeSpan.FromMilliseconds(1),
                 EmbeddingTimeout = timeout ?? TimeSpan.FromSeconds(30),
             }),
             Microsoft.Extensions.Options.Options.Create(new EmbeddingOptions { Dimensions = Dimensions, Model = "test-model" }),
-            TimeProvider.System,
+            clock ?? TimeProvider.System,
             NullLogger<PassageEmbedder>.Instance);
 
     [Test]
@@ -62,6 +65,66 @@ internal sealed class PassageEmbedderTests
 
         await Assert.That(vectors.Count).IsEqualTo(2);
         await Assert.That(generator.Calls).IsEqualTo(3);
+    }
+
+    [Test]
+    public async Task EmbedAsync_transientFailures_backOffExponentiallyOnTheClock()
+    {
+        var clock = new ManualTimeProvider();
+        var generator = new ScriptedGenerator { FailuresBeforeSuccess = 2 };
+        var embedder = Create(generator, clock: clock, retryDelay: TimeSpan.FromSeconds(2));
+
+        var embedding = embedder.EmbedAsync(["a"], CancellationToken.None);
+
+        // First failure: wait base delay (2 s). Nothing happens until the clock gets there.
+        await WaitUntilAsync(() => generator.Calls == 1 && clock.PendingTimers == 1);
+        clock.Advance(TimeSpan.FromMilliseconds(1900));
+        await Task.Delay(50);
+        await Assert.That(generator.Calls).IsEqualTo(1);
+        clock.Advance(TimeSpan.FromMilliseconds(100));
+
+        // Second failure: wait twice as long (4 s).
+        await WaitUntilAsync(() => generator.Calls == 2 && clock.PendingTimers == 1);
+        clock.Advance(TimeSpan.FromMilliseconds(3900));
+        await Task.Delay(50);
+        await Assert.That(generator.Calls).IsEqualTo(2);
+        clock.Advance(TimeSpan.FromMilliseconds(100));
+
+        var vectors = await embedding.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(vectors.Count).IsEqualTo(1);
+        await Assert.That(generator.Calls).IsEqualTo(3);
+        await Assert.That(clock.Elapsed).IsEqualTo(TimeSpan.FromSeconds(6));
+    }
+
+    [Test]
+    public async Task EmbedAsync_callOutlastsTheTimeout_failsOnTheClockNotTheWallClock()
+    {
+        var clock = new ManualTimeProvider();
+        var generator = new ScriptedGenerator { Hang = true };
+        var embedder = Create(generator, maxRetries: 1, clock: clock, timeout: TimeSpan.FromSeconds(60), retryDelay: TimeSpan.FromSeconds(2));
+
+        var embedding = embedder.EmbedAsync(["a"], CancellationToken.None);
+        await WaitUntilAsync(() => generator.Calls == 1);
+        await Task.Delay(50);
+        await Assert.That(embedding.IsCompleted).IsFalse();
+
+        clock.Advance(TimeSpan.FromSeconds(60));
+        await WaitUntilAsync(() => clock.PendingTimers == 1);
+        clock.Advance(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => generator.Calls == 2);
+        clock.Advance(TimeSpan.FromSeconds(60));
+
+        await Assert.That(async () => { await embedding.WaitAsync(TimeSpan.FromSeconds(5)); }).Throws<IngestionException>();
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!condition())
+        {
+            timeout.Token.ThrowIfCancellationRequested();
+            await Task.Delay(5);
+        }
     }
 
     [Test]

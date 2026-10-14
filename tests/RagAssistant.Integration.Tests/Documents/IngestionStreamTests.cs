@@ -134,16 +134,25 @@ public sealed class IngestionStreamTests(PostgresFixture postgres)
     }
 
     [Test]
-    public async Task Stream_idleWhileWorkerPaused_sendsHeartbeats()
+    public async Task Stream_idleWhileWorkerPaused_sendsHeartbeatsEveryIntervalOnTheControlledClock()
     {
+        var clock = new ManualTimeProvider();
         await using var app = await IngestionHarness.StartAsync(
-            postgres,
-            generator: new FakeEmbeddingGenerator { Available = false },
-            settings: new Dictionary<string, string> { ["Documents:Ingestion:HeartbeatInterval"] = "00:00:00.200" });
+            postgres, generator: new FakeEmbeddingGenerator { Available = false }, clock: clock);
         var doc = await app.ImportAsync();
         using var client = app.CreateClientAs(Persona.ContentOwner);
 
-        var items = await ReadAsync(client, doc.DocumentId, stopWhen: seen => seen.Count(i => i.EventType == "heartbeat") >= 2);
+        var reading = ReadAsync(client, doc.DocumentId, stopWhen: seen => seen.Count(i => i.EventType == "heartbeat") >= 2);
+        var beforeFirstInterval = clock.Elapsed;
+        while (!reading.IsCompleted)
+        {
+            clock.Advance(TimeSpan.FromSeconds(5));
+            await Task.Delay(20);
+        }
+
+        var items = await reading;
+        // The default heartbeat interval is 15 s: two heartbeats cannot have been sent in less than 30 s of clock time.
+        await Assert.That(clock.Elapsed - beforeFirstInterval).IsGreaterThanOrEqualTo(TimeSpan.FromSeconds(30));
 
         await Assert.That(items[0].EventType).IsEqualTo("ingestion.stage");
         await Assert.That(items.Count(i => i.EventType == "heartbeat")).IsEqualTo(2);

@@ -160,15 +160,21 @@ public sealed class IngestionPipelineTests(PostgresFixture postgres)
     }
 
     [Test]
-    public async Task Ingest_generatorFailsTwice_retriesAndSucceeds()
+    public async Task Ingest_generatorFailsTwice_retriesWithBackoffOnTheControlledClock()
     {
-        await using var app = await IngestionHarness.StartAsync(postgres);
+        var clock = new ManualTimeProvider();
+        await using var app = await IngestionHarness.StartAsync(
+            postgres,
+            settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingRetryBaseDelay"] = "00:00:02" },
+            clock: clock);
         app.Generator.FailNext(2);
         var doc = await app.ImportAsync();
 
-        await app.WaitForRunAsync(doc.RunId, "Succeeded");
+        await app.AdvanceClockUntilAsync(async () => await app.RunStatusAsync(doc.RunId) == "Succeeded", TimeSpan.FromSeconds(1), "the run to succeed");
 
         await Assert.That(app.Generator.BatchCalls).IsEqualTo(3);
+        // 2 s + 4 s of backoff had to pass on the clock; no wall-clock time was spent waiting for it.
+        await Assert.That(clock.Elapsed).IsGreaterThanOrEqualTo(TimeSpan.FromSeconds(6));
     }
 
     [Test]

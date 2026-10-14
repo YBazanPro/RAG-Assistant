@@ -10,6 +10,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\RagAssistant.Integration.Tests\Fixtures\ManualTimeProvider.cs" Link="ManualTimeProvider.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Modules\Documents\RagAssistant.Modules.Documents\RagAssistant.Modules.Documents.csproj" />
   </ItemGroup>
 

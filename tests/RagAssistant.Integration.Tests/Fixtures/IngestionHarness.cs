@@ -35,8 +35,10 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
     private readonly string _connectionString;
     private readonly Dictionary<string, string> _settings;
 
-    private IngestionHarness(string connectionString, string databaseName, FakeEmbeddingGenerator generator, Dictionary<string, string> settings)
+    private IngestionHarness(
+        string connectionString, string databaseName, FakeEmbeddingGenerator generator, Dictionary<string, string> settings, ManualTimeProvider? clock)
     {
+        Clock = clock;
         _connectionString = connectionString;
         DatabaseName = databaseName;
         Generator = generator;
@@ -44,6 +46,9 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
     }
 
     public string DatabaseName { get; }
+
+    /// <summary>Set when the test controls time; the application then only moves when the test advances it.</summary>
+    public ManualTimeProvider? Clock { get; }
 
     public FakeEmbeddingGenerator Generator { get; }
 
@@ -54,7 +59,8 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
         PostgresFixture postgres,
         string? databaseName = null,
         FakeEmbeddingGenerator? generator = null,
-        IReadOnlyDictionary<string, string>? settings = null)
+        IReadOnlyDictionary<string, string>? settings = null,
+        ManualTimeProvider? clock = null)
     {
         databaseName ??= $"ing_{Guid.NewGuid():N}";
         var connection = new NpgsqlConnectionStringBuilder(postgres.ConnectionString)
@@ -83,7 +89,7 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
             merged[key] = value;
         }
 
-        var harness = new IngestionHarness(connection, databaseName, generator ?? new FakeEmbeddingGenerator(), merged);
+        var harness = new IngestionHarness(connection, databaseName, generator ?? new FakeEmbeddingGenerator(), merged, clock);
         await using var scope = harness.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<DatabaseMigrator>().MigrateAsync(CancellationToken.None);
         return harness;
@@ -101,6 +107,11 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
         {
             services.AddDatabaseMigrator();
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(Generator);
+            if (Clock is not null)
+            {
+                services.AddSingleton<TimeProvider>(Clock);
+            }
+
             TestAuthentication.Configure(services);
         });
     }
@@ -151,6 +162,23 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
     public async Task WaitForRunAsync(Guid runId, string status)
     {
         await WaitUntilAsync(async () => await RunStatusAsync(runId) == status, $"run {runId} to reach {status}, last status {await RunStatusAsync(runId)}");
+    }
+
+    /// <summary>Moves the controlled clock forward in steps until the condition holds, giving the application a moment to react after each step.</summary>
+    public async Task AdvanceClockUntilAsync(Func<Task<bool>> condition, TimeSpan step, string description)
+    {
+        var clock = Clock ?? throw new InvalidOperationException("This harness does not control time.");
+        using var timeout = new CancellationTokenSource(WaitTimeout);
+        while (!await condition())
+        {
+            if (timeout.IsCancellationRequested)
+            {
+                throw new TimeoutException($"Timed out waiting for {description} (clock advanced {clock.Elapsed}).");
+            }
+
+            clock.Advance(step);
+            await Task.Delay(20);
+        }
     }
 
     public static async Task WaitUntilAsync(Func<Task<bool>> condition, string description)
