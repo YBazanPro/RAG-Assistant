@@ -47,6 +47,17 @@ public static class DocumentsModule
                 $"Documents:Embeddings:Dimensions must be {DocumentsDbContext.EmbeddingDimensions}, the width of the passages.embedding column.")
             .ValidateOnStart();
 
+        services.AddOptions<ChunkingOptions>()
+            .Bind(configuration.GetSection(ChunkingOptions.Section))
+            .ValidateDataAnnotations()
+            .Validate(o => o.IsConsistent, "Documents:Chunking: OverlapTokens and MinTokens must be below MaxTokens.")
+            .ValidateOnStart();
+        services.AddOptions<IngestionOptions>()
+            .Bind(configuration.GetSection(IngestionOptions.Section))
+            .ValidateDataAnnotations()
+            .Validate(o => o.HasPositiveDurations, "Documents:Ingestion: every interval, delay and timeout must be greater than zero.")
+            .ValidateOnStart();
+
         services.AddMediator(options =>
         {
             options.Namespace = "RagAssistant.Modules.Documents.Generated";
