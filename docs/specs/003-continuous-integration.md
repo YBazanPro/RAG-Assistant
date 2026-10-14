@@ -11,8 +11,9 @@ Every pull request and every push to `main` is validated automatically.
 3. Integration tests run against PostgreSQL through Testcontainers using the runner's Docker.
 4. The SDK version comes from `global.json`; NuGet packages are cached.
 5. A new push to the same PR cancels the previous run.
-6. Test results are uploaded as an artifact when the job fails.
+6. Test results and coverage reports are uploaded as an artifact on every run that is not cancelled (amended 2026-10-14; originally only on failure).
 7. The workflow has read-only permissions and uses no secrets.
+8. *(Added 2026-10-14.)* Tests run with `--coverage` (Cobertura output), and `.github/scripts/coverage-summary.py` adds a per-assembly line-coverage table to the run summary. A line counts as covered when any test project ran it; generated code (migrations, `*.g.cs`, `Program.cs`, the design-time factory) is reported separately. The report is informational: no threshold fails the build.
 
 ## Out of scope
-Deployment, coverage gates, the Keycloak smoke test (added to the standard test run by [spec 004](004-identity.md)), dependency update bots.
+Deployment, coverage gates (a threshold would be a later amendment, scoped to `src/Modules/**` and `RagAssistant.Shared`), the Keycloak smoke test (added to the standard test run by [spec 004](004-identity.md)), dependency update bots.
