@@ -13,7 +13,7 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2) | Ingestion and the rest of Phase 1, Chat module, project skills |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4) | The rest of Phase 1 (listing, UI, versions), Chat module, remaining project skills |
 
 
 
@@ -124,8 +124,8 @@ The module owns Corpus Management + Ingestion (+ Retrieval in Phase 2). Start wi
 |---|---|---|---|
 | 1.1 | ✅ **Spec + data model** ([spec 006](specs/006-documents-data-model-and-import.md)) | `Document` (stable identity, metadata: title, language, owner, tags, effective date, status), `DocumentVersion`, `Passage` (stable ID, position, section path, parent section), `IngestionRun` with stages. `vector(n)` from D1, HNSW index, `HasPostgresExtension("vector")`, `documents` schema. | — |
 | 1.2 | ✅ **Import document** ([spec 006](specs/006-documents-data-model-and-import.md)) | Markdown/plain text upload + metadata → `202 Accepted` with document ID; version created with status *queued*. Validation of format, size, required metadata. | ContentOwner |
-| 1.3 | **Background ingestion** ([spec 007](specs/007-background-ingestion-and-progress.md), approved) | `BackgroundService` + `Channel<T>`: extract → normalize → structure-aware chunking (Options: max size, overlap) → embed (batched) → store. Persist every stage; failures are visible and retryable; a document is retrievable only when *active* and *indexed*. The persisted run table is the source of truth; on startup, re-queue runs left queued or in progress. No messaging library. | — |
-| 1.4 | **Ingestion progress (SSE)** ([spec 007](specs/007-background-ingestion-and-progress.md), approved) | `GET /documents/{id}/ingestion/events`: persisted stage changes, `Last-Event-ID` resume. Integration test reads the stream with `SseParser`. | ContentOwner |
+| 1.3 | ✅ **Background ingestion** ([spec 007](specs/007-background-ingestion-and-progress.md)) | `BackgroundService` + `Channel<T>`: extract → normalize → structure-aware chunking (Options: max size, overlap) → embed (batched) → store. Persist every stage; failures are visible and retryable; a document is retrievable only when *active* and *indexed*. The persisted run table is the source of truth; on startup, re-queue runs left queued or in progress. No messaging library. | — |
+| 1.4 | ✅ **Ingestion progress (SSE)** ([spec 007](specs/007-background-ingestion-and-progress.md)) | `GET /documents/{id}/ingestion/events`: persisted stage changes, `Last-Event-ID` resume. Integration test reads the stream with `SseParser`. | ContentOwner |
 | 1.5 | **Browse corpus** ([spec 008](specs/008-browse-corpus-and-documents-ui.md), approved) | List with filters (status, language, owner, tags, date) and paging; document detail; passages of a version. | KnowledgeSeeker |
 | 1.6 | **Documents UI** ([spec 008](specs/008-browse-corpus-and-documents-ui.md), approved) | `DocumentTable`, `DocumentUpload`, `DocumentStatusBadge`, live `IngestionStatus`, document detail with `DocumentMetadataPanel` and `PassageList`/`PassageCard`. | — |
 | 1.7 | **Lifecycle** ([spec 009](specs/009-document-lifecycle.md), approved) | Edit metadata, upload a new version (history preserved), archive, reprocess. | ContentOwner |
@@ -260,7 +260,7 @@ No public skill covers these project-specific conventions. Create them once the 
 | Skill | Create after | Captures |
 |---|---|---|
 | `fluentui-blazor-conventions` | 0.6 | Fluent UI version and components in use, theming tokens, layout patterns, how domain components wrap Fluent primitives |
-| `sse-endpoints` | 1.4 | Event naming, DTO records, `TypedResults.ServerSentEvents`, BFF passthrough, `SseParser` tests, `SetBrowserResponseStreamingEnabled` on the client |
+| `sse-endpoints` ✅ | 1.4 | Event naming, DTO records, `TypedResults.ServerSentEvents`, BFF passthrough, `SseParser` tests, `SetBrowserResponseStreamingEnabled` on the client |
 | `rag-pipeline` | 3.3 | Prompt construction, citation format and validation, evidence threshold, fake `IChatClient` / embedding patterns for tests |
 
 Store them in `.claude/skills/` in the repository so they are versioned with the code.

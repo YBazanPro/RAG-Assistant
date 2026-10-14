@@ -255,3 +255,23 @@ Configuration, telemetry, architecture
 ## Open Questions
 
 None. Resolved in review (2026-10-14): Ollama models live on the named persistent volume `ragassistant-ollama-models`; raw Markdown is kept in passages and embedding input; ingestion tests use a dedicated factory/database; the SSE stream tails by polling.
+
+## Implementation Notes
+
+Choices made while implementing; none changes the approved behavior except where marked **Deviation** (recorded 2026-10-14):
+
+- **Structure:** `Ingestion/` holds `Chunker` (pure), `PassageEmbedder` (batches, retry, probe), `IngestionRunProcessor` (one run, scoped), `IngestionWorker` (hosted service, consumers, startup recovery) and `IngestionQueue` (the `Channel<Guid>`, a wake-up hint only). Retry and the stream are feature slices (`RetryIngestion`, `StreamIngestionEvents`). The stream reads the `DbContext` directly rather than through the Mediator.
+- **Claiming:** a run is claimed by a conditional `ExecuteUpdate` (`Queued` → `Running`) in one transaction with the version update, so duplicate queue entries (import enqueue plus startup recovery) are harmless.
+- **Final transaction:** passages, the `Storing/Completed` and `Completed/Completed` events, version `Indexed`, supersede of the previous active version, `ActiveVersionId` and run `Succeeded` commit together. `Document.UpdatedAt` is not touched.
+- **Startup recovery retries:** if the run table cannot be read at start (database not ready, tables not migrated yet), the worker retries every `ProbeInterval` instead of failing the host. The integration factory starts the host before it migrates, which exposed this.
+- **Embedding failures:** only transient errors (`HttpRequestException`, `IOException`, `SocketException`, `TimeoutException`, our own timeout) are retried. Anything else is an unexpected exception (`documents.ingestion_error`). A wrong vector count or length is never retried.
+- **Deviation, overlap:** pieces of a code block or table that was split because it exceeds `MaxTokens` get no overlap prefix. They are self-contained (re-fenced, header rows repeated) and a prefix would put a stray fence in front of them. Overlap between ordinary passages of one section is as specified. A passage that results from a cross-section merge receives overlap only from a predecessor that ends in the section it starts in.
+- **Merge details:** the minimum-size merge looks at adjacent passages only, and a merge that would leave no room for the overlap prefix the merged passage will receive is skipped.
+- **Telemetry:** duration is recorded with an `outcome` tag (`completed`/`failed`); span names are `ingestion.run` and `ingestion.stage` (tag `stage`, including `storing`). ServiceDefaults now also subscribes to the `RagAssistant.*` activity sources. Tags carry ids only, never document text.
+- **Packages:** `Microsoft.Extensions.AI.Abstractions` 10.11.0 (module), `CommunityToolkit.Aspire.Hosting.Ollama` and `CommunityToolkit.Aspire.OllamaSharp` 13.6.0 (AppHost and Host, ADR 0003).
+- **Not verified by hand:** the AppHost was not run, so the Ollama container, the `ragassistant-ollama-models` volume and the `bge-m3` pull are untested. Run the AppHost once and record the result here.
+- **Not done:** the streaming path through the BFF is verified when the UI consumes it (1.6), as planned. AC-30's "arch-check passes" was covered by the existing module-boundary unit test only.
+- **Tests:** unit tests for the chunker, the embedder and option validation (`tests/Modules/RagAssistant.Modules.Documents.Tests`); integration tests in `tests/RagAssistant.Integration.Tests/Documents/Ingestion*` (AC-1 to AC-3, AC-9 to AC-27, AC-29). Each ingestion test starts its own application on its own database (`IngestionHarness`) with a scriptable `FakeEmbeddingGenerator`; the default factory registers an always-unavailable generator, so the spec 006 tests are unchanged. A second harness on the same database models a restart.
+- **Deviation, clock in tests:** the tests use real time with millisecond intervals (backoff 1 ms, poll 50 ms, heartbeat 200 ms) instead of a controlled `TimeProvider`. AC-11 and AC-24 therefore wait a few real milliseconds. The production code does take the injected `TimeProvider` everywhere, so a fake clock can be added later without code changes.
+- **Test parallelism:** ingestion test classes use a parallel limit of four (`IngestionParallelLimit`); each application has its own connection pools and 35 at once exceeded Postgres's `max_connections`. Harness pools are small and short-lived for the same reason.
+- **Test configuration:** harness documents use `Documents:Chunking:MinTokens = 1`, otherwise the minimum-size merge folds the tiny test documents into one passage.

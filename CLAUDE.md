@@ -12,7 +12,7 @@ Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.m
 
 | Module | Owns | Schema |
 |--------|------|--------|
-| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); ingestion and search are still to come | `documents` |
+| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); background ingestion (`IngestionWorker`, chunker, batched embedding), `POST /api/documents/{id}/ingestion/retry` and the `GET …/ingestion/events` SSE stream ([spec 007](docs/specs/007-background-ingestion-and-progress.md)); listing, versions and search are still to come | `documents` |
 | `Chat` | Conversations and messages, prompt building, retrieval orchestration, LLM answer generation with citations. Not started | `chat` |
 
 Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `GenerateTypesAsInternal = true` and `Assemblies = [typeof(<Module>Module)]`: the default scans every referenced assembly and generates public helper types, which collide with other modules and with the test projects' own Mediator (ADR 0005). A module reads its connection string itself (`UseNpgsql(connectionString, o => o.UseVector())`) and ships an `IDesignTimeDbContextFactory` so `dotnet ef` does not need to start the Host.
