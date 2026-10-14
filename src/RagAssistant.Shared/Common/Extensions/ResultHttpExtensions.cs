@@ -32,6 +32,14 @@ public static class ResultHttpExtensions
 
         problem.Detail = error.Message;
         problem.Extensions["code"] = error.Code;
+        if (error.Extensions is { } extensions)
+        {
+            foreach (var (key, value) in extensions)
+            {
+                problem.Extensions[key] = value;
+            }
+        }
+
         return new ProblemResult(problem);
     }
 }
