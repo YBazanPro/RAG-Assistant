@@ -28,6 +28,22 @@ internal sealed partial class PassageEmbedder(
         return vectors;
     }
 
+    /// <summary>One tiny call: false while the model is unreachable or not yet pulled.</summary>
+    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(ingestion.Value.EmbeddingTimeout, clock);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+            await generator.GenerateAsync(["ping"], cancellationToken: linked.Token);
+            return true;
+        }
+        catch (Exception ex) when (IsTransient(ex, cancellationToken))
+        {
+            return false;
+        }
+    }
+
     private async Task<IReadOnlyList<float[]>> EmbedBatchAsync(string[] batch, CancellationToken cancellationToken)
     {
         var options = ingestion.Value;

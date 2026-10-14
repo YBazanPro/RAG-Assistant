@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -32,6 +33,9 @@ public sealed class RagAssistantAppFactory : WebApplicationFactory<Program>, IAs
         {
             services.AddDatabaseMigrator();
             services.AddSampleSlice();
+
+            // Paused by default: the worker's probe fails, so spec 006 imports stay queued. Ingestion tests swap in a working fake.
+            services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, UnavailableEmbeddingGenerator>();
 
             // Same issuer, audience and "roles" shape as Keycloak, but signed with a test key and with no metadata fetch.
             // Configure (not PostConfigure): the framework's post-configure would otherwise build a metadata manager from the Keycloak authority first.

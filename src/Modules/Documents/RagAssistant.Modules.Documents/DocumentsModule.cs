@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Common;
+using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.Shared.Common.Behaviors;
@@ -69,6 +70,11 @@ public static class DocumentsModule
         services.AddValidatorsFromAssembly(typeof(DocumentsModule).Assembly, includeInternalTypes: true);
         services.AddEndpoints(typeof(DocumentsModule).Assembly);
         services.AddSingleton<DocumentsMetrics>();
+
+        services.AddSingleton<IngestionQueue>();
+        services.AddScoped<PassageEmbedder>();
+        services.AddScoped<IngestionRunProcessor>();
+        services.AddHostedService<IngestionWorker>();
         return services;
     }
 }
