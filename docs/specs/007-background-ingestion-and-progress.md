@@ -1,6 +1,6 @@
 # Spec 007: Background ingestion and progress stream
 
-**Status:** Approved (2026-10-14)
+**Status:** Implemented (2026-10-14); approved the same day. See Implementation Notes for the deviations and the manual verification.
 **Date:** 2026-10-14
 **Roadmap:** steps 1.3 + 1.4 ([roadmap](../roadmap.md)) · **Builds on:** [spec 006](006-documents-data-model-and-import.md) · **Decision records:** [ADR 0003](../adr/0003-model-provider.md), [ADR 0004](../adr/0004-document-versioning.md), [ADR 0005](../adr/0005-api-kernel-libraries.md)
 
