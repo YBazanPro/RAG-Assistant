@@ -13,7 +13,7 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005) | Modules, project skills |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2) | Ingestion and the rest of Phase 1, Chat module, project skills |
 
 
 
@@ -122,13 +122,14 @@ The module owns Corpus Management + Ingestion (+ Retrieval in Phase 2). Start wi
 
 | Step | Slice | Key points | Policy |
 |---|---|---|---|
-| 1.1 | **Spec + data model** | `Document` (stable identity, metadata: title, language, owner, tags, effective date, status), `DocumentVersion`, `Passage` (stable ID, position, section path, parent section), `IngestionRun` with stages. `vector(n)` from D1, HNSW index, `HasPostgresExtension("vector")`, `documents` schema. | — |
-| 1.2 | **Import document** | Markdown/plain text upload + metadata → `202 Accepted` with document ID; version created with status *queued*. Validation of format, size, required metadata. | ContentOwner |
+| 1.1 | ✅ **Spec + data model** ([spec 006](specs/006-documents-data-model-and-import.md)) | `Document` (stable identity, metadata: title, language, owner, tags, effective date, status), `DocumentVersion`, `Passage` (stable ID, position, section path, parent section), `IngestionRun` with stages. `vector(n)` from D1, HNSW index, `HasPostgresExtension("vector")`, `documents` schema. | — |
+| 1.2 | ✅ **Import document** ([spec 006](specs/006-documents-data-model-and-import.md)) | Markdown/plain text upload + metadata → `202 Accepted` with document ID; version created with status *queued*. Validation of format, size, required metadata. | ContentOwner |
 | 1.3 | **Background ingestion** | `BackgroundService` + `Channel<T>`: extract → normalize → structure-aware chunking (Options: max size, overlap) → embed (batched) → store. Persist every stage; failures are visible and retryable; a document is retrievable only when *active* and *indexed*. The persisted run table is the source of truth; on startup, re-queue runs left queued or in progress. No messaging library. | — |
 | 1.4 | **Ingestion progress (SSE)** | `GET /documents/{id}/ingestion/events`: persisted stage changes, `Last-Event-ID` resume. Integration test reads the stream with `SseParser`. | ContentOwner |
 | 1.5 | **Browse corpus** | List with filters (status, language, owner, tags, date) and paging; document detail; passages of a version. | KnowledgeSeeker |
 | 1.6 | **Documents UI** | `DocumentTable`, `DocumentUpload`, `DocumentStatusBadge`, live `IngestionStatus`, document detail with `DocumentMetadataPanel` and `PassageList`/`PassageCard`. | — |
 | 1.7 | **Lifecycle** | Edit metadata, upload a new version (history preserved), archive, reprocess. | ContentOwner |
+| 1.8 | **PDF import** *(added 2026-10-14, after 1.7)* | PDF upload up to 100 MB. Needs its own spec and ADR: a PDF text-extraction library (PdfPig, Apache 2.0, managed code), storing the original binary outside Postgres (the source text column stays for text formats), upload streaming through the BFF and Host (body limits, timeouts), heading detection from font data, page numbers in citations (`Passage.PageStart/PageEnd` and `DocumentVersion.SourceFormat = Pdf` are already in the schema), and a review of the ADR 0004 corpus and ingestion-time targets. Scanned PDFs (OCR) stay out of scope. | ContentOwner |
 
 **Kit:** `/scaffold` (module), `/spec`, `/plan`, `/tdd`, `/migrate` (each EF migration), `/verify`. Skills: `ef-core`, `vertical-slice`, `configuration`, `logging`, `opentelemetry`. **Extra:** `collect-user-input` (upload, filters), `fetch-and-send-data`, `coordinate-components`.
 **Demo after Phase 1:** a content owner imports a Markdown policy, watches it being indexed live, and browses its passages.

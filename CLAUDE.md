@@ -8,14 +8,14 @@ It is a **modular monolith**: one backend deployable (the Host) composed of inde
 
 Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention) and [ADR 0005](docs/adr/0005-api-kernel-libraries.md) (API kernel libraries, Mediator topology, no Serilog).
 
-### Planned Modules
+### Modules
 
 | Module | Owns | Schema |
 |--------|------|--------|
-| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search | `documents` |
-| `Chat` | Conversations and messages, prompt building, retrieval orchestration, LLM answer generation with citations | `chat` |
+| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); ingestion and search are still to come | `documents` |
+| `Chat` | Conversations and messages, prompt building, retrieval orchestration, LLM answer generation with citations. Not started | `chat` |
 
-Modules are added with `/scaffold` — none exist yet.
+Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `GenerateTypesAsInternal = true` and `Assemblies = [typeof(<Module>Module)]`: the default scans every referenced assembly and generates public helper types, which collide with other modules and with the test projects' own Mediator (ADR 0005). A module reads its connection string itself (`UseNpgsql(connectionString, o => o.UseVector())`) and ships an `IDesignTimeDbContextFactory` so `dotnet ef` does not need to start the Host.
 
 ## Tech Stack
 
