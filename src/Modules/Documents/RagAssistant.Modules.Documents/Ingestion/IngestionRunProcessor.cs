@@ -82,8 +82,12 @@ internal sealed partial class IngestionRunProcessor(
                 cancellationToken);
 
             stage = IngestionStage.Storing;
-            await RecordEventAsync(runId, stage, EventStatus.Started, null, cancellationToken);
-            await StoreAsync(runId, run.VersionId, version.DocumentId, passages, vectors, cancellationToken);
+            using (var storing = DocumentsTelemetry.Source.StartActivity("ingestion.stage"))
+            {
+                storing?.SetTag("stage", "storing");
+                await RecordEventAsync(runId, stage, EventStatus.Started, null, cancellationToken);
+                await StoreAsync(runId, run.VersionId, version.DocumentId, passages, vectors, cancellationToken);
+            }
 
             var elapsed = clock.GetElapsedTime(started);
             metrics.IngestionCompleted(passages.Count, elapsed);

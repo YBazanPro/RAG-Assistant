@@ -1,0 +1,133 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.Extensions.AI;
+
+namespace RagAssistant.Integration.Tests.Fixtures;
+
+/// <summary>
+/// Deterministic, scriptable stand-in for the embedding model. The worker's availability probe (a single "ping") is told apart
+/// from document batches, so a test can keep the model "reachable" while its batches fail.
+/// </summary>
+public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>
+{
+    private readonly ConcurrentQueue<string[]> _batches = [];
+    private readonly TaskCompletionSource _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource? _gate;
+    private int _failuresRemaining;
+    private volatile bool _available = true;
+    private volatile bool _alwaysFail;
+    private volatile bool _throwUnexpected;
+
+    /// <summary>The readiness switch: false makes the probe fail, so the worker pauses.</summary>
+    public bool Available
+    {
+        get => _available;
+        set => _available = value;
+    }
+
+    /// <summary>Every batch fails with a transient error.</summary>
+    public bool AlwaysFail
+    {
+        get => _alwaysFail;
+        set => _alwaysFail = value;
+    }
+
+    /// <summary>Every batch throws an exception the pipeline does not expect.</summary>
+    public bool ThrowUnexpected
+    {
+        get => _throwUnexpected;
+        set => _throwUnexpected = value;
+    }
+
+    public int VectorLength { get; set; } = 1024;
+
+    /// <summary>When set, batches return this many vectors instead of one per input.</summary>
+    public int? ReturnedCount { get; set; }
+
+    public IReadOnlyList<string[]> Batches => [.. _batches];
+
+    public int BatchCalls => _batches.Count;
+
+    /// <summary>The next <paramref name="count"/> batches fail with a transient error, then calls succeed again.</summary>
+    public void FailNext(int count) => Volatile.Write(ref _failuresRemaining, count);
+
+    /// <summary>Batches block until <see cref="Release"/> is called; lets a test observe a run in progress.</summary>
+    public void HoldBatches() => _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task WaitUntilHeldAsync() => _held.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+    public void Release() => _gate?.TrySetResult();
+
+    public async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+        IEnumerable<string> values,
+        EmbeddingGenerationOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        var inputs = values.ToArray();
+        if (inputs is ["ping"])
+        {
+            return Available
+                ? Vectors(inputs.Length)
+                : throw new HttpRequestException("The embedding model is unavailable in this test.");
+        }
+
+        _batches.Enqueue(inputs);
+
+        if (ThrowUnexpected)
+        {
+            throw new InvalidOperationException("Scripted unexpected failure.");
+        }
+
+        if (AlwaysFail || TakeScriptedFailure())
+        {
+            throw new HttpRequestException("Scripted transient failure.");
+        }
+
+        if (_gate is { } gate)
+        {
+            _held.TrySetResult();
+            await gate.Task.WaitAsync(cancellationToken);
+        }
+
+        return Vectors(ReturnedCount ?? inputs.Length, inputs);
+    }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public void Dispose()
+    {
+    }
+
+    private bool TakeScriptedFailure()
+    {
+        while (true)
+        {
+            var remaining = Volatile.Read(ref _failuresRemaining);
+            if (remaining <= 0)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _failuresRemaining, remaining - 1, remaining) == remaining)
+            {
+                return true;
+            }
+        }
+    }
+
+    private GeneratedEmbeddings<Embedding<float>> Vectors(int count, string[]? inputs = null) =>
+        new(Enumerable.Range(0, count).Select(i => new Embedding<float>(Vector(inputs is null || i >= inputs.Length ? string.Empty : inputs[i]))));
+
+    private float[] Vector(string text)
+    {
+        var seed = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0);
+        var vector = new float[VectorLength];
+        for (var i = 0; i < vector.Length; i++)
+        {
+            vector[i] = (((seed >> (i % 24)) & 0xFF) / 255f) + 0.01f;
+        }
+
+        return vector;
+    }
+}

@@ -37,19 +37,7 @@ public sealed class RagAssistantAppFactory : WebApplicationFactory<Program>, IAs
             // Paused by default: the worker's probe fails, so spec 006 imports stay queued. Ingestion tests swap in a working fake.
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, UnavailableEmbeddingGenerator>();
 
-            // Same issuer, audience and "roles" shape as Keycloak, but signed with a test key and with no metadata fetch.
-            // Configure (not PostConfigure): the framework's post-configure would otherwise build a metadata manager from the Keycloak authority first.
-            services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-            {
-                options.Authority = null;
-                options.MetadataAddress = null!;
-                options.RequireHttpsMetadata = false;
-                options.Configuration = new OpenIdConnectConfiguration();
-                options.TokenValidationParameters.IssuerSigningKey = TestTokens.SigningKey;
-                options.TokenValidationParameters.ValidIssuer = TestTokens.Issuer;
-                options.TokenValidationParameters.ValidAudience = TestTokens.Audience;
-                options.TokenValidationParameters.ClockSkew = TimeSpan.Zero;
-            });
+            TestAuthentication.Configure(services);
         });
     }
 }
