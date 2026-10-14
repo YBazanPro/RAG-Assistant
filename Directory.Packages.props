@@ -11,6 +11,11 @@
     <PackageVersion Include="Aspire.Npgsql" Version="13.6.1" />
   </ItemGroup>
 
+  <ItemGroup Label="Aspire Community Toolkit (Ollama, ADR 0003)">
+    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Ollama" Version="13.6.0" />
+    <PackageVersion Include="CommunityToolkit.Aspire.OllamaSharp" Version="13.6.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Service defaults">
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.10.0" />

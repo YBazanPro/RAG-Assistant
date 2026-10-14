@@ -7,6 +7,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddNpgsqlDataSource("ragassistant");
 
+// The provider is wired here and nowhere else; modules only see IEmbeddingGenerator (ADR 0003).
+builder.AddOllamaApiClient("embeddings").AddEmbeddingGenerator();
+
 builder.Services.AddApiConventions();
 builder.Services.AddApiAuthentication(builder.Environment);
 builder.Services.AddEndpoints(typeof(Program).Assembly);
