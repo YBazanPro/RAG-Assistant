@@ -31,6 +31,8 @@ Each module registers its own source-generated Mediator in `AddXxxModule` (`AddM
 
 Options per module: `Namespace`, `ServiceLifetime = Scoped` (validators and DbContexts are scoped, and the default singleton fails scope validation), and `PipelineBehaviors = [typeof(ValidationBehavior<,>)]`. Because the generated class is named `Mediator`, which clashes with the library's `Mediator` namespace, files that use it alias it (`using ModuleMediator = RagAssistant.Modules.<Module>.Generated.Mediator;`).
 
+Two more options are required once a second Mediator exists in the process (found while building the Documents module, spec 006): `GenerateTypesAsInternal = true`, because the generated `AssemblyReference` and `MediatorOptions` helper types are otherwise public in the global namespace and collide with the same types generated in any referencing project (the integration tests have their own); and `Assemblies = [typeof(<Module>Module)]`, because by default the generator scans **every referenced assembly**, so a project referencing a module would pull that module's internal handlers into its own Mediator and fail to compile.
+
 Rule: **a module injects its own concrete generated `Mediator` and never `IMediator` / `ISender`.** Handlers stay `internal`, and a module cannot dispatch another module's requests.
 
 ## Consequences

@@ -291,7 +291,7 @@ Content Ingestion transforms source material into searchable knowledge. It recei
 
 ### First-release formats
 
-Markdown and plain text only. Markdown headings provide the structure needed for section-aware chunking. DOCX and simple PDFs may follow; large-scale PDF extraction remains out of scope.
+Markdown and plain text only. Markdown headings provide the structure needed for section-aware chunking. DOCX and simple PDFs may follow (roadmap step 1.8 plans PDF import); OCR for scanned PDFs remains out of scope.
 
 Ingestion runs in the background: an import is accepted immediately, and the user follows its progress (queued, extracting, chunking, embedding, indexed or failed) as it happens.
 
