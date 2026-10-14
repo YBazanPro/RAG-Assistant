@@ -3,11 +3,13 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Keycloak.Authentication" />
     <PackageReference Include="Aspire.Npgsql" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Scalar.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Modules\Documents\RagAssistant.Modules.Documents\RagAssistant.Modules.Documents.csproj" />
     <ProjectReference Include="..\RagAssistant.ServiceDefaults\RagAssistant.ServiceDefaults.csproj" />
     <ProjectReference Include="..\RagAssistant.Shared\RagAssistant.Shared.csproj" />
   </ItemGroup>

@@ -1,4 +1,5 @@
 using RagAssistant.Host.Api;
+using RagAssistant.Modules.Documents;
 using RagAssistant.Shared.Common.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +10,7 @@ builder.AddNpgsqlDataSource("ragassistant");
 builder.Services.AddApiConventions();
 builder.Services.AddApiAuthentication(builder.Environment);
 builder.Services.AddEndpoints(typeof(Program).Assembly);
+builder.Services.AddDocumentsModule(builder.Configuration);
 
 var app = builder.Build();
 
