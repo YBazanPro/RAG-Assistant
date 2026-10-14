@@ -2,7 +2,9 @@
 const string PostgresImageTag = "0.8.7-pg18-trixie";
 // Keep in sync with KeycloakFixture.ImageTag in tests/RagAssistant.Integration.Tests.
 const string KeycloakImageTag = "26.8";
-// Keep in sync with Documents:Embeddings:Model (default "bge-m3") and its 1024 dimensions in the Documents module.
+const string OllamaImageTag = "0.40.4";
+// The 1024 dimensions must match Documents:Embeddings:Dimensions and the passages.embedding column. The model name recorded on
+// each version comes from the provider; Documents:Embeddings:Model (default "bge-m3") is only the fallback, so keep them equal.
 const string EmbeddingModel = "bge-m3";
 // Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
 const string WebClientSecret = "ragassistant-web-dev-secret";
@@ -29,6 +31,7 @@ var keycloak = builder.AddKeycloak("keycloak", port: 8180)
 // Models live on a named volume, so the download happens once. The Host does not wait for the model: ingestion
 // pauses until it answers (spec 007), which keeps a fresh clone usable while bge-m3 is still being pulled.
 var ollama = builder.AddOllama("ollama")
+    .WithImageTag(OllamaImageTag)
     .WithDataVolume("ragassistant-ollama-models")
     .WithLifetime(ContainerLifetime.Persistent);
 var embeddings = ollama.AddModel("embeddings", EmbeddingModel);
