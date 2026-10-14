@@ -51,8 +51,6 @@ internal static class GetDocument
 
     internal sealed class Handler(DocumentsDbContext db) : IRequestHandler<Query, Result<Response>>
     {
-        private static readonly Error NotFound = Error.NotFound("documents.not_found", "The document was not found.");
-
         public async ValueTask<Result<Response>> Handle(Query query, CancellationToken cancellationToken)
         {
             // Projected so the version's Content column (up to the import limit) is never loaded.
@@ -79,7 +77,7 @@ internal static class GetDocument
 
             if (row is null)
             {
-                return NotFound;
+                return DocumentErrors.NotFound;
             }
 
             var d = row.Document;

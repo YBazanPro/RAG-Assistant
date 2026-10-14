@@ -28,7 +28,13 @@ internal sealed partial class PassageEmbedder(
         return vectors;
     }
 
-    /// <summary>One tiny call: false while the model is unreachable or not yet pulled.</summary>
+    /// <summary>
+    /// The model that actually produces the vectors, as the provider reports it; the configured name is only the fallback.
+    /// Recorded on the version, so it cannot drift from what the Host is wired to.
+    /// </summary>
+    public string ModelId => generator.GetService<EmbeddingGeneratorMetadata>()?.DefaultModelId ?? embeddings.Value.Model;
+
+    /// <summary>One tiny call: false while the model is unreachable or not yet pulled, whatever way the client reports it.</summary>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken)
     {
         try
@@ -38,8 +44,10 @@ internal sealed partial class PassageEmbedder(
             await generator.GenerateAsync(["ping"], cancellationToken: linked.Token);
             return true;
         }
-        catch (Exception ex) when (IsTransient(ex, cancellationToken))
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
+            // A probe has one question: does the model answer? Provider clients differ in how they say "not yet", so any failure
+            // other than the caller's own cancellation means "not available" and the run stays queued (spec 007, model readiness).
             return false;
         }
     }
@@ -58,6 +66,7 @@ internal sealed partial class PassageEmbedder(
             }
             catch (Exception ex) when (IsTransient(ex, cancellationToken))
             {
+                // Filtered to transient provider failures; anything else is an unexpected error handled by the run processor (AC-17).
                 if (attempt >= options.EmbeddingMaxRetries)
                 {
                     LogGivingUp(logger, attempt + 1, ex.GetType().Name);

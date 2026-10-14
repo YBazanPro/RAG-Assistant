@@ -276,3 +276,15 @@ Choices made while implementing; none changes the approved behavior except where
 - **Deviation, clock in tests:** the tests use real time with millisecond intervals (backoff 1 ms, poll 50 ms, heartbeat 200 ms) instead of a controlled `TimeProvider`. AC-11 and AC-24 therefore wait a few real milliseconds. The production code does take the injected `TimeProvider` everywhere, so a fake clock can be added later without code changes.
 - **Test parallelism:** ingestion test classes use a parallel limit of four (`IngestionParallelLimit`); each application has its own connection pools and 35 at once exceeded Postgres's `max_connections`. Harness pools are small and short-lived for the same reason.
 - **Test configuration:** harness documents use `Documents:Chunking:MinTokens = 1`, otherwise the minimum-size merge folds the tiny test documents into one passage.
+
+Changes made after the review of the first implementation (2026-10-14):
+
+- **Probe:** any failure of the availability probe other than the caller's own cancellation means "not available". Provider clients report "model not pulled yet" in different ways, and an exception outside the transient list used to strand the run.
+- **Crashed runs:** if a run throws out of the processor (in practice, the database failed while the run was being failed or claimed), the consumer waits `ProbeInterval`, resets that one run to `Queued` with a `Re-queued after an error` event and enqueues it again, retrying while the database is down. A restart is no longer needed.
+- **Run spans are roots:** `ingestion.run` clears `Activity.Current`, so each run is its own trace instead of sharing the worker's startup trace.
+- **Model name:** the name stored on a version is the one the provider reports (`EmbeddingGeneratorMetadata.DefaultModelId`); `Documents:Embeddings:Model` is only the fallback. The AppHost model and the config can no longer disagree silently in the stored data (the `Dimensions` check is unchanged).
+- **Overlap:** an overlap tail that contains a code fence or table line is dropped (the passage simply starts without a prefix), so a passage never begins with unbalanced syntax.
+- **Option ranges:** every `Documents:Ingestion` value must now be greater than 0, as specified. `EmbeddingMaxRetries = 0` and the arbitrary cap of 32 consumers are gone; tests that wanted "no retries" use 1.
+- **Catch-alls:** the four filtered `catch (Exception)` sites carry a comment citing the rule they implement, and the `CLAUDE.md` anti-pattern now reads "without a filter or a stated reason".
+- **Shared 404:** `DocumentErrors.NotFound` replaces three copies of the same error.
+- **New tests:** probe and `ModelId` unit tests, a chunker test for the fence tail, the root-span assertion, provider-reported model, crash hand-back (a trigger that fails the first `Failed` event insert), shutdown mid-run writing nothing and finishing after a restart, and Host start failing on invalid options (AC-28).

@@ -23,7 +23,7 @@ public sealed class IngestionRetryAndRecoveryTests(PostgresFixture postgres)
     [Test]
     public async Task Retry_failedVersion_returns202AndIndexesWithAttemptTwo()
     {
-        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "0" });
+        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "1" });
         var doc = await ImportFailedAsync(app);
         app.Generator.AlwaysFail = false;
         using var client = app.CreateClientAs(Persona.ContentOwner);
@@ -88,7 +88,7 @@ public sealed class IngestionRetryAndRecoveryTests(PostgresFixture postgres)
     [Test]
     public async Task Retry_twoConcurrentRequests_acceptExactlyOne()
     {
-        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "0" });
+        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "1" });
         var doc = await ImportFailedAsync(app);
         using var first = app.CreateClientAs(Persona.ContentOwner);
         using var second = app.CreateClientAs(Persona.ContentOwner);

@@ -421,7 +421,8 @@ internal static partial class Chunker
             }
 
             var tail = Tail(drafts[i - 1].Text, limits.Overlap);
-            if (tail.Length > 0)
+            // A tail that cuts into a code fence or a table would start the passage with unbalanced syntax; no overlap is better.
+            if (tail.Length > 0 && !StructuralLine().IsMatch(tail))
             {
                 drafts[i].Text = $"{tail}\n{drafts[i].Text}";
             }
@@ -472,6 +473,9 @@ internal static partial class Chunker
 
         return result;
     }
+
+    [GeneratedRegex(@"^\s*(`{3,}|~{3,}|\|)", RegexOptions.Multiline)]
+    private static partial Regex StructuralLine();
 
     [GeneratedRegex(@"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")]
     private static partial Regex AtxHeading();

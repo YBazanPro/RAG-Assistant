@@ -48,6 +48,17 @@ public sealed class IngestionPipelineTests(PostgresFixture postgres)
     }
 
     [Test]
+    public async Task Ingest_providerReportsAModel_recordsItOnTheVersion()
+    {
+        await using var app = await IngestionHarness.StartAsync(postgres, generator: new FakeEmbeddingGenerator { ReportedModel = "bge-m3:latest" });
+        var doc = await app.ImportAsync();
+        await app.WaitForRunAsync(doc.RunId, "Succeeded");
+
+        await Assert.That(await app.ScalarAsync<string>("SELECT embedding_model FROM documents.document_versions WHERE id = $1", doc.VersionId))
+            .IsEqualTo("bge-m3:latest");
+    }
+
+    [Test]
     public async Task Ingest_successfulRun_writesTheStageEventsInOrderWithIncreasingIds()
     {
         await using var app = await IngestionHarness.StartAsync(postgres);

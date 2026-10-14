@@ -109,8 +109,54 @@ internal sealed partial class IngestionWorker(
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                // The run stays Running (or Queued) in the table, so the next start re-queues it; the loop must survive one bad run.
+                // Catch-all by design: the consumer loop must survive one bad run. The processor already fails runs for
+                // everything it can classify, so what reaches here is infrastructure (typically the database), and the run is
+                // handed back to the queue instead of waiting for a restart.
                 LogRunCrashed(logger, ex, runId);
+                await RequeueCrashedRunAsync(runId, cancellationToken);
+            }
+        }
+    }
+
+    private async Task RequeueCrashedRunAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            await Task.Delay(options.Value.ProbeInterval, clock, cancellationToken);
+            try
+            {
+                await using var scope = scopes.CreateAsyncScope();
+                var db = scope.ServiceProvider.GetRequiredService<DocumentsDbContext>();
+                await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+                var reset = await db.IngestionRuns.Where(r => r.Id == runId && r.Status == RunStatus.Running)
+                    .ExecuteUpdateAsync(
+                        s => s.SetProperty(r => r.Status, RunStatus.Queued)
+                            .SetProperty(r => r.CurrentStage, IngestionStage.Queued)
+                            .SetProperty(r => r.StartedAt, (DateTimeOffset?)null),
+                        cancellationToken);
+                if (reset > 0)
+                {
+                    await db.Versions.Where(v => v.Status == VersionStatus.Processing && v.Runs.Any(r => r.Id == runId))
+                        .ExecuteUpdateAsync(s => s.SetProperty(v => v.Status, VersionStatus.Queued), cancellationToken);
+                    db.IngestionEvents.Add(new IngestionEvent
+                    {
+                        RunId = runId,
+                        Stage = IngestionStage.Queued,
+                        Status = EventStatus.Started,
+                        Message = "Re-queued after an error",
+                        OccurredAt = clock.GetUtcNow(),
+                    });
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+                queue.Enqueue(runId);
+                return;
+            }
+            catch (DbException ex)
+            {
+                // The database is the likely reason the run crashed; keep trying until it answers.
+                LogRecoveryFailed(logger, ex, options.Value.ProbeInterval.TotalSeconds);
             }
         }
     }

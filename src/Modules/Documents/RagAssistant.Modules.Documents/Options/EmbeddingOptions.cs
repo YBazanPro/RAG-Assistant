@@ -6,6 +6,7 @@ internal sealed class EmbeddingOptions
 {
     public const string Section = "Documents:Embeddings";
 
+    /// <summary>Fallback only: the model recorded on a version is the one the provider reports (PassageEmbedder.ModelId).</summary>
     [Required]
     public string Model { get; set; } = "bge-m3";
 

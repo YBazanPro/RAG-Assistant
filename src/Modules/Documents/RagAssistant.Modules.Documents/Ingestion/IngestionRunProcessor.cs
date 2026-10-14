@@ -40,6 +40,9 @@ internal sealed partial class IngestionRunProcessor(
         }
 
         var started = clock.GetTimestamp();
+        // A root span per run: the ambient activity here belongs to worker startup and would put every run in one endless trace.
+        // Clearing it is local to this async flow; an explicit default parent context still falls back to Activity.Current.
+        Activity.Current = null;
         using var activity = DocumentsTelemetry.Source.StartActivity("ingestion.run");
         activity?.SetTag("run.id", runId);
         activity?.SetTag("version.id", run.VersionId);
@@ -99,6 +102,7 @@ internal sealed partial class IngestionRunProcessor(
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
+            // Catch-all by design (spec 007, AC-17: an unexpected stage failure fails the run with a content-free message).
             // Cancellation is excluded on purpose: a stopping host writes nothing and the run is re-queued at the next start.
             LogUnexpected(logger, ex, runId, run.VersionId, stage);
             await FailAsync(
@@ -167,6 +171,7 @@ internal sealed partial class IngestionRunProcessor(
         CancellationToken cancellationToken)
     {
         var embedding = embeddingOptions.Value;
+        var modelId = embedder.ModelId;
         var now = clock.GetUtcNow();
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
@@ -201,7 +206,7 @@ internal sealed partial class IngestionRunProcessor(
             .ExecuteUpdateAsync(
                 s => s.SetProperty(v => v.Status, VersionStatus.Indexed)
                     .SetProperty(v => v.PassageCount, passageCount)
-                    .SetProperty(v => v.EmbeddingModel, embedding.Model)
+                    .SetProperty(v => v.EmbeddingModel, modelId)
                     .SetProperty(v => v.EmbeddingDimensions, embedding.Dimensions)
                     .SetProperty(v => v.IndexedAt, now),
                 cancellationToken);

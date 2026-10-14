@@ -42,6 +42,9 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
 
     public int VectorLength { get; set; } = 1024;
 
+    /// <summary>What the provider reports as its model; null behaves like a client without metadata.</summary>
+    public string? ReportedModel { get; set; }
+
     /// <summary>When set, batches return this many vectors instead of one per input.</summary>
     public int? ReturnedCount { get; set; }
 
@@ -93,7 +96,10 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
         return Vectors(ReturnedCount ?? inputs.Length, inputs);
     }
 
-    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+    public object? GetService(Type serviceType, object? serviceKey = null) =>
+        serviceType == typeof(EmbeddingGeneratorMetadata) && ReportedModel is not null
+            ? new EmbeddingGeneratorMetadata("fake", defaultModelId: ReportedModel)
+            : null;
 
     public void Dispose()
     {

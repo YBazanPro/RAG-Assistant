@@ -14,7 +14,7 @@ namespace RagAssistant.Integration.Tests.Documents;
 [ParallelLimiter<IngestionParallelLimit>]
 public sealed class IngestionReadAuthAndTelemetryTests(PostgresFixture postgres)
 {
-    private static readonly Dictionary<string, string> NoRetries = new() { ["Documents:Ingestion:EmbeddingMaxRetries"] = "0" };
+    private static readonly Dictionary<string, string> NoRetries = new() { ["Documents:Ingestion:EmbeddingMaxRetries"] = "1" };
 
     private static async Task<ImportedDocument> ImportFailedAsync(IngestionHarness app)
     {
@@ -177,6 +177,7 @@ public sealed class IngestionReadAuthAndTelemetryTests(PostgresFixture postgres)
         await Assert.That(durations.Count).IsEqualTo(2);
 
         var run = stopped.Single(a => a.OperationName == "ingestion.run" && a.GetTagItem("run.id") is Guid id && id == ok.RunId);
+        await Assert.That(run.ParentId).IsNull();
         var stages = stopped.Where(a => a.OperationName == "ingestion.stage" && a.ParentSpanId == run.SpanId)
             .Select(a => (string)a.GetTagItem("stage")!).ToArray();
         await Assert.That(stages).IsEquivalentTo(["extracting", "chunking", "embedding", "storing"]);

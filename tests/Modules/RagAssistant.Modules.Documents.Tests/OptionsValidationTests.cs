@@ -46,6 +46,7 @@ internal sealed class OptionsValidationTests
     [Arguments("Documents:Ingestion:MaxConcurrentRuns", "0")]
     [Arguments("Documents:Ingestion:EmbeddingBatchSize", "0")]
     [Arguments("Documents:Ingestion:EmbeddingMaxRetries", "-1")]
+    [Arguments("Documents:Ingestion:EmbeddingMaxRetries", "0")]
     [Arguments("Documents:Ingestion:EmbeddingTimeout", "00:00:00")]
     [Arguments("Documents:Ingestion:EmbeddingRetryBaseDelay", "00:00:00")]
     [Arguments("Documents:Ingestion:ProbeInterval", "00:00:00")]

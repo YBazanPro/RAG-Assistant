@@ -1,5 +1,6 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
+using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Persistence;
@@ -15,8 +16,6 @@ internal static class RetryIngestion
 
     internal sealed class Handler(DocumentsDbContext db, IngestionQueue queue, TimeProvider clock) : IRequestHandler<Command, Result<Response>>
     {
-        private static readonly Error NotFound = Error.NotFound("documents.not_found", "The document was not found.");
-
         private static readonly Error NotRetryable =
             Error.Conflict("documents.not_retryable", "Only a document whose latest version failed to index can be retried.");
 
@@ -35,7 +34,7 @@ internal static class RetryIngestion
                 .FirstOrDefaultAsync(cancellationToken);
             if (document is null)
             {
-                return NotFound;
+                return DocumentErrors.NotFound;
             }
 
             if (document.Status != DocumentStatus.Active || document.Latest is not { Status: VersionStatus.Failed } latest)

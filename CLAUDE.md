@@ -229,7 +229,7 @@ Do NOT generate code that:
 - Calls a real LLM/embedding API from tests
 - References a provider SDK (OpenAI, Azure, Ollama…) from a module — only the Host knows the provider
 - Loads all embeddings into memory to compute similarity — query pgvector with `CosineDistance` + `OrderBy` + `Take`
-- Catches bare `Exception`
+- Catches `Exception` without a filter or a stated reason (a catch-all that must survive any failure, such as the ingestion processor, is filtered on cancellation and commented with the spec rule it implements)
 - Uses string interpolation in log messages, or logs full prompts/documents at Information level
 - References another module's project, DbContext, or internal types
 - Shares tables between modules or creates a single "god" DbContext

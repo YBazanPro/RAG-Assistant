@@ -6,7 +6,7 @@ internal sealed class IngestionOptions
 {
     public const string Section = "Documents:Ingestion";
 
-    [Range(1, 32)]
+    [Range(1, int.MaxValue)]
     public int MaxConcurrentRuns { get; set; } = 1;
 
     [Range(1, int.MaxValue)]
@@ -14,7 +14,7 @@ internal sealed class IngestionOptions
 
     public TimeSpan EmbeddingTimeout { get; set; } = TimeSpan.FromSeconds(60);
 
-    [Range(0, 20)]
+    [Range(1, int.MaxValue)]
     public int EmbeddingMaxRetries { get; set; } = 3;
 
     public TimeSpan EmbeddingRetryBaseDelay { get; set; } = TimeSpan.FromSeconds(2);

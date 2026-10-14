@@ -173,6 +173,20 @@ internal sealed class ChunkerTests
     }
 
     [Test]
+    public async Task Chunk_passageFollowingACodeBlock_doesNotStartWithTheFenceTail()
+    {
+        var md = $"# A\n```\nx = 1;\n```\n\n{string.Join(' ', Enumerable.Repeat("word", 30))}";
+
+        var passages = Markdown(md, Options(max: 20, overlap: 5));
+
+        await Assert.That(passages.Count).IsGreaterThan(1);
+        foreach (var passage in passages.Skip(1))
+        {
+            await Assert.That(passage.Text).DoesNotContain("```");
+        }
+    }
+
+    [Test]
     public async Task Chunk_oversizedCodeBlock_splitsOnLinesAndRefences()
     {
         var lines = Enumerable.Range(1, 30).Select(n => $"line{n:00};").ToArray();

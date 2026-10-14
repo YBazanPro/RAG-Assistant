@@ -19,8 +19,6 @@ internal static class StreamIngestionEvents
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    private static readonly Error NotFound = Error.NotFound("documents.not_found", "The document was not found.");
-
     public sealed record Target(Guid RunId, Guid VersionId, int VersionNumber, int Attempt);
 
     public sealed record StageEvent(
@@ -43,7 +41,7 @@ internal static class StreamIngestionEvents
             .FirstOrDefaultAsync(cancellationToken);
         if (version is null)
         {
-            return NotFound;
+            return DocumentErrors.NotFound;
         }
 
         var run = await db.IngestionRuns.AsNoTracking()
@@ -51,7 +49,7 @@ internal static class StreamIngestionEvents
             .OrderByDescending(r => r.Attempt)
             .Select(r => new { r.Id, r.Attempt })
             .FirstOrDefaultAsync(cancellationToken);
-        return run is null ? NotFound : new Target(run.Id, version.Id, version.Number, run.Attempt);
+        return run is null ? DocumentErrors.NotFound : new Target(run.Id, version.Id, version.Number, run.Attempt);
     }
 
     /// <summary>A missing or non-numeric header means "from the start of the run".</summary>

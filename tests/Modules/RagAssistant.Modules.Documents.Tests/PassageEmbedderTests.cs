@@ -24,7 +24,7 @@ internal sealed class PassageEmbedderTests
                 EmbeddingRetryBaseDelay = TimeSpan.FromMilliseconds(1),
                 EmbeddingTimeout = timeout ?? TimeSpan.FromSeconds(30),
             }),
-            Microsoft.Extensions.Options.Options.Create(new EmbeddingOptions { Dimensions = Dimensions }),
+            Microsoft.Extensions.Options.Options.Create(new EmbeddingOptions { Dimensions = Dimensions, Model = "test-model" }),
             TimeProvider.System,
             NullLogger<PassageEmbedder>.Instance);
 
@@ -116,6 +116,49 @@ internal sealed class PassageEmbedderTests
     }
 
     [Test]
+    public async Task IsAvailableAsync_modelAnswers_returnsTrue()
+    {
+        await Assert.That(await Create(new ScriptedGenerator()).IsAvailableAsync(CancellationToken.None)).IsTrue();
+    }
+
+    [Test]
+    public async Task IsAvailableAsync_anyProviderFailure_returnsFalse()
+    {
+        // A client-specific "model not found" is not one of the transient types, but it still means "not yet".
+        await Assert.That(await Create(new ScriptedGenerator { Crash = true }).IsAvailableAsync(CancellationToken.None)).IsFalse();
+        await Assert.That(await Create(new ScriptedGenerator { FailuresBeforeSuccess = 1 }).IsAvailableAsync(CancellationToken.None)).IsFalse();
+    }
+
+    [Test]
+    public async Task IsAvailableAsync_hangingModel_timesOutAsUnavailable()
+    {
+        var embedder = Create(new ScriptedGenerator { Hang = true }, timeout: TimeSpan.FromMilliseconds(50));
+
+        await Assert.That(await embedder.IsAvailableAsync(CancellationToken.None)).IsFalse();
+    }
+
+    [Test]
+    public async Task IsAvailableAsync_callerCancels_propagatesCancellation()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        var embedder = Create(new ScriptedGenerator { Hang = true });
+
+        await Assert.That(async () => { await embedder.IsAvailableAsync(cts.Token); }).Throws<OperationCanceledException>();
+    }
+
+    [Test]
+    public async Task ModelId_providerReportsAModel_isPreferredOverTheConfiguredName()
+    {
+        await Assert.That(Create(new ScriptedGenerator { ReportedModel = "bge-m3:latest" }).ModelId).IsEqualTo("bge-m3:latest");
+    }
+
+    [Test]
+    public async Task ModelId_providerReportsNothing_fallsBackToTheConfiguredName()
+    {
+        await Assert.That(Create(new ScriptedGenerator()).ModelId).IsEqualTo("test-model");
+    }
+
+    [Test]
     public async Task EmbedAsync_callerCancels_propagatesCancellation()
     {
         var generator = new ScriptedGenerator { Hang = true };
@@ -143,6 +186,8 @@ internal sealed class PassageEmbedderTests
         public int VectorLength { get; init; } = Dimensions;
 
         public int? ReturnedCount { get; init; }
+
+        public string? ReportedModel { get; init; }
 
         public async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
             IEnumerable<string> values,
@@ -178,7 +223,10 @@ internal sealed class PassageEmbedderTests
                 }));
         }
 
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(EmbeddingGeneratorMetadata) && ReportedModel is not null
+                ? new EmbeddingGeneratorMetadata("test", defaultModelId: ReportedModel)
+                : null;
 
         public void Dispose()
         {

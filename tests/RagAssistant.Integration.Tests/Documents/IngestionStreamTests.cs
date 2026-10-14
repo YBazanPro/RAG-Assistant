@@ -98,7 +98,7 @@ public sealed class IngestionStreamTests(PostgresFixture postgres)
     [Test]
     public async Task Stream_afterRetry_deliversTheWholeNewRunToAClientHoldingAnOldId()
     {
-        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "0" });
+        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "1" });
         app.Generator.AlwaysFail = true;
         var doc = await app.ImportAsync();
         await app.WaitForRunAsync(doc.RunId, "Failed");
@@ -121,7 +121,7 @@ public sealed class IngestionStreamTests(PostgresFixture postgres)
     [Test]
     public async Task Stream_failedRun_endsWithTheFailedEvent()
     {
-        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "0" });
+        await using var app = await IngestionHarness.StartAsync(postgres, settings: new Dictionary<string, string> { ["Documents:Ingestion:EmbeddingMaxRetries"] = "1" });
         app.Generator.AlwaysFail = true;
         var doc = await app.ImportAsync();
         await app.WaitForRunAsync(doc.RunId, "Failed");
