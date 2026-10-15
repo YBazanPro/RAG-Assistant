@@ -1,3 +1,4 @@
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject IFileUploader Uploader
 
@@ -102,6 +103,7 @@
     private long _sent;
     private long _total;
     private CancellationTokenSource? _upload;
+    private bool _disposed;
     private IBrowserFile? _file;
     private string? _fileName;
     private string? _title = "";
@@ -460,8 +462,20 @@
         }
     }
 
+    /// <summary>Leaving the page must not leave an upload running with nobody to tell: it is aborted.</summary>
+    public void Dispose()
+    {
+        _disposed = true;
+        _upload?.Cancel();
+    }
+
     private void ApplyProgress(UploadProgress progress)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         _sent = progress.Sent;
         _total = progress.Total;
         StateHasChanged();

@@ -237,6 +237,9 @@ public sealed class FakeFileUploader : IFileUploader
 
     public List<UploadRequest> Requests { get; } = [];
 
+    /// <summary>How many uploads were aborted through their cancellation token.</summary>
+    public int Aborted { get; private set; }
+
     /// <summary>When set, the upload waits for it (after reporting <see cref="Steps"/>), so a test can observe the uploading state.</summary>
     public Task? Gate { get; set; }
 
@@ -288,6 +291,7 @@ public sealed class FakeFileUploader : IFileUploader
             }
             catch (OperationCanceledException)
             {
+                Aborted++;
                 return new UploadResult(UploadResult.AbortedStatus, null);
             }
         }

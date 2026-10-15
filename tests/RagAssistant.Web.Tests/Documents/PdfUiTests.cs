@@ -173,6 +173,30 @@ public class PdfUiTests
         await Assert.That(cut.Find("#up-file-error").TextContent).Contains("Choose it again");
     }
 
+    [Test]
+    public async Task Dispose_whileUploading_abortsTheUpload()
+    {
+        var (ctx, api, _) = NewContext();
+        using var _c = ctx;
+        var gate = new TaskCompletionSource();
+        api.Uploader.Gate = gate.Task;
+        var cut = RenderImport(ctx);
+        Choose(cut, "big.pdf");
+        await cut.SetTextAsync("Owner", "Finance");
+        Submit(cut);
+        cut.WaitForState(() => api.Uploader.Requests.Count == 1, TimeSpan.FromSeconds(5));
+
+        // Navigating away disposes the component; the upload must not carry on with nobody to tell.
+        await ctx.DisposeComponentsAsync();
+
+        for (var i = 0; i < 100 && api.Uploader.Aborted == 0; i++)
+        {
+            await Task.Delay(20);
+        }
+
+        await Assert.That(api.Uploader.Aborted).IsEqualTo(1);
+    }
+
     // AC-30
     [Test]
     public async Task IngestionStatus_progressEvents_showADeterminateBarAndLabel()

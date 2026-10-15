@@ -135,6 +135,7 @@ internal sealed class FileSystemOriginalFileStoreTests : IDisposable
     }
 
     [Test]
+    [Arguments("pdf/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf\n")]
     [Arguments("pdf/../../secret.pdf")]
     [Arguments("../pdf/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf")]
     [Arguments("pdf/ABCDEF.pdf")]
@@ -212,6 +213,60 @@ internal sealed class FileSystemOriginalFileStoreTests : IDisposable
 
         await Assert.That(result.Succeeded).IsTrue();
         await Assert.That(Directory.Exists(Path.Combine(_root, "store", "pdf"))).IsTrue();
+    }
+
+    [Test]
+    public async Task Stage_diskCannotBeWritten_throwsAStoreExceptionNotAnIoException()
+    {
+        // "tmp" is a file where the store needs a directory: the disk refuses, whatever the request looked like.
+        Directory.CreateDirectory(_root);
+        await File.WriteAllTextAsync(TempDir, "in the way");
+        var store = CreateStore();
+
+        var failure = await Assert.That(async () => await store.StageAsync(new MemoryStream(new byte[10]), 1024, CancellationToken.None))
+            .Throws<OriginalFileStoreException>();
+
+        await Assert.That(failure!.InnerException).IsAssignableTo<IOException>();
+    }
+
+    [Test]
+    public async Task Stage_requestBodyFails_keepsItsOwnExceptionTypeAndLeavesNoTempFile()
+    {
+        var store = CreateStore();
+
+        var failure = await Assert.That(async () => await store.StageAsync(new FailingStream(), 1024, CancellationToken.None))
+            .Throws<IOException>();
+
+        await Assert.That(failure).IsNotTypeOf<OriginalFileStoreException>();
+        await Assert.That(Directory.GetFiles(TempDir).Length).IsEqualTo(0);
+    }
+
+    private sealed class FailingStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            throw new IOException("The client went away.");
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new IOException("The client went away.");
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private sealed class FakeEnvironment(string contentRoot) : Microsoft.Extensions.Hosting.IHostEnvironment

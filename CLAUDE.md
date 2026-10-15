@@ -213,7 +213,7 @@ dotnet test --project tests/RagAssistant.Integration.Tests
 dotnet test --project tests/RagAssistant.Ui.Smoke -c Release
 
 # Aspire CLI (needs CLI 13.6.1 or newer): start the AppHost in the background, read a resource's logs, stop it
-aspire start --apphost src/RagAssistant.AppHost
+aspire start --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 aspire logs api --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 aspire stop --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 

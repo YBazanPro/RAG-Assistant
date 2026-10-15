@@ -27,15 +27,15 @@ internal sealed partial class FileSystemOriginalFileStore : IOriginalFileStore
 
     public async Task<StagedFile?> StageAsync(Stream content, long maxBytes, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.Combine(_root, TempDirectory));
         var tempPath = Path.Combine(_root, TempDirectory, Guid.NewGuid().ToString("N"));
         var keep = false;
         try
         {
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             long length = 0;
-            await using (var file = new FileStream(
-                tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            // Failures of the disk become OriginalFileStoreException; failures of reading `content` (the request) keep their own type,
+            // so a caller can tell a broken store (a server fault) from a body that ended early (the client's).
+            await using (var file = OpenForWrite(tempPath))
             {
                 var buffer = new byte[BufferSize];
                 int read;
@@ -48,10 +48,10 @@ internal sealed partial class FileSystemOriginalFileStore : IOriginalFileStore
                     }
 
                     hash.AppendData(buffer, 0, read);
-                    await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    await WriteAsync(file, buffer.AsMemory(0, read), cancellationToken);
                 }
 
-                file.Flush(flushToDisk: true);
+                Flush(file);
             }
 
             keep = true;
@@ -65,6 +65,46 @@ internal sealed partial class FileSystemOriginalFileStore : IOriginalFileStore
             }
         }
     }
+
+    private FileStream OpenForWrite(string tempPath)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(_root, TempDirectory));
+            return new FileStream(
+                tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        }
+        catch (Exception ex) when (IsDiskFailure(ex))
+        {
+            throw new OriginalFileStoreException("The original-file store could not create a file.", ex);
+        }
+    }
+
+    private static async ValueTask WriteAsync(FileStream file, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await file.WriteAsync(data, cancellationToken);
+        }
+        catch (Exception ex) when (IsDiskFailure(ex))
+        {
+            throw new OriginalFileStoreException("The original-file store could not write a file.", ex);
+        }
+    }
+
+    private static void Flush(FileStream file)
+    {
+        try
+        {
+            file.Flush(flushToDisk: true);
+        }
+        catch (Exception ex) when (IsDiskFailure(ex))
+        {
+            throw new OriginalFileStoreException("The original-file store could not write a file.", ex);
+        }
+    }
+
+    private static bool IsDiskFailure(Exception ex) => ex is IOException or UnauthorizedAccessException or NotSupportedException;
 
     public Stream? OpenRead(string storageKey)
     {
@@ -106,7 +146,7 @@ internal sealed partial class FileSystemOriginalFileStore : IOriginalFileStore
     }
 
     // Keys come from a hash, never from a client file name; anything else is refused before it can reach the file system.
-    [GeneratedRegex("^pdf/[0-9a-f]{64}\\.pdf$")]
+    [GeneratedRegex("^pdf/[0-9a-f]{64}\\.pdf\\z")]
     private static partial Regex KeyPattern();
 
     private static bool TryDelete(string path)

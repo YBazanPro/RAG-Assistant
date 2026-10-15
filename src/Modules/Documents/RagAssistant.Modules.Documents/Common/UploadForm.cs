@@ -47,6 +47,10 @@ internal static class UploadForm
     private const int FormOverheadBytes = 64 * 1024;
     private const int MaxBoundaryLength = 70;
     private const int FieldBudgetBytes = 64 * 1024;
+
+    // The form has about seven fields. ReadFormAsync used to enforce a count; a hand-written reader has to as well, or empty
+    // fields cost nothing against the byte budget and a request body of 100 MiB becomes millions of dictionary entries.
+    private const int MaxFields = 64;
     private const int ChunkSize = 16 * 1024;
 
     /// <returns>The parts, or null when the body is not a well-formed multipart/form-data request (reported like a missing file).</returns>
@@ -67,10 +71,12 @@ internal static class UploadForm
         }
 
         var parts = new UploadParts();
+        var complete = false;
         try
         {
             var reader = new MultipartReader(boundary, request.Body);
             var fieldBudget = FieldBudgetBytes;
+            var fields = 0;
             while (await reader.ReadNextSectionAsync(cancellationToken) is { } section)
             {
                 if (section.GetContentDispositionHeader() is not { } disposition)
@@ -88,25 +94,33 @@ internal static class UploadForm
                 }
                 else
                 {
+                    if (++fields > MaxFields)
+                    {
+                        throw new InvalidDataException("The form has too many fields.");
+                    }
+
                     var name = HeaderUtilities.RemoveQuotes(disposition.Name).Value ?? string.Empty;
                     var value = await ReadFieldAsync(section.Body, fieldBudget, cancellationToken);
                     fieldBudget -= Encoding.UTF8.GetByteCount(value);
                     parts.Add(name, value);
                 }
             }
+
+            complete = true;
+            return parts;
         }
         catch (Exception ex) when (IsMalformedBody(ex, request))
         {
-            await parts.DisposeAsync();
             return null;
         }
-        catch
+        finally
         {
-            await parts.DisposeAsync();
-            throw;
+            // Anything but a complete read, an exception passing through included, discards the file already staged.
+            if (!complete)
+            {
+                await parts.DisposeAsync();
+            }
         }
-
-        return parts;
     }
 
     // The multipart reader reports a body that ends early (e.g. no parts at all) as a plain IOException. A request that is too large

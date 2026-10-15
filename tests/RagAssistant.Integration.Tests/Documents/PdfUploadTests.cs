@@ -256,6 +256,47 @@ public sealed class PdfUploadTests(RagAssistantAppFactory factory)
     }
 
     [Test]
+    public async Task Import_storeBecomesUnwritable_returns500NotA400AndStoresNothing()
+    {
+        var (app, path) = IsolatedHost();
+        await using var _ = app;
+        var title = DocumentUploads.UniqueTitle();
+        try
+        {
+            using var client = app.CreateClientAs(Persona.ContentOwner); // starts the host, which validates the store
+            var tmp = Path.Combine(path, "tmp");
+            Directory.Delete(tmp, recursive: true);
+            await File.WriteAllTextAsync(tmp, "a file where the store needs its staging directory");
+
+            using var form = TestPdfs.Form(TestPdfs.WithText(), title: title);
+            using var response = await client.PostAsync("/api/documents", form);
+
+            await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.InternalServerError);
+            await Assert.That(await DocumentsWithTitleAsync(title)).IsEqualTo(0L);
+        }
+        finally
+        {
+            Directory.Delete(path, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Import_tooManyFormFields_returns400AndStoresNothing()
+    {
+        var pdf = TestPdfs.WithText();
+        var form = TestPdfs.Form(pdf);
+        for (var i = 0; i < 200; i++)
+        {
+            form.Add(new StringContent(string.Empty), $"extra{i}");
+        }
+
+        var (status, _) = await PostAsync(form);
+
+        await Assert.That(status).IsEqualTo(HttpStatusCode.BadRequest);
+        await Assert.That(File.Exists(BlobPath(pdf))).IsFalse();
+    }
+
+    [Test]
     public async Task Import_bodyIsNotMultipart_returns400()
     {
         using var client = factory.CreateClientAs(Persona.ContentOwner);
