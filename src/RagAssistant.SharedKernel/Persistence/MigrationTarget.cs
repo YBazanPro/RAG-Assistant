@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace RagAssistant.Shared.Persistence;
+namespace RagAssistant.SharedKernel.Persistence;
 
 internal sealed class MigrationTarget<TContext> : IMigrationTarget
     where TContext : DbContext

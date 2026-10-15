@@ -9,9 +9,9 @@ using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.Modules.Documents.Storage;
-using RagAssistant.Shared.Common.Behaviors;
-using RagAssistant.Shared.Common.Extensions;
-using RagAssistant.Shared.Persistence;
+using RagAssistant.SharedKernel.Common.Behaviors;
+using RagAssistant.SharedKernel.Common.Extensions;
+using RagAssistant.SharedKernel.Persistence;
 
 namespace RagAssistant.Modules.Documents;
 

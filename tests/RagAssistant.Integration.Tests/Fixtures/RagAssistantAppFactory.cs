@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using RagAssistant.Integration.Tests.Sample;
-using RagAssistant.Shared.Persistence;
+using RagAssistant.SharedKernel.Persistence;
 using TUnit.Core.Interfaces;
 
 namespace RagAssistant.Integration.Tests.Fixtures;

@@ -16,4 +16,4 @@ Every pull request and every push to `main` is validated automatically.
 8. *(Added 2026-10-14.)* Tests run with `--coverage` (Cobertura output), and `.github/scripts/coverage-summary.py` adds a per-assembly line-coverage table to the run summary. A line counts as covered when any test project ran it; generated code (migrations, `*.g.cs`, `Program.cs`, the design-time factory) is reported separately. The report is informational: no threshold fails the build.
 
 ## Out of scope
-Deployment, coverage gates (a threshold would be a later amendment, scoped to `src/Modules/**` and `RagAssistant.Shared`), the Keycloak smoke test (added to the standard test run by [spec 004](004-identity.md)), dependency update bots.
+Deployment, coverage gates (a threshold would be a later amendment, scoped to `src/Modules/**` and `RagAssistant.SharedKernel`), the Keycloak smoke test (added to the standard test run by [spec 004](004-identity.md)), dependency update bots.

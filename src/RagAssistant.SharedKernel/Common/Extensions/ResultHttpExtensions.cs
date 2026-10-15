@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace RagAssistant.Shared.Common.Extensions;
+namespace RagAssistant.SharedKernel.Common.Extensions;
 
 public static class ResultHttpExtensions
 {

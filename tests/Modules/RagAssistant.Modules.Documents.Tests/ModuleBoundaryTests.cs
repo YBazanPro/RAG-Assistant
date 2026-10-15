@@ -13,6 +13,6 @@ internal sealed class ModuleBoundaryTests
             .ToArray();
 
         await Assert.That(internalReferences.Length).IsEqualTo(1);
-        await Assert.That(internalReferences[0]).IsEqualTo("RagAssistant.Shared");
+        await Assert.That(internalReferences[0]).IsEqualTo("RagAssistant.SharedKernel");
     }
 }

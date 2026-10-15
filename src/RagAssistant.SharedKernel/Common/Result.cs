@@ -1,4 +1,4 @@
-namespace RagAssistant.Shared.Common;
+namespace RagAssistant.SharedKernel.Common;
 
 public interface IFailureFactory<TSelf>
     where TSelf : Result

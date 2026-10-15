@@ -2,7 +2,7 @@ using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Storage;
-using RagAssistant.Shared.Common;
+using RagAssistant.SharedKernel.Common;
 
 namespace RagAssistant.Modules.Documents.Common;
 

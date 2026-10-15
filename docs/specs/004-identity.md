@@ -60,7 +60,7 @@ No persisted entities. Identity data lives in Keycloak, defined by the realm fil
 
 **Token shape:** `iss` = `<keycloak>/realms/ragassistant`, `aud` contains `ragassistant-api`, `sub` = user id, flat `roles` array (protocol mapper on realm roles; composites expanded), access-token lifetime 1 hour.
 
-**Policies** (names are constants in `RagAssistant.Shared`, names only, no logic):
+**Policies** (names are constants in `RagAssistant.SharedKernel`, names only, no logic):
 
 | Policy | Requires role |
 |---|---|

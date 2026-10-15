@@ -2,7 +2,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
 using RagAssistant.Web.Client.Layout;
 using RagAssistant.Web.Client.Security;
 

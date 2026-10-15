@@ -16,7 +16,7 @@ This step builds that backbone once, small, and proves it with a test-only sampl
 
 ### In
 
-- `Result` / `Result<T>` and `Error` in `RagAssistant.Shared/Common`.
+- `Result` / `Result<T>` and `Error` in `RagAssistant.SharedKernel/Common`.
 - Mapping from `Result` to `IResult` built on `TypedResults` and ProblemDetails (RFC 9457).
 - Per-module Mediator wiring (source-generated Mediator) and a shared validation pipeline behavior using FluentValidation.
 - `IEndpointGroup` and `app.MapEndpoints()` auto-discovery by reflection over registered assemblies, mounted under `/api`.
@@ -48,7 +48,7 @@ Code-level types, not persisted:
 - `Result` / `Result<T>` — success, or failure carrying one `Error`. Validation failures additionally carry the field errors (field name to messages).
 - `IEndpointGroup` — contract for a feature's endpoints; receives the `/api` route group and maps its routes.
 
-Placement: `Result`, `Error`, `ErrorType`, `IEndpointGroup`, `MapEndpoints()`, the Result-to-HTTP mapping and the validation behavior live in `RagAssistant.Shared` (modules reference only Shared). Exception handler, ProblemDetails setup, OpenAPI/Scalar and the Host-level `MapEndpoints()` call live in the Host. Shared contains no business logic.
+Placement: `Result`, `Error`, `ErrorType`, `IEndpointGroup`, `MapEndpoints()`, the Result-to-HTTP mapping and the validation behavior live in `RagAssistant.SharedKernel` (modules reference only Shared). Exception handler, ProblemDetails setup, OpenAPI/Scalar and the Host-level `MapEndpoints()` call live in the Host. Shared contains no business logic.
 
 ## API Contract
 
@@ -149,7 +149,7 @@ None in this step. All endpoints, including the test-only group, are anonymous. 
 | Decision | Chosen fallback | Revisit trigger |
 |---|---|---|
 | ~~Does per-module Mediator work?~~ **Resolved 2026-10-13:** yes, with the rule that modules inject their concrete generated `Mediator`, not `IMediator`/`ISender`. A single Host-level Mediator was rejected (sees all modules, needs public handlers). | n/a | n/a |
-| Pagination convention | Decided in [spec 008](008-browse-corpus-and-documents-ui.md): offset paging, `page`/`pageSize`, `Page<T>` envelope in `RagAssistant.Shared/Common` | Done |
+| Pagination convention | Decided in [spec 008](008-browse-corpus-and-documents-ui.md): offset paging, `page`/`pageSize`, `Page<T>` envelope in `RagAssistant.SharedKernel/Common` | Done |
 | Error `Code` uniqueness / catalog | No enforcement; codes are `<area>.<reason>` by convention | A duplicate code causes confusion |
 | Auth challenge/forbidden ProblemDetails bodies | Added in [spec 004](004-identity.md) (`auth.unauthenticated`, `auth.forbidden`) | Done |
 

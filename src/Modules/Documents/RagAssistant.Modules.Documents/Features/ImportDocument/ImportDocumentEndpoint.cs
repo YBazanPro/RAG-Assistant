@@ -6,8 +6,9 @@ using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Storage;
-using RagAssistant.Shared.Common.Extensions;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
+using RagAssistant.SharedKernel.Common.Extensions;
+using RagAssistant.SharedKernel.Common.Security;
 using ModuleMediator = RagAssistant.Modules.Documents.Generated.Mediator;
 
 namespace RagAssistant.Modules.Documents.Features.ImportDocument;

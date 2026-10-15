@@ -15,9 +15,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- RagAssistant.Shared targets ASP.NET Core and cannot run in the browser; these two files are plain constants shared by linking. -->
-    <Compile Include="..\RagAssistant.Shared\Common\Security\PolicyNames.cs" Link="Security\PolicyNames.cs" />
-    <Compile Include="..\RagAssistant.Shared\Common\Security\RoleNames.cs" Link="Security\RoleNames.cs" />
+    <!-- RagAssistant.SharedKernel is backend code (it targets ASP.NET Core) and cannot run in the browser. Only these two files of plain
+         constants are shared with the client, by linking; their namespace, RagAssistant.Security, is deliberately not the kernel's. -->
+    <Compile Include="..\RagAssistant.SharedKernel\Security\PolicyNames.cs" Link="Security\PolicyNames.cs" />
+    <Compile Include="..\RagAssistant.SharedKernel\Security\RoleNames.cs" Link="Security\RoleNames.cs" />
   </ItemGroup>
 
 </Project>

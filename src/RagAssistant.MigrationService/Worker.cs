@@ -1,4 +1,4 @@
-using RagAssistant.Shared.Persistence;
+using RagAssistant.SharedKernel.Persistence;
 
 namespace RagAssistant.MigrationService;
 

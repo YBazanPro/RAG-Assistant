@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
 
 namespace RagAssistant.Api.Api;
 

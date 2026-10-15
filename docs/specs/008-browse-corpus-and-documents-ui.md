@@ -61,7 +61,7 @@ Offset paging for every list endpoint: query `page` (1-based, default 1) and `pa
 { "items": [ … ], "page": 1, "pageSize": 25, "totalCount": 61 }
 ```
 
-A page beyond the last returns `200` with empty `items` and the real `totalCount`. Invalid `page` / `pageSize` → `400 validation.failed`. Ordering always ends with a unique tie-breaker (`id`, or `position`), so pages never overlap. `Page<T>` (record) and the page-request validator rule live in `RagAssistant.Shared/Common`; no business logic.
+A page beyond the last returns `200` with empty `items` and the real `totalCount`. Invalid `page` / `pageSize` → `400 validation.failed`. Ordering always ends with a unique tie-breaker (`id`, or `position`), so pages never overlap. `Page<T>` (record) and the page-request validator rule live in `RagAssistant.SharedKernel/Common`; no business logic.
 
 ## API Contract
 
@@ -277,7 +277,7 @@ Through the BFF
 
 Architecture and docs
 
-- **AC-35** The Documents project still references only `RagAssistant.Shared`; `Web.Client` does not reference any module; `arch-check` passes.
+- **AC-35** The Documents project still references only `RagAssistant.SharedKernel`; `Web.Client` does not reference any module; `arch-check` passes.
 - **AC-36** The roadmap marks 1.5 and 1.6 done, spec 002's pagination row points here, and `.claude/skills/fluentui-blazor-conventions` and `.claude/skills/sse-endpoints` exist and describe the code as built.
 
 ## Testing Approach
@@ -303,11 +303,11 @@ Architecture and docs
 
 ## Open Questions
 
-None. Resolved in review (2026-10-14): `Web.Client` has its own response records and `Page<T>` lives in `RagAssistant.Shared/Common`; last activity is `max(IndexedAt, UpdatedAt)` with no dash; archived documents are hidden from the default list and shown with `status=archived`.
+None. Resolved in review (2026-10-14): `Web.Client` has its own response records and `Page<T>` lives in `RagAssistant.SharedKernel/Common`; last activity is `max(IndexedAt, UpdatedAt)` with no dash; archived documents are hidden from the default list and shown with `status=archived`.
 
 ## Implementation Notes
 
-- **Host:** four slices under `Features/` (`ListDocuments`, `GetFacets`, `ListVersions`, `ListPassages`), no schema change. `Page<T>` and `PagingRules` (parsing, `Skip`, the validator rule) are in `RagAssistant.Shared/Common/Page.cs`. The C# property is `Number` with `[JsonPropertyName("page")]` because a record member cannot share its type's name.
+- **Host:** four slices under `Features/` (`ListDocuments`, `GetFacets`, `ListVersions`, `ListPassages`), no schema change. `Page<T>` and `PagingRules` (parsing, `Skip`, the validator rule) are in `RagAssistant.SharedKernel/Common/Page.cs`. The C# property is `Number` with `[JsonPropertyName("page")]` because a record member cannot share its type's name.
 - **Query binding:** `page`, `pageSize`, dates and `focus` are bound as strings and parsed in the validators. Typed binding would turn `page=abc` into `request.malformed`; AC-7 asks for `validation.failed` with a field error.
 - **SQL:** display status and last activity are computed columns of one projected query (correlated subqueries for the latest and active version), filtered, counted, sorted and paged in SQL. `tags` uses one `Tags.Contains(tag)` per tag (AND), not a single `@>` expression, so the GIN index is not guaranteed to be used; at the ADR 0004 volume this is immaterial. Facets group owners and languages in SQL and count tags in memory (arrays are tiny).
 - **Seeding in integration tests:** `CorpusSeeder` writes raw SQL, because `DocumentsDbContext` is internal and the test project has no access. Each test seeds under its own unique owner and filters on it, since the factory and its database are shared.

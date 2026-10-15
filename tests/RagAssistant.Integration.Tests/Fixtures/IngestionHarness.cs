@@ -8,7 +8,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using RagAssistant.Integration.Tests.Documents;
-using RagAssistant.Shared.Persistence;
+using RagAssistant.SharedKernel.Persistence;
 
 namespace RagAssistant.Integration.Tests.Fixtures;
 

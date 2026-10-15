@@ -1,5 +1,5 @@
 root = true
 
 [*.cs]
-# C#-only solution: VB keyword clashes (e.g. the RagAssistant.Shared namespace) are irrelevant
+# C#-only solution: VB keyword clashes (e.g. the RagAssistant.SharedKernel namespace) are irrelevant
 dotnet_diagnostic.CA1716.severity = none

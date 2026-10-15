@@ -255,7 +255,7 @@ Schema & configuration
 
 Architecture
 
-- **AC-20** The Documents project references only `RagAssistant.Shared` (plus packages); the Host and MigrationService register it; no other module references it.
+- **AC-20** The Documents project references only `RagAssistant.SharedKernel` (plus packages); the Host and MigrationService register it; no other module references it.
 
 ## Deferred Decisions
 

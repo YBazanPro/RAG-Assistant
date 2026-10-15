@@ -3,7 +3,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using Mediator;
 
-namespace RagAssistant.Shared.Common.Behaviors;
+namespace RagAssistant.SharedKernel.Common.Behaviors;
 
 public sealed class ValidationBehavior<TMessage, TResponse>(IEnumerable<IValidator<TMessage>> validators)
     : IPipelineBehavior<TMessage, TResponse>

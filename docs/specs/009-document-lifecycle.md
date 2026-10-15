@@ -225,7 +225,7 @@ UI (bUnit / Web tests)
 
 Architecture
 
-- **AC-29** The Documents project still references only `RagAssistant.Shared`; the migration is applied by `DatabaseMigrator` and by the MigrationService; `arch-check` passes.
+- **AC-29** The Documents project still references only `RagAssistant.SharedKernel`; the migration is applied by `DatabaseMigrator` and by the MigrationService; `arch-check` passes.
 
 ## Testing Approach
 
@@ -261,7 +261,7 @@ None. Resolved in review (2026-10-14): a missing `If-Match` is `428`; content eq
 - **Deviation, UI:** the "actions menu" is a labelled group of buttons (`role="group"`, `aria-label="Document actions"`) on the detail page, not a Fluent menu button: every action is one click and keyboard-reachable, and bUnit can exercise it without JavaScript. Disabled actions carry their reason as a tooltip (`title` on a wrapper, since a disabled button gets no pointer events).
 - **Deviation, UI:** the panel sends `If-Match` from `revision` in the `GET`/`PUT` JSON body (the API also sends the `ETag` header), which avoids carrying response headers through `ApiResult<T>`. "Keep editing" after a `412` keeps the input and the stale revision, as specified; only Reload fetches a fresh revision.
 - **History tab:** the version list now shows each version's origin (Upload or Reprocess) next to its number.
-- **Tests:** integration `DocumentEditTests`, `DocumentNewVersionTests`, `DocumentArchiveRestoreTests`, `DocumentLifecycleAuthAndTelemetryTests` (AC-1 to AC-22; the counters are read with a `MeterListener`, as in the spec 007 tests, because `MetricCollector` would need a new package); bUnit `DocumentLifecycleUiTests` and `DocumentsBffTests` (AC-23 to AC-28, plus `If-Match`/`ETag` pass through YARP). AC-29: `ModuleBoundaryTests` pass and the Documents project still references only `RagAssistant.Shared`.
+- **Tests:** integration `DocumentEditTests`, `DocumentNewVersionTests`, `DocumentArchiveRestoreTests`, `DocumentLifecycleAuthAndTelemetryTests` (AC-1 to AC-22; the counters are read with a `MeterListener`, as in the spec 007 tests, because `MetricCollector` would need a new package); bUnit `DocumentLifecycleUiTests` and `DocumentsBffTests` (AC-23 to AC-28, plus `If-Match`/`ETag` pass through YARP). AC-29: `ModuleBoundaryTests` pass and the Documents project still references only `RagAssistant.SharedKernel`.
 - **Verification run (2026-10-15):** `dotnet build RagAssistant.slnx -c Release`, `dotnet format --verify-no-changes`, the Integration (231), Web (158) and Documents module (129) test projects all pass. Builds and tests used `-c Release` because a running API process locked the Debug binaries.
 - **Manual AppHost walkthrough (2026-10-15, Release build, dev user `owner`, in-app browser):**
   - Edit title: Save showed "Changes saved." and the new title. From a second tab holding the old revision, Save returned `412` and the panel showed "This document was changed by someone else." with Reload / Keep editing; Reload fetched the new title.

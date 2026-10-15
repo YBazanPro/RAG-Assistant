@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
 
 namespace RagAssistant.Integration.Tests.Fixtures;
 

@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Persistence;
-using RagAssistant.Shared.Common;
+using RagAssistant.SharedKernel.Common;
 
 namespace RagAssistant.Modules.Documents.Common;
 

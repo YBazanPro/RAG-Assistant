@@ -1,4 +1,4 @@
-namespace RagAssistant.Shared.Common.Security;
+namespace RagAssistant.Security;
 
 /// <summary>Authorization policy names applied by endpoint groups. Names only: the policies are defined in the API.</summary>
 public static class PolicyNames

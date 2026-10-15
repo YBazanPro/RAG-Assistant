@@ -1,4 +1,4 @@
-namespace RagAssistant.Shared.Common.Security;
+namespace RagAssistant.Security;
 
 /// <summary>Realm role names as they appear in the flat "roles" claim (see the Keycloak realm file).</summary>
 public static class RoleNames

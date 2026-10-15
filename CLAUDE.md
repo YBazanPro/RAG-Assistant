@@ -37,7 +37,7 @@ Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `Gen
 - **TUnit** + **WebApplicationFactory** + **Testcontainers (PostgreSQL)** — testing, on Microsoft.Testing.Platform; **bUnit** for Blazor components
 - **Microsoft.Extensions.AI.Evaluation** — answer-quality evaluation in a separate harness, never in `dotnet test`
 - **Playwright for .NET** (`Microsoft.Playwright`) — real-browser smoke tests in `tests/RagAssistant.Ui.Smoke`, outside the solution and `dotnet test --solution`; for what bUnit cannot show (real file input, dialogs, focus, keyboard, multi-tab). Load the `ui-smoke-tests` skill to run, write or debug them ([ADR 0007](docs/adr/0007-browser-smoke-tests-playwright.md))
-- **Auth** — Keycloak (dev-only container, `Aspire.Hosting.Keycloak`, preview) configured entirely by the committed realm file `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` (no data volume — re-imported every run). API: JWT bearer (`AddKeycloakJwtBearer`, audience `ragassistant-api`, `RoleClaimType = "roles"`). Web: OIDC code + PKCE, cookie session, tokens never sent to the browser. Roles `knowledge-seeker` ⊂ `content-owner` ⊂ `maintainer`; policies `KnowledgeSeeker`, `ContentOwner`, `Maintainer` (names in `RagAssistant.Shared/Common/Security`); a fallback policy requires an authenticated user on every endpoint, so opt out explicitly with `AllowAnonymous`. Realm clients: `ragassistant-web` (BFF), `ragassistant-api` (audience), `ragassistant-dev` (public, password grant, dev tokens and the smoke test). Claims are not remapped (`sub`, `roles` as issued)
+- **Auth** — Keycloak (dev-only container, `Aspire.Hosting.Keycloak`, preview) configured entirely by the committed realm file `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` (no data volume — re-imported every run). API: JWT bearer (`AddKeycloakJwtBearer`, audience `ragassistant-api`, `RoleClaimType = "roles"`). Web: OIDC code + PKCE, cookie session, tokens never sent to the browser. Roles `knowledge-seeker` ⊂ `content-owner` ⊂ `maintainer`; policies `KnowledgeSeeker`, `ContentOwner`, `Maintainer` (names in `RagAssistant.SharedKernel/Security`, namespace `RagAssistant.Security`: the only part of the kernel the browser project links); a fallback policy requires an authenticated user on every endpoint, so opt out explicitly with `AllowAnonymous`. Realm clients: `ragassistant-web` (BFF), `ragassistant-api` (audience), `ragassistant-dev` (public, password grant, dev tokens and the smoke test). Claims are not remapped (`sub`, `roles` as issued)
 - **Messaging** — none; no message bus or messaging library (see Module Communication)
 
 Package versions are managed centrally in `Directory.Packages.props` — never put a `Version` on a `PackageReference`.
@@ -63,9 +63,10 @@ src/
   RagAssistant.Web/                      # Blazor Web App server + BFF: OIDC sign-in, cookie session, YARP to the API
   RagAssistant.Web.Client/               # WebAssembly client: layout, pages, shared components (Fluent UI Blazor 5)
 
-  RagAssistant.Shared/                   # Shared kernel (thin!)
+  RagAssistant.SharedKernel/             # Backend-only shared kernel (thin!); never referenced by Web or Web.Client
     Contracts/                           # Public cross-module contracts (interfaces + DTO records)
     Persistence/                         # DatabaseMigrator + AddMigrationTarget<TContext>()
+    Security/                            # PolicyNames, RoleNames: plain constants, namespace RagAssistant.Security, linked into Web.Client
     Common/
       Result.cs                          # Result pattern
       Behaviors/                         # Mediator pipeline behaviors
@@ -110,7 +111,7 @@ public static class IngestDocument
 
 No message bus. Modules communicate synchronously through contracts:
 
-- A module exposes capabilities to other modules **only** through interfaces + DTO records in `RagAssistant.Shared/Contracts/[Module]/` (e.g. `IDocumentSearch.SearchAsync(string query, int topK, CancellationToken ct)` returning `RetrievedChunk` records). The owning module implements it `internal`ly and registers it in `AddXxxModule`.
+- A module exposes capabilities to other modules **only** through interfaces + DTO records in `RagAssistant.SharedKernel/Contracts/[Module]/` (e.g. `IDocumentSearch.SearchAsync(string query, int topK, CancellationToken ct)` returning `RetrievedChunk` records). The owning module implements it `internal`ly and registers it in `AddXxxModule`.
 - Never reference another module's project, DbContext, entities, or handlers.
 - Background work (ingestion) uses a `BackgroundService` + `Channel<T>`, with the work state persisted in the owning module's tables: the persisted run table is the source of truth, and unfinished runs are re-queued on startup. If multiple instances ever run, workers claim rows with `FOR UPDATE SKIP LOCKED`. No messaging library (ADR 0001).
 
@@ -250,7 +251,7 @@ Do NOT generate code that:
 - Uses string interpolation in log messages, or logs full prompts/documents at Information level
 - References another module's project, DbContext, or internal types
 - Shares tables between modules or creates a single "god" DbContext
-- Puts business logic in `RagAssistant.Shared`
+- Puts business logic in `RagAssistant.SharedKernel`
 - Uses xUnit/NUnit/MSTest attributes or non-awaited assertions in TUnit tests (ignore MSTest- or xUnit-specific guidance from installed skills, e.g. `writing-mstest-tests` and `code-testing` from `dotnet-test`)
 - Adds `Version=` to a `PackageReference` — versions belong in `Directory.Packages.props`
 - Sends access tokens to the browser or stores them in browser storage — the Web BFF keeps them server-side

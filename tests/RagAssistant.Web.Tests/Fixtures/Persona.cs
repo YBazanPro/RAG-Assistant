@@ -1,4 +1,4 @@
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
 
 namespace RagAssistant.Web.Tests.Fixtures;
 

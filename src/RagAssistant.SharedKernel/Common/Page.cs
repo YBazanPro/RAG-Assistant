@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using FluentValidation;
 
-namespace RagAssistant.Shared.Common;
+namespace RagAssistant.SharedKernel.Common;
 
 /// <summary>Offset-paging envelope returned by every list endpoint (spec 008).</summary>
 public sealed record Page<T>(IReadOnlyList<T> Items, [property: JsonPropertyName("page")] int Number, int PageSize, int TotalCount);

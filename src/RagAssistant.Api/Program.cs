@@ -1,6 +1,6 @@
 using RagAssistant.Api.Api;
 using RagAssistant.Modules.Documents;
-using RagAssistant.Shared.Common.Extensions;
+using RagAssistant.SharedKernel.Common.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 

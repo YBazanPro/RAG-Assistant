@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Net.Http.Headers;
 using RagAssistant.Modules.Documents.Features.GetDocument;
-using RagAssistant.Shared.Common;
-using RagAssistant.Shared.Common.Extensions;
+using RagAssistant.SharedKernel.Common;
+using RagAssistant.SharedKernel.Common.Extensions;
 using ModuleMediator = RagAssistant.Modules.Documents.Generated.Mediator;
 
 namespace RagAssistant.Modules.Documents.Common;

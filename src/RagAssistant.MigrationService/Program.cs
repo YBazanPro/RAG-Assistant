@@ -1,6 +1,6 @@
 using RagAssistant.MigrationService;
 using RagAssistant.Modules.Documents;
-using RagAssistant.Shared.Persistence;
+using RagAssistant.SharedKernel.Persistence;
 
 var builder = Host.CreateApplicationBuilder(args);
 

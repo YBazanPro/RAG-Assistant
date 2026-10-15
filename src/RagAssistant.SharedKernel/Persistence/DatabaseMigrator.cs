@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace RagAssistant.Shared.Persistence;
+namespace RagAssistant.SharedKernel.Persistence;
 
 /// <summary>
 /// Applies the migrations of every registered module database, in registration order.

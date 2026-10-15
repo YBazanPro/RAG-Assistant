@@ -85,7 +85,7 @@ builder.Services.AddAuthentication()
 ```
 
 - `RequireHttpsMetadata` is disabled in Development only.
-- Policy names are constants in `RagAssistant.Shared` (names only, no logic). Endpoint groups apply them with `.RequireAuthorization(...)`.
+- Policy names are constants in `RagAssistant.SharedKernel/Security` (namespace `RagAssistant.Security`; names only, no logic). The project was called `RagAssistant.Shared` until 2026-10-15. Endpoint groups apply them with `.RequireAuthorization(...)`.
 
 | Policy | Required role | Covers |
 |---|---|---|

@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\RagAssistant.Shared\RagAssistant.Shared.csproj" />
+    <ProjectReference Include="..\..\..\RagAssistant.SharedKernel\RagAssistant.SharedKernel.csproj" />
   </ItemGroup>
 
   <ItemGroup>

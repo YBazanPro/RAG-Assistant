@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using ModuleMediator = RagAssistant.Integration.Tests.Generated.Mediator;
-using RagAssistant.Shared.Common;
-using RagAssistant.Shared.Common.Behaviors;
-using RagAssistant.Shared.Common.Extensions;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
+using RagAssistant.SharedKernel.Common;
+using RagAssistant.SharedKernel.Common.Behaviors;
+using RagAssistant.SharedKernel.Common.Extensions;
 
 namespace RagAssistant.Integration.Tests.Sample;
 

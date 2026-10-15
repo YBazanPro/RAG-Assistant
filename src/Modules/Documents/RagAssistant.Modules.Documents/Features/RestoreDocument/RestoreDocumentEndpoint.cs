@@ -3,8 +3,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using RagAssistant.Modules.Documents.Common;
-using RagAssistant.Shared.Common.Extensions;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
+using RagAssistant.SharedKernel.Common.Extensions;
+using RagAssistant.SharedKernel.Common.Security;
 using ModuleMediator = RagAssistant.Modules.Documents.Generated.Mediator;
 
 namespace RagAssistant.Modules.Documents.Features.RestoreDocument;

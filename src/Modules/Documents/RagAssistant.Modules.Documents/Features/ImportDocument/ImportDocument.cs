@@ -11,7 +11,7 @@ using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.Modules.Documents.Persistence.Configurations;
-using RagAssistant.Shared.Common;
+using RagAssistant.SharedKernel.Common;
 
 namespace RagAssistant.Modules.Documents.Features.ImportDocument;
 

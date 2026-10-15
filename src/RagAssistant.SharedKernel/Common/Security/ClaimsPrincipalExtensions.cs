@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace RagAssistant.Shared.Common.Security;
+namespace RagAssistant.SharedKernel.Common.Security;
 
 public static class ClaimsPrincipalExtensions
 {

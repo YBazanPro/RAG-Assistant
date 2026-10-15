@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.FluentUI.AspNetCore.Components;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
 using RagAssistant.Web.Client.Documents;
 
 namespace RagAssistant.Web.Client.Security;

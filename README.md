@@ -44,7 +44,7 @@ Browser ──► RagAssistant.Web (Blazor + BFF: cookie session, YARP) ──�
 Aspire AppHost: postgres (pgvector) · pgweb · keycloak · migrations · api · web
 ```
 
-- **Modular monolith**: one deployable API, composed of modules that never reference each other. Cross-module capabilities are interfaces and DTOs in `RagAssistant.Shared/Contracts`.
+- **Modular monolith**: one deployable API, composed of modules that never reference each other. Cross-module capabilities are interfaces and DTOs in `RagAssistant.SharedKernel/Contracts`.
 - **Vertical slices**: each feature is one file with its command or query, handler, response and validator.
 - **Background ingestion**: `BackgroundService` + `Channel<T>`, with the stage state persisted so unfinished runs resume after a restart.
 - **Versioned documents**: stable passage IDs, only the active indexed version is searchable, and each answer will store a snapshot of the passages it cited.

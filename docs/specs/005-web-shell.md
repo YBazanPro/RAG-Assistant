@@ -224,7 +224,7 @@ Choices made while implementing, none of which change the approved behavior (rec
 - **Anonymous in the WebAssembly client:** the route-level fallback shows a "Sign in required" `ErrorState` with a link (no automatic redirect), as already specified for expired sessions. An automatic redirect looped when the state was missing.
 - **Proxy timeouts:** connect 10 s; activity timeout 2 min (configurable through `Bff:ProxyActivityTimeout`, used by the tests).
 - **Packages added** (all in the families approved by ADR 0001 and 0002): `Microsoft.Extensions.ServiceDiscovery.Yarp` (YARP destinations through Aspire service discovery) and `Microsoft.AspNetCore.Components.WebAssembly.Authentication` (`AddAuthenticationStateDeserialization`).
-- **Shared constants:** `RagAssistant.Shared` targets ASP.NET Core and cannot run in WebAssembly, so `PolicyNames.cs` and `RoleNames.cs` are linked into `Web.Client` as source files.
+- **Shared constants:** `RagAssistant.SharedKernel` targets ASP.NET Core and cannot run in WebAssembly, so `PolicyNames.cs` and `RoleNames.cs` are linked into `Web.Client` as source files.
 - **Launch settings:** `RagAssistant.Web` has its own `launchSettings.json` (Development); without it Aspire starts the Web in Production, which breaks the OIDC metadata check.
 - **Keycloak is HTTPS** (`https://localhost:8180`, Aspire development certificate). The README recipe was corrected (`curl -k`).
 - **AC-19:** bUnit runs under TUnit (confirmed by a spike and by the component tests).

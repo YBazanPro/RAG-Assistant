@@ -1,4 +1,4 @@
-namespace RagAssistant.Shared.Persistence;
+namespace RagAssistant.SharedKernel.Persistence;
 
 /// <summary>
 /// A module database whose EF Core migrations are applied by <see cref="DatabaseMigrator"/>.

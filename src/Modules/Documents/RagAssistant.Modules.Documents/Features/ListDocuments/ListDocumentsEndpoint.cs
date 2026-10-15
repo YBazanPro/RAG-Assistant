@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using RagAssistant.Shared.Common;
-using RagAssistant.Shared.Common.Extensions;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
+using RagAssistant.SharedKernel.Common;
+using RagAssistant.SharedKernel.Common.Extensions;
 using ModuleMediator = RagAssistant.Modules.Documents.Generated.Mediator;
 
 namespace RagAssistant.Modules.Documents.Features.ListDocuments;

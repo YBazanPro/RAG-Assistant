@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Persistence;
-using RagAssistant.Shared.Common;
+using RagAssistant.SharedKernel.Common;
 
 namespace RagAssistant.Modules.Documents.Features.ArchiveDocument;
 

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace RagAssistant.Shared.Common.Extensions;
+namespace RagAssistant.SharedKernel.Common.Extensions;
 
 /// <summary>A feature's endpoints. Implementations need a public parameterless constructor and receive the "/api" group.</summary>
 public interface IEndpointGroup

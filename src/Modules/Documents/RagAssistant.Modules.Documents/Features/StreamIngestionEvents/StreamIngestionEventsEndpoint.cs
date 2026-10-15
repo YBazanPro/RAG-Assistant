@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
-using RagAssistant.Shared.Common.Extensions;
-using RagAssistant.Shared.Common.Security;
+using RagAssistant.Security;
+using RagAssistant.SharedKernel.Common.Extensions;
 
 namespace RagAssistant.Modules.Documents.Features.StreamIngestionEvents;
 

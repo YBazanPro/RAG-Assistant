@@ -1,4 +1,4 @@
-using RagAssistant.Shared.Common;
+using RagAssistant.SharedKernel.Common;
 
 namespace RagAssistant.Modules.Documents.Common;
 
