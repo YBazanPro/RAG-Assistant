@@ -40,6 +40,15 @@ public static class DocumentsModule
             .Bind(configuration.GetSection(ImportOptions.Section))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        services.AddOptions<StorageOptions>()
+            .Bind(configuration.GetSection(StorageOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddOptions<PdfOptions>()
+            .Bind(configuration.GetSection(PdfOptions.Section))
+            .ValidateDataAnnotations()
+            .Validate(o => o.HasPositiveDurations, "Documents:Pdf: every timeout must be greater than zero.")
+            .ValidateOnStart();
         services.AddOptions<EmbeddingOptions>()
             .Bind(configuration.GetSection(EmbeddingOptions.Section))
             .ValidateDataAnnotations()

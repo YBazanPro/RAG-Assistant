@@ -15,6 +15,7 @@ internal sealed class DocumentVersionConfiguration : IEntityTypeConfiguration<Do
         builder.Property(v => v.Id).ValueGeneratedNever();
         builder.Property(v => v.OriginalFileName).HasMaxLength(255);
         builder.Property(v => v.ContentType).HasMaxLength(200);
+        builder.Property(v => v.StorageKey).HasMaxLength(300);
         builder.Property(v => v.ContentHash).HasMaxLength(64);
         builder.Property(v => v.CreatedBy).HasMaxLength(128);
         builder.Property(v => v.EmbeddingModel).HasMaxLength(100);

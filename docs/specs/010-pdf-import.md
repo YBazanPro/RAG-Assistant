@@ -233,11 +233,11 @@ The JS module is a small ES module (`wwwroot/js/upload.js`), loaded lazily after
 - **Telemetry:** counters `documents.imported` (tag `format` now includes `pdf`), `documents.pdf.pages.extracted`, histogram `documents.pdf.extraction.duration` (seconds), existing ingestion metrics; `ingestion.run` stage spans cover Extracting for PDFs. Logs carry version id, page counts, outcome; never text.
 - **Security:** filenames never become paths (store keys come from the hash); the download sets `nosniff`, a sandboxing CSP and `no-store`; the PDF is parsed, never rendered, by the server; limits bound pages, size and time.
 - **Accessibility:** the progress bar has `role="progressbar"` with `aria-valuenow/min/max` and a text label; Cancel is keyboard-operable; errors are announced.
-- **Architecture:** extraction and the store are internal to the Documents module (`IPdfTextExtractor`, `IOriginalFileStore`); the only new package is `UglyToad.PdfPig` (ADR 0006); no reference to another module; `arch-check` passes.
+- **Architecture:** extraction and the store are internal to the Documents module (`IPdfTextExtractor`, `IOriginalFileStore`); the only new package is `PdfPig` (ADR 0006); no reference to another module; `arch-check` passes.
 
 ## Integrations
 
-- **PdfPig** (`UglyToad.PdfPig`): the single new package.
+- **PdfPig** (`PdfPig`): the single new package.
 - **Filesystem:** a data directory outside the database, chosen by the AppHost (see Domain Model) and passed to the API through configuration. Backups must include it. The API runs as a process, so it is a plain folder on the developer's machine, not a container volume.
 - **BFF (spec 005):** a dedicated YARP route for `POST /api/documents` and `POST /api/documents/{id}/versions` with the larger body limit and timeout; everything else is unchanged. The GET file route passes through the existing catch-all route, with response streaming (no buffering) and range support preserved.
 - **Spec 007 worker:** the Extracting stage dispatches by `SourceFormat`; the Chunking, Embedding and Storing stages are unchanged except for progress events.
@@ -311,7 +311,7 @@ UI (bUnit / Web tests)
 
 Architecture and docs
 
-- **AC-34** The Documents project references `UglyToad.PdfPig` and `RagAssistant.Shared` only; no other module; `Directory.Packages.props` holds the version; ADR 0006 is `Accepted`; `arch-check` passes.
+- **AC-34** The Documents project references `PdfPig` and `RagAssistant.Shared` only; no other module; `Directory.Packages.props` holds the version; ADR 0006 is `Accepted`; `arch-check` passes.
 - **AC-35** The roadmap marks 1.8 done and Phase 1 complete; `product.md`'s formats line lists PDF; ADR 0004's corpus target note points to ADR 0006; CLAUDE.md mentions PDF and the store.
 
 ## Testing Approach

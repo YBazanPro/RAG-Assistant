@@ -13,5 +13,10 @@ internal sealed class IngestionEvent
 
     public string? Message { get; set; }
 
+    /// <summary>Progress counters of a <see cref="EventStatus.Progress"/> event (pages or passages done, and the total).</summary>
+    public int? Current { get; set; }
+
+    public int? Total { get; set; }
+
     public DateTimeOffset OccurredAt { get; set; }
 }

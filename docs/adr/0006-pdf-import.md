@@ -12,7 +12,7 @@ Content owners need to import PDFs up to 100 MB. `CLAUDE.md` requires an ADR for
 
 ### 1. Text extraction: PdfPig
 
-`UglyToad.PdfPig` (Apache 2.0, managed code, no native dependencies) reads pages, words with font name, size and position, and the document outline. It runs in the Documents module only, behind an internal `IPdfTextExtractor`, so tests and a future replacement do not touch the pipeline. Its page segmentation (Docstrum) and reading-order detection handle multi-column pages (`UglyToad.PdfPig.DocumentLayoutAnalysis`; if these ship as a separate package, that package is added under this ADR). It extracts the text layer only: **no OCR**, no image content, no execution of PDF scripts or embedded files.
+`PdfPig` (NuGet id `PdfPig`, namespace `UglyToad.PdfPig`, Apache 2.0, managed code, no native dependencies) reads pages, words with font name, size and position, and the document outline. It runs in the Documents module only, behind an internal `IPdfTextExtractor`, so tests and a future replacement do not touch the pipeline. Its page segmentation (Docstrum) and reading-order detection handle multi-column pages (`UglyToad.PdfPig.DocumentLayoutAnalysis`; if these ship as a separate package, that package is added under this ADR). It extracts the text layer only: **no OCR**, no image content, no execution of PDF scripts or embedded files.
 
 Whether a PDF needs OCR is decided at upload by an internal `IPdfProbe` over a bounded sample of pages (character counts, image coverage and glyph classes, no layout analysis). Scanned PDFs are rejected with `documents.requires_ocr`; PDFs with only some text-less pages are accepted and the pages are recorded on the version (`pages_without_text`), which is also the input a later OCR step would need. Full extraction repeats the check over all pages.
 
@@ -32,7 +32,7 @@ Default pgvector HNSW settings remain sufficient at this size. Time to first tok
 
 ## Consequences
 
-- One new package (`UglyToad.PdfPig`), versioned in `Directory.Packages.props`.
+- One new package (`PdfPig`), versioned in `Directory.Packages.props`.
 - Layout analysis is best effort: columns are handled, but tables (no structure recovery), sidebars and unusual fonts can degrade reading order and heading detection; layout analysis costs extraction time and can be switched off by configuration. Evaluation (Phase 5) decides whether to invest further.
 - Extraction runs in the API process; very large or hostile files are bounded by page, size and time limits, not isolated. Out-of-process extraction is a later option.
 - The stored files must be included in any backup or deployment of the API's data, in addition to the database.

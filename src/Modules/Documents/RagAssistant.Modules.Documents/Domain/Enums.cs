@@ -25,6 +25,7 @@ internal enum SourceFormat
 {
     Markdown,
     PlainText,
+    Pdf,
 }
 
 internal enum RunStatus
@@ -50,4 +51,5 @@ internal enum EventStatus
     Started,
     Completed,
     Failed,
+    Progress,
 }

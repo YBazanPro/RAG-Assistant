@@ -26,7 +26,7 @@ internal sealed partial class IngestionRunProcessor(
 {
     private const string UnexpectedMessage = "Unexpected error; see logs";
 
-    private sealed record VersionInput(Guid DocumentId, int Number, string Content, SourceFormat Format);
+    private sealed record VersionInput(Guid DocumentId, int Number, string? Content, SourceFormat Format);
 
     public async Task ProcessAsync(Guid runId, CancellationToken cancellationToken)
     {
@@ -56,7 +56,9 @@ internal sealed partial class IngestionRunProcessor(
                 .Select(v => new VersionInput(v.DocumentId, v.Number, v.Content, v.SourceFormat))
                 .SingleAsync(cancellationToken);
 
-            await RunStageAsync(runId, stage, () => (version.Content, $"{version.Content.Length} characters"), cancellationToken);
+            // PDF extraction arrives with the extractor (spec 010); until then a version without text cannot be ingested.
+            var text = version.Content ?? throw new InvalidOperationException("The version has no text content.");
+            await RunStageAsync(runId, stage, () => (text, $"{text.Length} characters"), cancellationToken);
 
             stage = IngestionStage.Chunking;
             var passages = await RunStageAsync(
@@ -64,7 +66,7 @@ internal sealed partial class IngestionRunProcessor(
                 stage,
                 () =>
                 {
-                    var chunks = Chunker.Chunk(version.Content, version.Format, chunking.Value);
+                    var chunks = Chunker.Chunk(text, version.Format, chunking.Value);
                     return chunks.Count == 0
                         ? throw new IngestionException(IngestionErrorCodes.NoPassages, "The document has no indexable text.")
                         : (chunks, $"{chunks.Count} passages");

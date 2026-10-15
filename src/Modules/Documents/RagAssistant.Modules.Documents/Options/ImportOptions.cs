@@ -9,4 +9,8 @@ internal sealed class ImportOptions
     /// <summary>Largest accepted upload. Whole requests are capped slightly above it to leave room for the form fields.</summary>
     [Range(1, int.MaxValue)]
     public int MaxFileSizeBytes { get; set; } = 1_048_576;
+
+    /// <summary>Largest accepted PDF; text formats keep <see cref="MaxFileSizeBytes"/>.</summary>
+    [Range(1, int.MaxValue)]
+    public int MaxPdfSizeBytes { get; set; } = 104_857_600;
 }
