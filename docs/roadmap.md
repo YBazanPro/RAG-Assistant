@@ -13,7 +13,7 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4) | The rest of Phase 1 (listing, UI, versions), Chat module, remaining project skills |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4); browsing the corpus and the Documents UI (spec 008, steps 1.5 and 1.6) | The rest of Phase 1 (lifecycle, PDF import), Chat module, remaining project skills |
 
 
 
@@ -126,8 +126,8 @@ The module owns Corpus Management + Ingestion (+ Retrieval in Phase 2). Start wi
 | 1.2 | ✅ **Import document** ([spec 006](specs/006-documents-data-model-and-import.md)) | Markdown/plain text upload + metadata → `202 Accepted` with document ID; version created with status *queued*. Validation of format, size, required metadata. | ContentOwner |
 | 1.3 | ✅ **Background ingestion** ([spec 007](specs/007-background-ingestion-and-progress.md)) | `BackgroundService` + `Channel<T>`: extract → normalize → structure-aware chunking (Options: max size, overlap) → embed (batched) → store. Persist every stage; failures are visible and retryable; a document is retrievable only when *active* and *indexed*. The persisted run table is the source of truth; on startup, re-queue runs left queued or in progress. No messaging library. | — |
 | 1.4 | ✅ **Ingestion progress (SSE)** ([spec 007](specs/007-background-ingestion-and-progress.md)) | `GET /documents/{id}/ingestion/events`: persisted stage changes, `Last-Event-ID` resume. Integration test reads the stream with `SseParser`. | ContentOwner |
-| 1.5 | **Browse corpus** ([spec 008](specs/008-browse-corpus-and-documents-ui.md), approved) | List with filters (status, language, owner, tags, date) and paging; document detail; passages of a version. | KnowledgeSeeker |
-| 1.6 | **Documents UI** ([spec 008](specs/008-browse-corpus-and-documents-ui.md), approved) | `DocumentTable`, `DocumentUpload`, `DocumentStatusBadge`, live `IngestionStatus`, document detail with `DocumentMetadataPanel` and `PassageList`/`PassageCard`. | — |
+| 1.5 | ✅ **Browse corpus** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | List with filters (status, language, owner, tags, date) and paging; document detail; passages of a version. | KnowledgeSeeker |
+| 1.6 | ✅ **Documents UI** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | `DocumentTable`, `DocumentUpload`, `DocumentStatusBadge`, live `IngestionStatus`, document detail with `DocumentMetadataPanel` and `PassageList`/`PassageCard`. | — |
 | 1.7 | **Lifecycle** ([spec 009](specs/009-document-lifecycle.md), approved) | Edit metadata, upload a new version (history preserved), archive, reprocess. | ContentOwner |
 | 1.8 | **PDF import** ([spec 010](specs/010-pdf-import.md) and [ADR 0006](adr/0006-pdf-import.md), approved) *(added 2026-10-14, after 1.7)* | PDF upload up to 100 MB. Needs its own spec and ADR: a PDF text-extraction library (PdfPig, Apache 2.0, managed code), storing the original binary outside Postgres (the source text column stays for text formats), upload streaming through the BFF and Host (body limits, timeouts), heading detection from font data, page numbers in citations (`Passage.PageStart/PageEnd` and `DocumentVersion.SourceFormat = Pdf` are already in the schema), and a review of the ADR 0004 corpus and ingestion-time targets. Scanned PDFs (OCR) stay out of scope. | ContentOwner |
 
@@ -259,7 +259,7 @@ No public skill covers these project-specific conventions. Create them once the 
 
 | Skill | Create after | Captures |
 |---|---|---|
-| `fluentui-blazor-conventions` | 0.6 | Fluent UI version and components in use, theming tokens, layout patterns, how domain components wrap Fluent primitives |
+| `fluentui-blazor-conventions` ✅ | 0.6 (created with 1.6) | Fluent UI version and components in use, theming tokens, layout patterns, how domain components wrap Fluent primitives |
 | `sse-endpoints` ✅ | 1.4 | Event naming, DTO records, `TypedResults.ServerSentEvents`, BFF passthrough, `SseParser` tests, `SetBrowserResponseStreamingEnabled` on the client |
 | `rag-pipeline` | 3.3 | Prompt construction, citation format and validation, evidence threshold, fake `IChatClient` / embedding patterns for tests |
 

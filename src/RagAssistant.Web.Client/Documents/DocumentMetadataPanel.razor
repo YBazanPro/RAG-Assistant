@@ -1,0 +1,25 @@
+<FluentCard Class="meta-card">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+        <MetaRow Label="Title">@Document.Title</MetaRow>
+        <MetaRow Label="Owner">@Document.OwnerName</MetaRow>
+        <MetaRow Label="Language">@Document.Language</MetaRow>
+        <MetaRow Label="Tags">
+            @if (Document.Tags.Length == 0)
+            {
+                <span>—</span>
+            }
+            @foreach (var tag in Document.Tags)
+            {
+                <FluentBadge Appearance="BadgeAppearance.Outline" Class="tag-chip">@tag</FluentBadge>
+            }
+        </MetaRow>
+        <MetaRow Label="Effective date">@(Document.EffectiveDate is { } date ? Formatting.Date(date) : "—")</MetaRow>
+        <MetaRow Label="Source">@(string.IsNullOrWhiteSpace(Document.Source) ? "—" : Document.Source)</MetaRow>
+        <MetaRow Label="Created"><time title="@Formatting.UtcTooltip(Document.CreatedAt)">@Formatting.Local(Document.CreatedAt)</time> by @Document.CreatedBy</MetaRow>
+        <MetaRow Label="Updated"><time title="@Formatting.UtcTooltip(Document.UpdatedAt)">@Formatting.Local(Document.UpdatedAt)</time> by @Document.UpdatedBy</MetaRow>
+    </FluentStack>
+</FluentCard>
+
+@code {
+    [Parameter, EditorRequired] public DocumentInfo Document { get; set; } = default!;
+}

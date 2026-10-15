@@ -1,0 +1,243 @@
+@page "/documents/{DocumentId:guid}"
+@attribute [Authorize(Policy = PolicyNames.KnowledgeSeeker)]
+@implements IDisposable
+@inject IDocumentsApi Api
+@inject NavigationManager Navigation
+@inject IAuthorizationService Authorization
+@inject AuthenticationStateProvider AuthenticationState
+
+<PageTitle>@(_document?.Title ?? "Document") · RagAssistant</PageTitle>
+
+@* Prerendering stops at the shell: the data is fetched once, after the first interactive render. *@
+@if (_state == LoadState.Loading)
+{
+    <PageHeader Title="Document" />
+    <LoadingState Label="Loading document" />
+}
+else if (_state == LoadState.SessionExpired)
+{
+    <SignInRequired />
+}
+else if (_state == LoadState.NotFound)
+{
+    <ErrorState Title="Document not found" Message="This document does not exist or was removed.">
+        <Action>
+            <FluentAnchorButton Href="documents" Appearance="ButtonAppearance.Primary">Back to documents</FluentAnchorButton>
+        </Action>
+    </ErrorState>
+}
+else if (_state == LoadState.Failed || _document is null)
+{
+    <ErrorState Title="Document could not be loaded" Message="@_errorMessage" Retry="ReloadAsync" />
+}
+else
+{
+    <PageHeader Title="@_document.Title">
+        <Actions>
+            <DocumentStatusBadge Status="@_document.Status" />
+        </Actions>
+    </PageHeader>
+
+    <p class="detail-summary">
+        @_document.Language
+        · Version @(DisplayVersionNumber?.ToString() ?? "—")
+        · Last activity <time title="@Formatting.UtcTooltip(_document.UpdatedAt)">@Formatting.Local(_document.UpdatedAt)</time>
+    </p>
+
+    @if (_retryError is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@_retryError</FluentMessageBar>
+    }
+
+    <IngestionStatus Run="_document.LatestRun"
+                     DocumentId="DocumentId"
+                     Live="_canStream"
+                     CanRetry="@(_canStream && _document.Status != "archived")"
+                     OnRefresh="ReloadAsync"
+                     OnRetry="RetryAsync"
+                     OnFinished="ReloadAsync"
+                     OnSessionExpired="@(() => { _state = LoadState.SessionExpired; StateHasChanged(); })" />
+
+    <FluentTabs ActiveTabId="@ActiveTab" ActiveTabIdChanged="OnTabChanged" aria-label="Document sections">
+        <FluentTab Id="metadata" Header="Metadata">
+            <DocumentMetadataPanel Document="_document" />
+        </FluentTab>
+        <FluentTab Id="passages" Header="Passages">
+            @if (ActiveTab == "passages")
+            {
+                @if (_versions.Count == 0 || PassageVersion is null)
+                {
+                    <EmptyState Title="No passages" Description="Ingestion has not finished or failed." />
+                }
+                else
+                {
+                    <PassageList DocumentId="DocumentId"
+                                 Versions="_versions"
+                                 VersionNumber="PassageVersion.Value"
+                                 Focus="PassageId"
+                                 ReloadToken="_reloadToken"
+                                 OnVersionChanged="SelectVersion"
+                                 OnSessionExpired="@(() => { _state = LoadState.SessionExpired; StateHasChanged(); })" />
+                }
+            }
+        </FluentTab>
+        <FluentTab Id="history" Header="History">
+            @if (ActiveTab == "history")
+            {
+                <VersionHistory Versions="_versions" OnViewPassages="ViewPassages" />
+            }
+        </FluentTab>
+    </FluentTabs>
+}
+
+@code {
+    private enum LoadState { Loading, Loaded, NotFound, Failed, SessionExpired }
+
+    private readonly CancellationTokenSource _lifetime = new();
+
+    private LoadState _state = LoadState.Loading;
+    private DocumentInfo? _document;
+    private IReadOnlyList<VersionItem> _versions = [];
+    private string _errorMessage = "";
+    private string? _retryError;
+    private bool _canStream;
+    private bool _started;
+    private int _reloadToken;
+
+    [Parameter] public Guid DocumentId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+
+    [SupplyParameterFromQuery(Name = "version")] public string? Version { get; set; }
+
+    [SupplyParameterFromQuery(Name = "passage")] public string? Passage { get; set; }
+
+    private string ActiveTab => Tab is "passages" or "history" ? Tab : "metadata";
+
+    private Guid? PassageId => Guid.TryParse(Passage, out var id) ? id : null;
+
+    /// <summary>The active version, else the latest (spec 008); the active number comes from the versions list.</summary>
+    private int? DisplayVersionNumber =>
+        _versions.FirstOrDefault(v => v.IsActive)?.Number ?? _document?.LatestVersion?.Number;
+
+    private int? PassageVersion =>
+        int.TryParse(Version, out var requested) && _versions.Any(v => v.Number == requested) ? requested : DisplayVersionNumber;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_started && _document is not null && _document.Id != DocumentId)
+        {
+            await LoadAsync(showLoading: true);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _started = true;
+        var user = (await AuthenticationState.GetAuthenticationStateAsync()).User;
+        _canStream = (await Authorization.AuthorizeAsync(user, PolicyNames.ContentOwner)).Succeeded;
+        await LoadAsync(showLoading: false);
+        StateHasChanged();
+    }
+
+    private Task ReloadAsync() => LoadAndRefreshAsync();
+
+    private async Task LoadAndRefreshAsync()
+    {
+        await LoadAsync(showLoading: false);
+        _reloadToken++;
+        StateHasChanged();
+    }
+
+    private async Task LoadAsync(bool showLoading)
+    {
+        if (showLoading)
+        {
+            _state = LoadState.Loading;
+        }
+
+        var documentTask = Api.GetAsync(DocumentId, _lifetime.Token);
+        var versionsTask = Api.GetVersionsAsync(DocumentId, _lifetime.Token);
+        var document = await documentTask;
+        var versions = await versionsTask;
+        if (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var error = document.Error ?? versions.Error;
+        if (error is not null)
+        {
+            _state = error.IsUnauthenticated ? LoadState.SessionExpired
+                : error.IsNotFound ? LoadState.NotFound
+                : LoadState.Failed;
+            _errorMessage = error.Status == 0 || error.Status >= 500 ? "The server could not be reached. Try again in a moment." : error.Message;
+            return;
+        }
+
+        _document = document.Value;
+        _versions = versions.Value.Items;
+        _state = LoadState.Loaded;
+    }
+
+    private async Task RetryAsync()
+    {
+        _retryError = null;
+        var result = await Api.RetryAsync(DocumentId, _lifetime.Token);
+        if (!result.IsSuccess)
+        {
+            _retryError = result.Error!.Status == 403 ? "You are not allowed to retry ingestion."
+                : result.Error.Status == 409 ? "This document cannot be retried right now."
+                : "The retry could not be started. Try again.";
+            return;
+        }
+
+        // The new run is the document's latest: reload so the status switches to it and a new stream opens.
+        await LoadAndRefreshAsync();
+    }
+
+    private void OnTabChanged(string? tab)
+    {
+        if (tab is not null && tab != ActiveTab)
+        {
+            Navigate(tab, tab == "passages" ? Version : null, null);
+        }
+    }
+
+    private void SelectVersion(int number) => Navigate("passages", number.ToString(), null);
+
+    private void ViewPassages(int number) => Navigate("passages", number.ToString(), null);
+
+    private void Navigate(string tab, string? version, string? passage)
+    {
+        var parts = new List<string>();
+        if (tab != "metadata")
+        {
+            parts.Add($"tab={tab}");
+        }
+
+        if (version is not null)
+        {
+            parts.Add($"version={Uri.EscapeDataString(version)}");
+        }
+
+        if (passage is not null)
+        {
+            parts.Add($"passage={Uri.EscapeDataString(passage)}");
+        }
+
+        var url = $"documents/{DocumentId}" + (parts.Count == 0 ? "" : "?" + string.Join('&', parts));
+        Navigation.NavigateTo(url, new NavigationOptions { ReplaceHistoryEntry = true });
+    }
+
+    public void Dispose()
+    {
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}

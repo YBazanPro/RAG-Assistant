@@ -33,7 +33,11 @@ The reference implementation is `src/Modules/Documents/RagAssistant.Modules.Docu
 ## BFF and client
 
 - The BFF forwards `/api/**` through YARP as a pass-through with no response buffering (spec 005), so no BFF code is needed per stream.
-- Browser side (Blazor WebAssembly): streaming reads need `SetBrowserResponseStreamingEnabled(true)` on the request. This is not exercised yet; spec 008 (Documents UI, roadmap 1.6) is the first consumer and verifies the whole path through the BFF. Update this section with what it finds.
+- Browser side (Blazor WebAssembly): streaming reads need `request.SetBrowserResponseStreamingEnabled(true)` (`Microsoft.AspNetCore.Components.WebAssembly.Http`) and `HttpCompletionOption.ResponseHeadersRead`; the body is then parsed with `SseParser.Create(stream).EnumerateAsync(ct)`. `IngestionEventSource` (`Web.Client/Documents/IngestionWatcher.cs`) is the one implementation.
+- Keep reconnect logic out of the component: `IngestionWatcher` owns it (3 reconnects after 1 s, 2 s, 4 s, resuming with `Last-Event-ID`; 401 = session expired; 403/404 = give up; heartbeats and unknown event types ignored; the counter resets after a received stage event). It takes an `IIngestionEventSource` and a `TimeProvider`, so tests script events and failures and move the clock by hand.
+- A non-2xx answer is thrown as `IngestionStreamException(status)` before any event is read; only owners open the stream (spec 007), seekers get a one-time status and a Refresh button.
+- The BFF needs nothing per stream. `tests/RagAssistant.Web.Tests/Documents/DocumentsBffTests.cs` proves it: the stub Host holds the second event until released, and the client sees the first one first.
+- Dispose cancels the token, which closes the HTTP response; the component awaits the watcher task so no callback runs after disposal.
 
 ## Testing
 

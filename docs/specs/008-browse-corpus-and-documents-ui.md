@@ -1,6 +1,6 @@
 # Spec 008: Browse the corpus and the Documents UI
 
-**Status:** Approved (2026-10-14)
+**Status:** Implemented (2026-10-15), approved 2026-10-14. All automated criteria pass; the manual AppHost run is still to be done (see Implementation Notes).
 **Date:** 2026-10-14
 **Roadmap:** steps 1.5 + 1.6 ([roadmap](../roadmap.md)) · **Builds on:** [spec 006](006-documents-data-model-and-import.md), [spec 007](007-background-ingestion-and-progress.md), [spec 005](005-web-shell.md), [spec 002](002-shared-kernel-api-conventions.md) · **Decision records:** [ADR 0001](../adr/0001-ui-ai-streaming-stack.md), [ADR 0004](../adr/0004-document-versioning.md)
 
@@ -302,3 +302,16 @@ Architecture and docs
 ## Open Questions
 
 None. Resolved in review (2026-10-14): `Web.Client` has its own response records and `Page<T>` lives in `RagAssistant.Shared/Common`; last activity is `max(IndexedAt, UpdatedAt)` with no dash; archived documents are hidden from the default list and shown with `status=archived`.
+
+## Implementation Notes
+
+- **Host:** four slices under `Features/` (`ListDocuments`, `GetFacets`, `ListVersions`, `ListPassages`), no schema change. `Page<T>` and `PagingRules` (parsing, `Skip`, the validator rule) are in `RagAssistant.Shared/Common/Page.cs`. The C# property is `Number` with `[JsonPropertyName("page")]` because a record member cannot share its type's name.
+- **Query binding:** `page`, `pageSize`, dates and `focus` are bound as strings and parsed in the validators. Typed binding would turn `page=abc` into `request.malformed`; AC-7 asks for `validation.failed` with a field error.
+- **SQL:** display status and last activity are computed columns of one projected query (correlated subqueries for the latest and active version), filtered, counted, sorted and paged in SQL. `tags` uses one `Tags.Contains(tag)` per tag (AND), not a single `@>` expression, so the GIN index is not guaranteed to be used; at the ADR 0004 volume this is immaterial. Facets group owners and languages in SQL and count tags in memory (arrays are tiny).
+- **Seeding in integration tests:** `CorpusSeeder` writes raw SQL, because `DocumentsDbContext` is internal and the test project has no access. Each test seeds under its own unique owner and filters on it, since the factory and its database are shared.
+- **Client:** models are client-owned records (`DocumentInfo` for the detail response, to avoid a clash with the page class). `IDocumentsApi`/`DocumentsApi` and `IIngestionEventSource`/`IngestionEventSource` take a lazily resolved `HttpClient` and are registered in `AddUiServices`, so server prerendering resolves them without a client; pages fetch in `OnAfterRenderAsync(firstRender)`. Stream reconnect logic is in `IngestionWatcher` (testable with a controllable `TimeProvider`).
+- **UI choices:** every control is a Fluent UI Blazor component (see the `fluentui-blazor-conventions` skill): `FluentDataGrid` for the list and the version history (server-side sort through `OnSortChanged`), `FluentPaginator`, `FluentTextInput`, `FluentSelect`, `FluentDatePicker`, `FluentInputFile`, `FluentTabs`, `FluentBadge` for status, tags and stages, `FluentMessageBar` for errors and notices, `FluentCard` for passages and metadata. Status carries text plus a glyph. The tags filter is a multi-select fed by `facets`. Retry sits in `IngestionStatus`, next to the status, not in the page header. The detail page learns the active version number from the versions list, because `GET /api/documents/{id}` carries only `activeVersionId`.
+- **Deviation, AC-19:** the Web tests prove that the prerender returns the shell and `LoadingState` and calls the stub Host not at all (detail page, unique id). "Then exactly one list request and one facets request" is verified in bUnit (`Page_whileLoading_...`), since no WebAssembly runtime runs in tests.
+- **Deviation, AC-24:** Escape closes the dialog (tested). Focus trap and restore come from `FluentDialog` (modal) and were not verified in bUnit's loose JS mode; they need the manual run.
+- **Tests:** integration `ListDocumentsTests`, `BrowseDocumentTests` (AC-1 to AC-14); bUnit and logic tests in `tests/RagAssistant.Web.Tests/Documents` (`DocumentsPageTests`, `DocumentUploadTests`, `DocumentDetailTests`, `IngestionWatcherTests`, `DocumentQueryTests`) and `DocumentsBffTests` (AC-34, AC-19). The Web tests use a hand-written `ManualTimeProvider` (no `Microsoft.Extensions.TimeProvider.Testing` package). `dotnet build`, `dotnet test --solution RagAssistant.slnx` and `dotnet format --verify-no-changes` were clean.
+- **Not done:** the manual run of AppHost (import a file, watch it index live in the browser, browse and deep-link passages, screenshots) and a real-browser check that the WebAssembly client streams the SSE response through the BFF. The `arch-check` skill was not run; `ModuleBoundaryTests` (Documents references only Shared) still passes and `Web.Client` references no module.

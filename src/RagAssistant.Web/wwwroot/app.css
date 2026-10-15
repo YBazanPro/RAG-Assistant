@@ -171,3 +171,82 @@ html, body {
     --colorBrandBackgroundHover: var(--colorStatusDangerBackground3Hover);
     --colorBrandBackgroundPressed: var(--colorStatusDangerBackground3Pressed);
 }
+
+/* Documents (spec 008): layout glue only; the controls themselves are Fluent UI components. */
+.filter-bar {
+    margin-bottom: 16px;
+}
+
+.field-hint {
+    color: var(--colorNeutralForeground3);
+    font-size: 0.85em;
+}
+
+.field-error {
+    color: var(--colorStatusDangerForeground1);
+}
+
+.upload-form {
+    min-width: min(480px, 80vw);
+}
+
+.tag-chip {
+    max-width: 120px;
+    margin-right: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.detail-summary {
+    color: var(--colorNeutralForeground3);
+}
+
+.ingestion-status,
+.meta-card {
+    margin: 16px 0;
+}
+
+.meta-label {
+    min-width: 120px;
+}
+
+.passage-card {
+    margin-bottom: 12px;
+}
+
+.passage-selected {
+    outline: 2px solid var(--colorBrandStroke1);
+    border-radius: 4px;
+}
+
+.breadcrumb {
+    display: flex;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.breadcrumb li + li::before {
+    content: "›";
+    margin-right: 6px;
+}
+
+.passage-text {
+    max-height: 480px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.run-list {
+    padding-left: 16px;
+    margin: 0;
+}
+
+.run-times {
+    display: block;
+    color: var(--colorNeutralForeground3);
+    font-size: 0.85em;
+}

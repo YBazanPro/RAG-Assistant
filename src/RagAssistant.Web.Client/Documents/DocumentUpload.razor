@@ -1,0 +1,290 @@
+@inject NavigationManager Navigation
+@inject IDocumentsApi Api
+
+<div @onkeydown="OnKeyDownAsync">
+    <FluentDialog @ref="_dialog" Modal="true" PreventDismissOnEscape="true" aria-label="Import a document">
+        <FluentDialogBody>
+            <TitleTemplate>Import a document</TitleTemplate>
+            <ChildContent>
+                <FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Class="upload-form">
+                    @if (_formError is not null)
+                    {
+                        <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@_formError</FluentMessageBar>
+                    }
+                    @if (_duplicateId is { } existing)
+                    {
+                        <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">
+                            This content is already in the corpus. <FluentLink Href="@($"documents/{existing}")">Open the existing document</FluentLink>.
+                        </FluentMessageBar>
+                    }
+
+                    <div>
+                        <FluentLabel Required="true">File (.md, .markdown or .txt, up to 1 MiB)</FluentLabel>
+                        <FluentInputFile Mode="InputFileMode.Stream" Accept=".md,.markdown,.txt" Multiple="false" Disabled="_busy"
+                                         DragDropZoneVisible="true" Height="80px" OnInputFileChange="OnFileChosenAsync">
+                            <ChildContent>Drop a file here, or <b>browse</b></ChildContent>
+                        </FluentInputFile>
+                        @if (_fileName is not null)
+                        {
+                            <FluentText Block="true" Class="field-hint">Selected: @_fileName</FluentText>
+                        }
+                        @if (_fileError is not null)
+                        {
+                            <FluentText Block="true" Class="field-error" id="up-file-error" role="alert">@_fileError</FluentText>
+                        }
+                    </div>
+
+                    <FluentTextInput Id="up-title" Label="Title" Required="true" MaxLength="200" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                     @bind-Value="_title" Message="@Error("title")" MessageCondition="@(_ => Error("title") is not null)" MessageState="MessageState.Error" />
+                    <FluentTextInput Id="up-owner" Label="Owner" Required="true" MaxLength="100" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                     @bind-Value="_owner" Message="@Error("ownerName")" MessageCondition="@(_ => Error("ownerName") is not null)" MessageState="MessageState.Error" />
+                    <FluentTextInput Id="up-language" Label="Language" Required="true" MaxLength="2" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                     @bind-Value="_language" Message="@Error("language")" MessageCondition="@(_ => Error("language") is not null)" MessageState="MessageState.Error" />
+                    <FluentTextInput Id="up-tags" Label="Tags (comma-separated)" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                     @bind-Value="_tags" Message="@Error("tags")" MessageCondition="@(_ => Error("tags") is not null)" MessageState="MessageState.Error" />
+                    <FluentDatePicker TValue="DateTime?" Id="up-effective" Label="Effective date" Disabled="_busy"
+                                      Value="@ParseDate(_effectiveDate)" ValueChanged="@(d => _effectiveDate = d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" />
+                    <FluentTextInput Id="up-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                     @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
+                </FluentStack>
+            </ChildContent>
+            <ActionTemplate>
+                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" OnClick="SubmitAsync">
+                    @if (_busy)
+                    {
+                        <FluentSpinner aria-label="Uploading" />
+                    }
+                    Import
+                </FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" OnClick="CancelAsync">Cancel</FluentButton>
+            </ActionTemplate>
+        </FluentDialogBody>
+    </FluentDialog>
+</div>
+
+@code {
+    /// <summary>Mirrors <c>Documents:Import:MaxFileSizeBytes</c>; the Host stays authoritative.</summary>
+    public const int MaxFileSizeBytes = 1_048_576;
+
+    private static readonly string[] AllowedExtensions = [".md", ".markdown", ".txt"];
+
+    private static readonly string[] FileCodes =
+        ["documents.file_required", "documents.unsupported_extension", "documents.file_too_large", "documents.empty_content"];
+
+    private FluentDialog? _dialog;
+    private bool _shown;
+    private bool _busy;
+    private IBrowserFile? _file;
+    private string? _fileName;
+    private string? _title = "";
+    private string _autoTitle = "";
+    private string? _owner = "";
+    private string? _language = DocumentMetadataDefaults.Language;
+    private string? _tags = "";
+    private string? _effectiveDate;
+    private string? _source;
+    private string? _fileError;
+    private string? _formError;
+    private Guid? _duplicateId;
+    private Dictionary<string, string[]> _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
+
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Parameter] public EventCallback<ImportAccepted> OnImported { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_dialog is null || Open == _shown)
+        {
+            return;
+        }
+
+        _shown = Open;
+        if (Open)
+        {
+            await _dialog.ShowAsync();
+        }
+        else
+        {
+            await _dialog.HideAsync();
+        }
+    }
+
+    private static DateTime? ParseDate(string? text) =>
+        DateTime.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date) ? date : null;
+
+    private string? Error(string field) =>
+        _fieldErrors.TryGetValue(field, out var messages) && messages.Length > 0 ? string.Join(' ', messages) : null;
+
+    private void ClearErrors()
+    {
+        _fileError = null;
+        _formError = null;
+        _duplicateId = null;
+        _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private Task OnFileChosenAsync(InputFileChangeEventArgs args)
+    {
+        _file = args.File;
+        _fileName = args.File.Name;
+        _fileError = null;
+        var stem = Path.GetFileNameWithoutExtension(args.File.Name);
+        if (string.IsNullOrWhiteSpace(_title) || _title == _autoTitle)
+        {
+            _title = _autoTitle = stem;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private bool Validate()
+    {
+        ClearErrors();
+        if (_file is null)
+        {
+            _fileError = "Choose a .md, .markdown or .txt file.";
+        }
+        else if (!AllowedExtensions.Contains(Path.GetExtension(_file.Name).ToLowerInvariant()))
+        {
+            _fileError = "Only .md, .markdown and .txt files can be imported.";
+        }
+        else if (_file.Size > MaxFileSizeBytes)
+        {
+            _fileError = "File too large (the limit is 1 MiB).";
+        }
+
+        void Require(string field, string value, string label, int max)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                _fieldErrors[field] = [$"{label} is required."];
+            }
+            else if (value.Trim().Length > max)
+            {
+                _fieldErrors[field] = [$"{label} must be at most {max} characters."];
+            }
+        }
+
+        Require("title", _title ?? "", "Title", 200);
+        Require("ownerName", _owner ?? "", "Owner", 100);
+        var language = (_language ?? "").Trim();
+        if (language.Length != 2 || !language.All(char.IsAsciiLetter))
+        {
+            _fieldErrors["language"] = ["Language must be two letters, for example en."];
+        }
+
+        var tags = ParseTags();
+        if (tags.Length > 20 || tags.Any(t => t.Length > 50))
+        {
+            _fieldErrors["tags"] = ["Use at most 20 tags of up to 50 characters."];
+        }
+
+        if (_source?.Length > 500)
+        {
+            _fieldErrors["source"] = ["Source must be at most 500 characters."];
+        }
+
+        return _fileError is null && _fieldErrors.Count == 0;
+    }
+
+    private string[] ParseTags() =>
+        [.. (_tags ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct()];
+
+    private async Task SubmitAsync()
+    {
+        if (_busy || !Validate())
+        {
+            return;
+        }
+
+        _busy = true;
+        ApiResult<ImportAccepted> result;
+        try
+        {
+            await using var content = _file!.OpenReadStream(MaxFileSizeBytes);
+            result = await Api.ImportAsync(
+                new ImportRequest(_file.Name, content, (_title ?? "").Trim(), (_owner ?? "").Trim(), (_language ?? "").Trim(), ParseTags(), _effectiveDate, _source),
+                CancellationToken.None);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (result.IsSuccess)
+        {
+            ResetForm();
+            await OnImported.InvokeAsync(result.Value);
+            return;
+        }
+
+        ShowError(result.Error!);
+    }
+
+    private void ShowError(ApiError error)
+    {
+        ClearErrors();
+        switch (error)
+        {
+            case { Status: 401 }:
+                _formError = "Your session has expired. Sign in again, then retry the import.";
+                break;
+            case { Status: 403 }:
+                _formError = "You are not allowed to import documents.";
+                break;
+            case { Status: 413 } or { Code: "documents.file_too_large" }:
+                _fileError = "File too large (the limit is 1 MiB).";
+                break;
+            case { Status: 409, Code: "documents.duplicate_content" }:
+                _duplicateId = error.ExistingDocumentId;
+                _formError = _duplicateId is null ? "This content is already in the corpus." : null;
+                break;
+            case { Status: 400 }:
+                if (FileCodes.Contains(error.Code))
+                {
+                    _fileError = error.Message;
+                }
+
+                foreach (var (field, messages) in error.Fields)
+                {
+                    if (field.Equals("file", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _fileError = string.Join(' ', messages);
+                    }
+                    else
+                    {
+                        _fieldErrors[field] = messages;
+                    }
+                }
+
+                _formError = _fileError is null && _fieldErrors.Count == 0 ? error.Message : null;
+                break;
+            default:
+                _formError = "The import failed. Check your connection and try again.";
+                break;
+        }
+    }
+
+    private void ResetForm()
+    {
+        ClearErrors();
+        _file = null;
+        _fileName = null;
+        _title = _autoTitle = "";
+        _tags = "";
+        _effectiveDate = null;
+        _source = null;
+    }
+
+    private Task CancelAsync() => _busy ? Task.CompletedTask : OnClose.InvokeAsync();
+
+    private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
+
+    private static class DocumentMetadataDefaults
+    {
+        public const string Language = "en";
+    }
+}

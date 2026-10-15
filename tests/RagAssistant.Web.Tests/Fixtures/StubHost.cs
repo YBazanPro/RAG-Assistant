@@ -15,12 +15,20 @@ public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
 {
     private WebApplication? _app;
     private readonly System.Collections.Concurrent.ConcurrentQueue<string> _paths = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _authorizations = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, TaskCompletionSource> _ingestionReleases = new();
     private TaskCompletionSource _streamCancelled = NewSignal();
 
     public string Url { get; private set; } = "";
 
     // Tests run in parallel against this shared stub, so assert on a path no other test uses rather than on a counter.
     public bool Received(string path) => _paths.Contains(path);
+
+    /// <summary>The Authorization header the stub saw for a path (null when it was never requested).</summary>
+    public string? AuthorizationFor(string path) => _authorizations.GetValueOrDefault(path);
+
+    /// <summary>Lets the ingestion stream of one document send its second event and finish.</summary>
+    public void ReleaseIngestion(Guid documentId) => _ingestionReleases.GetOrAdd(documentId, _ => NewSignal()).TrySetResult();
 
     public Task StreamCancelled => _streamCancelled.Task;
 
@@ -36,6 +44,7 @@ public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
         app.Use((context, next) =>
         {
             _paths.Enqueue(context.Request.Path.Value ?? "");
+            _authorizations[context.Request.Path.Value ?? ""] = context.Request.Headers.Authorization.ToString();
             return next();
         });
 
@@ -48,6 +57,14 @@ public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
                 request.Headers["X-Requested-With"].ToString())));
 
         app.MapGet("/api/stream", StreamAsync);
+
+        // The Documents read routes, with just enough JSON to prove the BFF forwards them and the client can read the shapes.
+        app.MapGet("/api/documents", () => Results.Json(new { items = Array.Empty<object>(), page = 1, pageSize = 25, totalCount = 0 }));
+        app.MapGet("/api/documents/facets", () => Results.Json(new { owners = Array.Empty<object>(), languages = Array.Empty<object>(), tags = Array.Empty<object>() }));
+        app.MapGet("/api/documents/{id:guid}/versions", () => Results.Json(new { items = Array.Empty<object>() }));
+        app.MapGet("/api/documents/{id:guid}/versions/{number:int}/passages", (int number) =>
+            Results.Json(new { versionNumber = number, versionStatus = "indexed", isActive = true, items = Array.Empty<object>(), page = 1, pageSize = 50, totalCount = 0 }));
+        app.MapGet("/api/documents/{id:guid}/ingestion/events", IngestionEventsAsync);
         app.MapGet("/api/problem", () => Results.Problem(statusCode: 404, title: "Not found", extensions: new Dictionary<string, object?> { ["code"] = "stub.not_found" }));
         app.MapGet("/api/hang", async (CancellationToken ct) =>
         {
@@ -84,6 +101,28 @@ public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
         catch (OperationCanceledException)
         {
             _streamCancelled.TrySetResult();
+        }
+    }
+
+    // First event at once, the second only after the test releases it: receiving the first proves the BFF does not buffer.
+    private async Task IngestionEventsAsync(Guid id, HttpContext context)
+    {
+        context.Response.ContentType = "text/event-stream";
+        context.Response.Headers.CacheControl = "no-store";
+        var release = _ingestionReleases.GetOrAdd(id, _ => NewSignal());
+        try
+        {
+            await context.Response.WriteAsync(
+                "id: 1\nevent: ingestion.stage\ndata: {\"stage\":\"extracting\",\"status\":\"started\"}\n\n", context.RequestAborted);
+            await context.Response.Body.FlushAsync(context.RequestAborted);
+            await release.Task.WaitAsync(context.RequestAborted);
+            await context.Response.WriteAsync(
+                "id: 2\nevent: ingestion.stage\ndata: {\"stage\":\"completed\",\"status\":\"completed\"}\n\n", context.RequestAborted);
+            await context.Response.Body.FlushAsync(context.RequestAborted);
+        }
+        catch (OperationCanceledException)
+        {
+            // The client went away; nothing to clean up.
         }
     }
 

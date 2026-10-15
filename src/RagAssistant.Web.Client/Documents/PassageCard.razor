@@ -1,0 +1,69 @@
+<div @ref="_element" id="@($"passage-{Passage.Id}")" class="@(Selected ? "passage-card passage-selected" : "passage-card")" tabindex="-1"
+     aria-label="@($"Passage {Passage.Position + 1}")">
+<FluentCard>
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+        <FluentStack HorizontalAlignment="HorizontalAlignment.SpaceBetween" Wrap="true" class="passage-head">
+            @if (Passage.SectionPath.Length > 0)
+            {
+                <nav aria-label="Section path">
+                    <ol class="breadcrumb">
+                        @foreach (var part in Passage.SectionPath)
+                        {
+                            <li>@part</li>
+                        }
+                    </ol>
+                </nav>
+            }
+            <FluentBadge Appearance="BadgeAppearance.Outline">#@(Passage.Position + 1) · ~@Passage.TokenEstimate tokens</FluentBadge>
+        </FluentStack>
+        @if (Expanded)
+        {
+            <pre class="passage-text">@Passage.Text</pre>
+        }
+        else
+        {
+            <FluentText Block="true" Class="passage-text-collapsed">@Preview</FluentText>
+        }
+        @if (Passage.Text.Length > PreviewLength)
+        {
+            <div>
+                <FluentButton Appearance="ButtonAppearance.Transparent" aria-expanded="@(Expanded ? "true" : "false")" OnClick="Toggle">
+                    @(Expanded ? "Show less" : "Show full text")
+                </FluentButton>
+            </div>
+        }
+    </FluentStack>
+</FluentCard>
+</div>
+
+@code {
+    public const int PreviewLength = 300;
+
+    private ElementReference _element;
+    private bool _expanded;
+    private bool _scrolled;
+
+    [Parameter, EditorRequired] public PassageItem Passage { get; set; } = default!;
+
+    /// <summary>The deep-linked passage: expanded, highlighted and brought into view.</summary>
+    [Parameter] public bool Selected { get; set; }
+
+    private bool Expanded => _expanded || Selected;
+
+    private string Preview => Passage.Text.Length <= PreviewLength ? Passage.Text : Passage.Text[..PreviewLength] + "…";
+
+    private void Toggle() => _expanded = !_expanded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Selected && !_scrolled)
+        {
+            _scrolled = true;
+            await _element.FocusAsync(preventScroll: false);
+        }
+        else if (!Selected)
+        {
+            _scrolled = false;
+        }
+    }
+}
