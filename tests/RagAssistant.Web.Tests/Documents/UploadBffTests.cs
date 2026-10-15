@@ -11,6 +11,7 @@ namespace RagAssistant.Web.Tests.Documents;
 
 // Spec 010, AC-27: uploads through the real BFF (on Kestrel, so body limits apply) to a real stub API.
 [ClassDataSource<WebAppFactory>(Shared = SharedType.PerTestSession)]
+[NotInParallel]
 public class UploadBffTests(WebAppFactory factory)
 {
     private const int OneMiB = 1024 * 1024;
