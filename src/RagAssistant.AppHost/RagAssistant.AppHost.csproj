@@ -1,22 +1,22 @@
 <Project Sdk="Aspire.AppHost.Sdk/13.6.1">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <UserSecretsId>da96cd28-f467-4a7d-9cd3-afb3bd9c449b</UserSecretsId>
-    <!-- Run via `dotnet run`; the Aspire CLI bundle is not used -->
-    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <UserSecretsId>da96cd28-f467-4a7d-9cd3-afb3bd9c449b</UserSecretsId>
+        <!-- Lets the Aspire CLI (aspire start, logs, describe, stop) manage the AppHost; `dotnet run` works as well. Keep the CLI at the SDK's version. -->
+        <AspireUseCliBundle>true</AspireUseCliBundle>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
-    <PackageReference Include="Aspire.Hosting.Keycloak" />
-    <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Aspire.Hosting.PostgreSQL"/>
+        <PackageReference Include="Aspire.Hosting.Keycloak"/>
+        <PackageReference Include="CommunityToolkit.Aspire.Hosting.Ollama"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\RagAssistant.Api\RagAssistant.Api.csproj" />
-    <ProjectReference Include="..\RagAssistant.MigrationService\RagAssistant.MigrationService.csproj" />
-    <ProjectReference Include="..\RagAssistant.Web\RagAssistant.Web.csproj" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\RagAssistant.Api\RagAssistant.Api.csproj"/>
+        <ProjectReference Include="..\RagAssistant.MigrationService\RagAssistant.MigrationService.csproj"/>
+        <ProjectReference Include="..\RagAssistant.Web\RagAssistant.Web.csproj"/>
+    </ItemGroup>
 
 </Project>
