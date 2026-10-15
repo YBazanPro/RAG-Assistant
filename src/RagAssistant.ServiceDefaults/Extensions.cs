@@ -28,8 +28,15 @@ public static class Extensions
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
-            // Turn on resilience by default
-            http.AddStandardResilienceHandler();
+            // Turn on resilience by default. The standard timeouts (10 s per attempt, 30 s in all) are too short for a model that
+            // embeds a batch of passages on a CPU, and a Polly timeout would surface as an unexpected ingestion error. The caller owns
+            // the real deadline (the Documents module's EmbeddingTimeout, with its own retries), so these only guard against a hung socket.
+            http.AddStandardResilienceHandler(options =>
+            {
+                options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(2);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(4); // at least twice the attempt timeout
+            });
 
             // Turn on service discovery by default
             http.AddServiceDiscovery();

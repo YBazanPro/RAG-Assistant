@@ -86,7 +86,7 @@
     public const int MaxPdfSizeBytes = 104_857_600;
 
     /// <summary>Where the browser keeps the chosen file; the upload module reads it from there, so it never enters the .NET heap.</summary>
-    public const string FileInputSelector = "#up-file input[type=file]";
+    public const string FileInputSelector = "input#up-file";
 
     private static readonly string[] AllowedExtensions = [".md", ".markdown", ".txt", ".pdf"];
 

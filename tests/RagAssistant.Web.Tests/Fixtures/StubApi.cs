@@ -136,6 +136,8 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
     {
         if (number == 1)
         {
+            // Like the real API, which sets the header itself; the BFF must not add a second one.
+            context.Response.Headers.XContentTypeOptions = "nosniff";
             return Results.File(new MemoryStream(SampleFile), "application/pdf", enableRangeProcessing: true);
         }
 

@@ -244,6 +244,16 @@ public class UploadBffTests(WebAppFactory factory)
     }
 
     [Test]
+    public async Task File_download_carriesASingleNosniffHeader()
+    {
+        var client = await factory.CreateSignedInAsync(Persona.KnowledgeSeeker);
+
+        using var response = await client.GetAsync(new Uri($"/api/documents/{Guid.NewGuid()}/versions/1/file", UriKind.Relative));
+
+        await Assert.That(response.Headers.GetValues("X-Content-Type-Options").ToArray()).IsEquivalentTo(["nosniff"]);
+    }
+
+    [Test]
     public async Task File_download_isStreamedWithoutBuffering()
     {
         var id = Guid.NewGuid();

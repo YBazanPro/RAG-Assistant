@@ -26,7 +26,12 @@ var app = builder.Build();
 app.Use((context, next) =>
 {
     var headers = context.Response.Headers;
-    headers.XContentTypeOptions = "nosniff";
+    // Assigned when the response starts, so a proxied API response that already says nosniff does not end up with it twice.
+    context.Response.OnStarting(() =>
+    {
+        headers.XContentTypeOptions = "nosniff";
+        return Task.CompletedTask;
+    });
     headers["Referrer-Policy"] = "same-origin";
     headers.ContentSecurityPolicy = "frame-ancestors 'none'";
     return next();
