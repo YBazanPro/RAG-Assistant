@@ -1,6 +1,6 @@
 # Spec 010: PDF import
 
-**Status:** Approved (2026-10-14)
+**Status:** Approved (2026-10-14), amended 2026-10-15 (OCR detection at upload; see "OCR detection")
 **Date:** 2026-10-14
 **Roadmap:** step 1.8 ([roadmap](../roadmap.md)) · **Builds on:** specs [006](006-documents-data-model-and-import.md), [007](007-background-ingestion-and-progress.md), [008](008-browse-corpus-and-documents-ui.md), [009](009-document-lifecycle.md) · **Decision records:** [ADR 0006](../adr/0006-pdf-import.md) (new), [ADR 0004](../adr/0004-document-versioning.md)
 
@@ -19,6 +19,7 @@ Most organizational knowledge lives in PDFs: policies, manuals, reports. The cor
 - `IOriginalFileStore` with a local-filesystem implementation; content-addressed, never deleted.
 - PDF extraction in the ingestion pipeline: pages, reading order, outline or font-based headings, repeated header/footer removal, page numbers on passages.
 - Failure codes for unusable PDFs; extraction limits (pages, time).
+- **OCR detection at upload:** a bounded probe classifies each PDF as `TextLayer`, `Mixed` or `ScannedNeedsOcr`; scanned PDFs are rejected synchronously with `400 documents.requires_ocr` and mixed PDFs are accepted with their text-less pages recorded and shown as a warning.
 - Progress events inside long stages (amends spec 007).
 - `GET /api/documents/{id}/versions/{number}/file` (original download/inline view).
 - Migration: nullable `content`, new `storage_key`, check constraint, `ingestion_events.current/total`.
@@ -40,7 +41,7 @@ Most organizational knowledge lives in PDFs: policies, manuals, reports. The cor
 
 ### Out
 
-- OCR / scanned PDFs, image content, drawings, form fields, annotations, attachments.
+- OCR itself (scanned PDFs are detected and rejected, not read), image content, drawings, form fields, annotations, attachments.
 - DOCX (still "Later" in the roadmap); password-protected PDFs; PDF/A validation.
 - Table structure recovery; guaranteed reading order on arbitrary layouts (columns are handled by layout analysis, other complex layouts are best effort, see Edge Cases).
 - Out-of-process or sandboxed extraction; antivirus scanning.
@@ -54,6 +55,7 @@ Most organizational knowledge lives in PDFs: policies, manuals, reports. The cor
 | Table | Change |
 |---|---|
 | `document_versions` | `content` becomes **nullable**; new `storage_key text null` (≤ 300); check constraint `ck_document_versions_source`: PDF versions have `storage_key` and no `content`; text versions have `content` and no `storage_key` |
+| `document_versions` | new `pages_without_text int[] null` (1-based page numbers with no extractable text; null for text formats and for PDFs where every page has text) |
 | `ingestion_events` | new `current int null`, `total int null` (progress counters) |
 
 `EventStatus` gains `Progress` (stored as a string, so no column change). `SourceFormat.Pdf` already exists (spec 006). Existing rows are unaffected.
@@ -94,6 +96,21 @@ Extraction produces the same intermediate form as the Markdown parser: an ordere
 
 **Extraction progress.** The Extracting stage writes `Progress` events with `current`/`total` pages (about every 10%, at most 10 per run). The Extracting `Completed` message reports counts: `200 pages, 3 without text, 41 margin lines removed`.
 
+### OCR detection
+
+An `IPdfProbe` (internal, PdfPig) classifies a PDF without full extraction. It runs at upload, on the finished temp file (a PDF's cross-reference table is at its end, so the probe cannot start before the last byte arrives), after the `%PDF-` check and before the duplicate check and the move into the store.
+
+1. **Sampling.** The first `Documents:Pdf:ProbePages` (10) pages plus up to as many pages again spread evenly over the rest; a PDF with fewer pages is probed completely. The probe is bounded by `Documents:Pdf:ProbeTimeout` (30 s).
+2. **Per-page signal.** A page is **text-less** when it has fewer than `MinCharsPerTextPage` non-whitespace characters. A text-less page is **scanned-like** when an image covers at least `ScannedImageCoverage` (0.8) of the page area; a blank text-less page is only text-less.
+3. **Classification of the sample:**
+   - `ScannedNeedsOcr`: fewer than `MinTextPageRatio` (10%) of sampled pages have text. Upload is rejected `400 documents.requires_ocr`: "This PDF has no text layer (it looks scanned). OCR is not supported yet." Nothing is stored; the temp file is removed.
+   - `Mixed`: at least 10% but not all sampled pages have text, or the sample has text-less scanned-like pages. Accepted.
+   - `TextLayer`: every sampled page has text. Accepted.
+4. **Quality.** If more than `MaxGarbageRatio` (0.30) of the sampled characters are U+FFFD or non-letter, non-digit, non-punctuation symbols, the upload is rejected `400 documents.text_layer_unusable` (typically a bad hidden OCR layer or broken font encoding).
+5. **Inconclusive probe.** A probe that cannot open the file (encrypted, corrupt) or times out does not reject: the file is accepted and ingestion reports `documents.pdf_encrypted`, `documents.pdf_invalid` or `documents.extraction_timeout` as before.
+6. **Authoritative check.** The probe samples; full extraction (below) counts every page. If it finds less than 10% of all pages with text, the run still fails `documents.requires_ocr` (renamed from `no_text_layer`), and `documents.text_layer_unusable` applies to the whole text. The full extraction records `pages_without_text` on the version.
+7. `LayoutAnalysis` is not used by the probe (character counts, image bounds and glyph classes only), so it stays fast.
+
 ### Progress events (amends spec 007)
 
 - `IngestionEvent` gets `Current`/`Total` and `EventStatus.Progress`. The Embedding stage writes `Progress` events after a batch whenever `floor(done × 10 / total)` increases and the stage is not finished (at most 9 per stage), with `current` = passages embedded and `total` = passages. The Extracting stage does the same for PDF pages.
@@ -117,6 +134,8 @@ New validation codes (top-level `code`, message under `errors.file`):
 | Code | When |
 |---|---|
 | `documents.invalid_pdf` | Extension `.pdf` but the first 1024 bytes do not contain `%PDF-` |
+| `documents.requires_ocr` | The probe classifies the PDF `ScannedNeedsOcr` (no text layer) |
+| `documents.text_layer_unusable` | The probe finds the text layer mostly replacement characters or symbols |
 
 Existing codes, the duplicate `409` (hash of bytes), metadata validation and `202` bodies are unchanged. `ImportDocument.Response` / `NewVersion.Response` return `status: "queued"`; `GET` responses show `sourceFormat: "pdf"`.
 
@@ -149,7 +168,8 @@ Seekers may open the original of any version they can browse (spec 008's decisio
 | `DocumentUpload` | Accepts `.md`, `.markdown`, `.txt`, `.pdf`. Client checks: extension; size ≤ 1 MiB for text, ≤ 100 MiB for PDF (constants mirroring the options). The upload is sent by a small JS module through an `IFileUploader` abstraction: `multipart/form-data` with `X-Requested-With: ragassistant`, same-origin session cookie, a **progress bar** (bytes sent / total), **Cancel** (aborts the request), and the same status/ProblemDetails mapping as before. The 5 dialog states of spec 008 gain "uploading with progress". |
 | `IngestionStatus` | Determinate progress bar when the latest event is `progress` (`current/total`), label such as "Embedding 120 of 540 passages"; the stage stepper is unchanged. |
 | `PassageCard` | PDF passages show "p. 12" or "pp. 12–13"; a link "Open page 12" opens `/api/documents/{id}/versions/{n}/file#page=12` in a new tab (`rel="noopener"`); text passages show none. |
-| `VersionHistory` / `DocumentMetadataPanel` | Format "PDF", size in MB, and a "Download original" / "Open original" link per version. |
+| `VersionHistory` / `DocumentMetadataPanel` | Format "PDF", size in MB, and a "Download original" / "Open original" link per version. A version with `pages_without_text` shows a warning ("Pages 31–40 have no extractable text and are not searchable"), pages collapsed into ranges. |
+| `DocumentUpload` errors | `requires_ocr` and `text_layer_unusable` appear under the file picker with their message; the "uploading" state shows "Checking PDF…" between the last byte and the response. |
 | `DocumentUpload` (new-version mode, spec 009) | Same PDF support and progress. |
 
 The JS module is a small ES module (`wwwroot/js/upload.js`), loaded lazily after the first render (never during prerender), using `XMLHttpRequest` for progress and abort. Uploads do not pass through the .NET `HttpClient`, so the file is not buffered in the WebAssembly heap.
@@ -171,8 +191,11 @@ The JS module is a small ES module (`wwwroot/js/upload.js`), loaded lazily after
 | Corrupt or unparsable PDF | `Failed`, `documents.pdf_invalid` (content-free message) |
 | More than `MaxPages` (2000) pages | `Failed`, `documents.pdf_too_many_pages` |
 | Extraction exceeds `ExtractionTimeout` (15 min) | `Failed`, `documents.extraction_timeout` |
-| Less than 10% of pages have text | `Failed`, `documents.no_text_layer` ("looks like a scanned PDF; OCR is not supported") |
-| 10% or more pages have text, some empty | Proceeds; the Extracting `Completed` message states `N pages without text` |
+| Scanned PDF (sampled pages below 10% with text) | `400 documents.requires_ocr` at upload, nothing stored; the upload dialog explains that OCR is not supported |
+| Scan not caught by the sample (later pages scanned) but less than 10% of all pages have text | Ingestion `Failed`, `documents.requires_ocr` |
+| Mixed PDF (10% or more pages have text, some without) | Accepted; `pages_without_text` recorded; the Extracting `Completed` message states `N pages without text`; the UI warns that those pages are not searchable |
+| Text layer mostly garbage | `400 documents.text_layer_unusable` at upload (or `Failed` at ingestion when only the full pass sees it) |
+| Probe cannot open the file or times out | Accepted; ingestion reports the specific failure |
 | Blob missing at ingestion or download | Ingestion `Failed` with `documents.file_missing`; download `404 documents.file_missing`; the error is logged |
 | Retry/reprocess of a failed PDF | Works as in specs 007 and 009 (deterministic failures fail again) |
 | New version changes format (PDF ↔ Markdown ↔ text) | Allowed |
@@ -201,6 +224,8 @@ The JS module is a small ES module (`wwwroot/js/upload.js`), loaded lazily after
 | `Documents:Pdf:ExtractionTimeout` | 15 min |
 | `Documents:Pdf:MinCharsPerTextPage` | 20 |
 | `Documents:Pdf:MinTextPageRatio` | 0.10 |
+| `Documents:Pdf:ProbePages` / `ProbeTimeout` | 10 / 30 s |
+| `Documents:Pdf:ScannedImageCoverage` / `MaxGarbageRatio` | 0.8 / 0.30 (both in (0, 1]) |
 | `Documents:Pdf:RemoveRepeatedMargins` | true |
 | `Documents:Pdf:LayoutAnalysis` | true |
 | `Documents:Pdf:HeadingMinSizeRatio` / `MaxHeadingLevels` / `MaxHeadingChars` | 1.15 / 3 / 120 |
@@ -240,7 +265,12 @@ Extraction and chunking (unit tests on generated PDFs and a fixture)
 - **AC-12** Given a header and a footer repeated on every page and a page number line, then they are absent from passage text, and the Extracting `Completed` message reports the removed count; with `RemoveRepeatedMargins=false` they are kept.
 - **AC-13a** Given a generated two-column page, then the text of the whole left column precedes the right column in the passages; given `LayoutAnalysis=false`, then plain content order is used.
 - **AC-13** Given a hyphenated line break (`inter-` / `national`), then the word is joined; given two paragraphs separated by a larger vertical gap, then they are separate blocks.
-- **AC-14** Given a PDF whose pages are 100% without text, or with 9% of pages with text, then the run fails `documents.no_text_layer`; given 10% or more, then it proceeds and the message states how many pages had no text.
+- **AC-14** Given a PDF whose pages are 100% without text, or with 9% of pages with text, when ingested (probe bypassed or sample misses), then the run fails `documents.requires_ocr`; given 10% or more, then it proceeds, the message states how many pages had no text, and `pages_without_text` lists them.
+- **AC-14a** Given a generated PDF of pages that are one full-page image with no text (scan-like), when uploaded, then `400 documents.requires_ocr` under `errors.file`, no version, no blob and no temp file.
+- **AC-14b** Given a PDF with 30 text pages followed by 10 full-page images, when uploaded, then `202`; after ingestion `pages_without_text` is 31–40; `GET` of the version exposes the list.
+- **AC-14c** Given a PDF whose text layer is mostly U+FFFD or symbols, when uploaded, then `400 documents.text_layer_unusable`.
+- **AC-14d** Given a probe that cannot open the file (encrypted or corrupt) or exceeds `ProbeTimeout` (controlled `TimeProvider`), then the upload is accepted and ingestion fails with the specific code; given a blank text-less page (no image), then it counts as text-less but not scanned-like.
+- **AC-14e** Given a 500-page PDF, then the probe opens only the sampled pages (asserted by a page-access counter on a fake) and finishes within the timeout.
 - **AC-15** Given an encrypted PDF, a corrupt PDF, a PDF with 2001 pages and an extraction that exceeds the timeout (controlled `TimeProvider`), then the run fails with `documents.pdf_encrypted`, `documents.pdf_invalid`, `documents.pdf_too_many_pages` and `documents.extraction_timeout`, with content-free messages and no passages.
 - **AC-16** Given a missing blob when ingestion starts, then the run fails `documents.file_missing`.
 - **AC-17** Given the chunker settings of spec 007, then PDF passages respect `MaxTokens`, overlap and minimum size exactly as text passages do (same packing code), and every passage has an embedding built from the section path plus text.
@@ -290,13 +320,13 @@ Architecture and docs
 - **Integration tests** (Testcontainers, temporary store directory per factory, dedicated ingestion factory with the controllable fake generator) for the upload, duplicate, store, download and end-to-end criteria. Time limits use the controlled `TimeProvider`.
 - **Large-upload test** (AC-6, AC-27) uses a generated large PDF (valid header, bulk padding stream) so no large fixture is committed.
 - **Web tests:** `IFileUploader` is faked in bUnit; the JS module itself is verified by hand in the browser (and recorded in Implementation Notes) because there is no browser test harness (Playwright is out of scope).
-- **Manual:** run the AppHost, import a real multi-page PDF with an outline, watch extraction and embedding progress, browse passages with page numbers, open page N, and import a scanned PDF to see `documents.no_text_layer`.
+- **Manual:** run the AppHost, import a real multi-page PDF with an outline, watch extraction and embedding progress, browse passages with page numbers, open page N, and import a scanned PDF to see `documents.requires_ocr` at upload, and a mixed PDF to see the warning on its pages.
 
 ## Deferred Decisions
 
 | Decision | Fallback chosen now | Revisit when |
 |---|---|---|
-| OCR for scanned PDFs | Fail with `documents.no_text_layer` | Content owners need scans |
+| OCR for scanned PDFs | Reject at upload with `documents.requires_ocr`; mixed PDFs record `pages_without_text` so OCR can fill those pages later | Content owners need scans |
 | Table structure recovery, perfect reading order on arbitrary layouts | Column-aware layout analysis, tables as text blocks | Evaluation (Phase 5) shows retrieval misses on such files |
 | Out-of-process / sandboxed extraction | In the API, bounded by limits | Hostile or very large files appear |
 | Object-storage `IOriginalFileStore`, blob garbage collection | Filesystem, never deleted | Deployment beyond one machine, or storage pressure |
