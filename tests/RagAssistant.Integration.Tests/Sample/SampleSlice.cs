@@ -53,6 +53,8 @@ public sealed class FailHandler : IRequestHandler<FailCommand, Result<EchoRespon
                 return Error.NotFound("sample.not_found", "The sample was not found.");
             case "conflict":
                 return Error.Conflict("sample.conflict", "The sample already exists.");
+            case "unavailable":
+                return Error.Unavailable("sample.unavailable", "The sample dependency is unavailable.");
             case "throws":
                 throw new InvalidOperationException(request.Message ?? "boom");
             case "slow":
@@ -75,6 +77,7 @@ public sealed class SampleEndpoints : IEndpointGroup
 
         group.MapGet("/not-found", Fail("not-found"));
         group.MapGet("/conflict", Fail("conflict"));
+        group.MapGet("/unavailable", Fail("unavailable"));
         group.MapGet("/throws", async (string? message, ModuleMediator mediator, CancellationToken ct) =>
             (await mediator.Send(new FailCommand("throws", message), ct)).ToHttpResult());
         group.MapGet("/slow", Fail("slow"));

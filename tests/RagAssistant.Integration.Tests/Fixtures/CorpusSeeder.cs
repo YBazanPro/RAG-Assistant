@@ -1,3 +1,4 @@
+using System.Globalization;
 using Npgsql;
 
 namespace RagAssistant.Integration.Tests.Fixtures;
@@ -12,7 +13,11 @@ public sealed record SeedDocument(
     string VersionStatus = "Indexed",
     DateTimeOffset? UpdatedAt = null,
     DateTimeOffset? IndexedAt = null,
-    int Passages = 0);
+    int Passages = 0,
+    string? EmbeddingModel = null);
+
+/// <summary>A passage with its embedding, for retrieval tests (spec 011).</summary>
+public sealed record SeedPassage(string Text, float[] Embedding, int? PageStart = null, int? PageEnd = null, string[]? SectionPath = null);
 
 public sealed record SeededDocument(Guid DocumentId, Guid VersionId);
 
@@ -36,23 +41,26 @@ public sealed class CorpusSeeder(NpgsqlDataSource db)
             Guid.NewGuid().ToString("N"), updatedAt);
 
         var versionId = await AddVersionAsync(
-            documentId, 1, seed.VersionStatus, makeActive: seed.VersionStatus == "Indexed", updatedAt, seed.IndexedAt ?? updatedAt, seed.Passages);
+            documentId, 1, seed.VersionStatus, makeActive: seed.VersionStatus == "Indexed", updatedAt, seed.IndexedAt ?? updatedAt, seed.Passages,
+            seed.EmbeddingModel);
         return new SeededDocument(documentId, versionId);
     }
 
     public async Task<Guid> AddVersionAsync(
-        Guid documentId, int number, string status, bool makeActive, DateTimeOffset createdAt, DateTimeOffset? indexedAt = null, int passages = 0)
+        Guid documentId, int number, string status, bool makeActive, DateTimeOffset createdAt, DateTimeOffset? indexedAt = null, int passages = 0,
+        string? embeddingModel = null)
     {
         var versionId = Guid.CreateVersion7();
         await ExecuteAsync(
             """
             INSERT INTO documents.document_versions
-                (id, document_id, number, origin, status, source_format, original_file_name, content, content_hash, size_bytes, passage_count, created_at, created_by, indexed_at)
-            VALUES ($1, $2, $3, 'Upload', $4, 'Markdown', 'seed.md', 'seed', $5, 4, $6, $7, 'seed', $8)
+                (id, document_id, number, origin, status, source_format, original_file_name, content, content_hash, size_bytes, passage_count, created_at, created_by, indexed_at, embedding_model)
+            VALUES ($1, $2, $3, 'Upload', $4, 'Markdown', 'seed.md', 'seed', $5, 4, $6, $7, 'seed', $8, $9)
             """,
             versionId, documentId, number, status, Guid.NewGuid().ToString("N"),
             status is "Indexed" or "Superseded" ? (object)passages : DBNull.Value, createdAt,
-            status is "Indexed" or "Superseded" ? (object)(indexedAt ?? createdAt) : DBNull.Value);
+            status is "Indexed" or "Superseded" ? (object)(indexedAt ?? createdAt) : DBNull.Value,
+            (object?)embeddingModel ?? DBNull.Value);
 
         if (makeActive)
         {
@@ -70,6 +78,32 @@ public sealed class CorpusSeeder(NpgsqlDataSource db)
         }
 
         return versionId;
+    }
+
+    /// <summary>Adds embedded passages after any existing ones; the embedding is written as a vector literal, so the data source needs no plugin.</summary>
+    public async Task<Guid[]> AddEmbeddedPassagesAsync(Guid versionId, params SeedPassage[] passages)
+    {
+        await using var next = db.CreateCommand("SELECT coalesce(max(position) + 1, 0) FROM documents.passages WHERE version_id = $1");
+        next.Parameters.Add(new NpgsqlParameter { Value = versionId });
+        var position = (int)(await next.ExecuteScalarAsync())!;
+
+        var ids = new Guid[passages.Length];
+        for (var i = 0; i < passages.Length; i++)
+        {
+            var passage = passages[i];
+            ids[i] = Guid.CreateVersion7();
+            var literal = "[" + string.Join(',', passage.Embedding.Select(f => f.ToString("R", CultureInfo.InvariantCulture))) + "]";
+            await ExecuteAsync(
+                """
+                INSERT INTO documents.passages
+                    (id, version_id, position, section_path, section_ordinal, text, char_count, token_estimate, page_start, page_end, embedding)
+                VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, $9, $10::vector)
+                """,
+                ids[i], versionId, position + i, passage.SectionPath ?? ["Section"], passage.Text, passage.Text.Length, (passage.Text.Length + 3) / 4,
+                passage.PageStart, passage.PageEnd, literal);
+        }
+
+        return ids;
     }
 
     public Task AddRunAsync(Guid versionId, int attempt, string status, string stage, string? errorCode = null, string? errorMessage = null) =>

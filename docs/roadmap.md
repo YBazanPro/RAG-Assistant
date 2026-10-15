@@ -13,7 +13,7 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4); browsing the corpus and the Documents UI (spec 008, steps 1.5 and 1.6); document lifecycle (spec 009, step 1.7); PDF import (spec 010, step 1.8) | Chat module, remaining project skills |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4); browsing the corpus and the Documents UI (spec 008, steps 1.5 and 1.6); document lifecycle (spec 009, step 1.7); PDF import (spec 010, step 1.8); retrieval (spec 011, steps 2.1 to 2.4) | Chat module, remaining project skills |
 
 
 
@@ -139,13 +139,14 @@ The module owns Corpus Management + Ingestion (+ Retrieval in Phase 2). Start wi
 
 | Step | Slice | Key points |
 |---|---|---|
-| 2.1 | **Search contract** | `IDocumentSearch.SearchAsync(query, filters, topK, ct)` in `Shared/Contracts/Documents`, returning `RetrievedChunk` records (passage ID, version, document title, section, excerpt, score, document status). Internal implementation in Documents. |
-| 2.2 | **Vector search + metadata filters** | Query embedding (cached with HybridCache), `CosineDistance` + `OrderBy` + `Take`, *active + indexed only* unless history is requested, language/tag filters. |
-| 2.3 | **Evidence rules** | Configurable `topK`, minimum score, near-duplicate reduction; result distinguishes *no result* from *low confidence*. |
-| 2.4 | **Search endpoint (diagnostic)** | `GET /documents/search?q=` for maintainers: shows ranked passages and scores, and is reused later by the retrieval inspector. |
+| 2.1 | ✅ **Search contract** ([spec 011](specs/011-retrieval.md)) | `IDocumentSearch.SearchAsync(query, filters, topK, ct)` in `SharedKernel/Contracts/Documents`, returning `RetrievedChunk` records (passage ID, version, document title, section, excerpt, score, document status). Internal implementation in Documents. |
+| 2.2 | ✅ **Vector search + metadata filters** ([spec 011](specs/011-retrieval.md)) | Query embedding (cached with HybridCache), `CosineDistance` + `OrderBy` + `Take`, *active + indexed only* unless history is requested, language/tag filters. |
+| 2.3 | ✅ **Evidence rules** ([spec 011](specs/011-retrieval.md)) | Configurable `topK`, minimum score, near-duplicate reduction; result distinguishes *no result* from *low confidence*. |
+| 2.4 | ✅ **Search endpoint (diagnostic)** ([spec 011](specs/011-retrieval.md)) | `GET /documents/search?q=` for maintainers: shows ranked passages and scores, and is reused later by the retrieval inspector. |
 
 **Kit:** `/spec`, `/tdd`, `caching`, `ef-core`. **Extra:** `optimizing-ef-core-queries` once real volumes exist.
 **Tests:** a fake embedding generator with **controlled vectors** makes ranking and filter tests deterministic.
+**Phase 2 is complete (2026-10-15)** ([spec 011](specs/011-retrieval.md)). The thresholds (`MinScore` 0.55, `ConfidentScore` 0.60, `DuplicateOverlap` 0.8) come from a small calibration on five dev documents and stay provisional until Phase 5.
 
 ## Phase 3 — Chat module
 

@@ -71,6 +71,19 @@ public sealed class ApiConventionsTests(RagAssistantAppFactory factory)
     }
 
     [Test]
+    public async Task Unavailable_handlerFailure_returns503WithErrorCode()
+    {
+        using var client = factory.CreateClientAs(Persona.KnowledgeSeeker);
+
+        var response = await client.GetAsync(new Uri("/api/_test/unavailable", UriKind.Relative));
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.ServiceUnavailable);
+        await Assert.That(response.Content.Headers.ContentType?.MediaType).IsEqualTo(ProblemJson);
+        await Assert.That(body.GetProperty("code").GetString()).IsEqualTo("sample.unavailable");
+    }
+
+    [Test]
     public async Task Throws_inProduction_returnsGenericProblemAndLogsOnce()
     {
         using var production = factory.WithWebHostBuilder(b => b.UseEnvironment("Production"));

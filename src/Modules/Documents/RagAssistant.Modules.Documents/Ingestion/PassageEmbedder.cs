@@ -38,7 +38,11 @@ internal sealed partial class PassageEmbedder(
     /// The model that actually produces the vectors, as the provider reports it; the configured name is only the fallback.
     /// Recorded on the version, so it cannot drift from what the API is wired to.
     /// </summary>
-    public string ModelId => generator.GetService<EmbeddingGeneratorMetadata>()?.DefaultModelId ?? embeddings.Value.Model;
+    public string ModelId => ResolveModelId(generator, embeddings.Value);
+
+    /// <summary>Shared with retrieval, which must compare a version's recorded model with the same name (spec 011).</summary>
+    public static string ResolveModelId(IEmbeddingGenerator<string, Embedding<float>> generator, EmbeddingOptions options) =>
+        generator.GetService<EmbeddingGeneratorMetadata>()?.DefaultModelId ?? options.Model;
 
     /// <summary>One tiny call: false while the model is unreachable or not yet pulled, whatever way the client reports it.</summary>
     public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken)

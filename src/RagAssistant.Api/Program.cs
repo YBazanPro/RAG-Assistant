@@ -10,6 +10,8 @@ builder.AddNpgsqlDataSource("ragassistant");
 // The provider is wired here and nowhere else; modules only see IEmbeddingGenerator (ADR 0003).
 builder.AddOllamaApiClient("embeddings").AddEmbeddingGenerator();
 
+// In-memory only, no L2 (ADR 0008); the Documents module caches query embeddings in it.
+builder.Services.AddHybridCache();
 builder.Services.AddApiConventions();
 builder.Services.AddApiAuthentication(builder.Environment);
 builder.Services.AddEndpoints(typeof(Program).Assembly);

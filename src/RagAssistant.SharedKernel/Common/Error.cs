@@ -8,6 +8,9 @@ public enum ErrorType
     Forbidden,
     PreconditionFailed,
     PreconditionRequired,
+
+    /// <summary>A dependency (e.g. the embedding model) cannot serve the request right now; retrying later may succeed.</summary>
+    Unavailable,
     Failure,
 }
 
@@ -34,6 +37,8 @@ public sealed record Error(
         new(code, message, ErrorType.PreconditionFailed, extensions);
 
     public static Error PreconditionRequired(string code, string message) => new(code, message, ErrorType.PreconditionRequired);
+
+    public static Error Unavailable(string code, string message) => new(code, message, ErrorType.Unavailable);
 
     public static Error Failure(string code, string message) => new(code, message, ErrorType.Failure);
 }

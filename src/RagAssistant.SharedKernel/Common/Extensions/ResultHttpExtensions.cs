@@ -20,6 +20,7 @@ public static class ResultHttpExtensions
         ErrorType.Forbidden => StatusCodes.Status403Forbidden,
         ErrorType.PreconditionFailed => StatusCodes.Status412PreconditionFailed,
         ErrorType.PreconditionRequired => StatusCodes.Status428PreconditionRequired,
+        ErrorType.Unavailable => StatusCodes.Status503ServiceUnavailable,
         _ => StatusCodes.Status500InternalServerError,
     };
 

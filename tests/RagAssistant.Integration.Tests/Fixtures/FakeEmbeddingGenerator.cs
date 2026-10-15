@@ -12,6 +12,7 @@ namespace RagAssistant.Integration.Tests.Fixtures;
 public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>
 {
     private readonly ConcurrentQueue<string[]> _batches = [];
+    private readonly ConcurrentQueue<(string Keyword, float[] Vector)> _scripted = [];
     private readonly TaskCompletionSource _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource? _gate;
     private int _failuresRemaining;
@@ -49,6 +50,50 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
     public int? ReturnedCount { get; set; }
 
     public IReadOnlyList<string[]> Batches => [.. _batches];
+
+    /// <summary>A unit vector along one axis; with <see cref="WithScore"/> it gives passages an exact similarity to a query.</summary>
+    public static float[] Axis(int axis, int length = 1024)
+    {
+        var vector = new float[length];
+        vector[axis] = 1f;
+        return vector;
+    }
+
+    /// <summary>A unit vector whose cosine similarity to <see cref="Axis"/>(0) is <paramref name="score"/>; the rest lies on <paramref name="otherAxis"/>.</summary>
+    public static float[] WithScore(double score, int otherAxis = 1, int length = 1024)
+    {
+        var vector = new float[length];
+        vector[0] = (float)score;
+        vector[otherAxis] = (float)Math.Sqrt(1 - (score * score));
+        return vector;
+    }
+
+    /// <summary>
+    /// Like <see cref="WithScore"/>, but the remainder points in a random direction of a shared subspace (axes 1..<paramref name="dimensions"/>),
+    /// so passages have varied similarities to each other, as real embeddings do, and an HNSW graph over them is well connected.
+    /// </summary>
+    public static float[] WithScore(double score, Random random, int dimensions = 32, int length = 1024)
+    {
+        var direction = new double[dimensions];
+        for (var i = 0; i < dimensions; i++)
+        {
+            direction[i] = random.NextDouble() - 0.5;
+        }
+
+        var norm = Math.Sqrt(direction.Sum(d => d * d));
+        var rest = Math.Sqrt(1 - (score * score));
+        var vector = new float[length];
+        vector[0] = (float)score;
+        for (var i = 0; i < dimensions; i++)
+        {
+            vector[1 + i] = (float)(rest * direction[i] / norm);
+        }
+
+        return vector;
+    }
+
+    /// <summary>Any input containing <paramref name="keyword"/> (case-insensitive) embeds as <paramref name="vector"/>; the first match wins.</summary>
+    public void Script(string keyword, float[] vector) => _scripted.Enqueue((keyword, vector));
 
     public int BatchCalls => _batches.Count;
 
@@ -127,6 +172,14 @@ public sealed class FakeEmbeddingGenerator : IEmbeddingGenerator<string, Embeddi
 
     private float[] Vector(string text)
     {
+        foreach (var (keyword, scripted) in _scripted)
+        {
+            if (text.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            {
+                return [.. scripted];
+            }
+        }
+
         var seed = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0);
         var vector = new float[VectorLength];
         for (var i = 0; i < vector.Length; i++)

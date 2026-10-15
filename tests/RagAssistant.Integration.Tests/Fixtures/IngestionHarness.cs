@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using RagAssistant.Integration.Tests.Documents;
 using RagAssistant.SharedKernel.Persistence;
@@ -57,6 +58,8 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
     public ManualTimeProvider? Clock { get; }
 
     public FakeEmbeddingGenerator Generator { get; }
+
+    public CapturingLoggerProvider Logs { get; } = new();
 
     public NpgsqlDataSource Db => Services.GetRequiredService<NpgsqlDataSource>();
 
@@ -126,6 +129,7 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
             builder.UseSetting(key, value);
         }
 
+        builder.ConfigureLogging(logging => logging.AddProvider(Logs));
         builder.ConfigureServices(services =>
         {
             services.AddDatabaseMigrator();
