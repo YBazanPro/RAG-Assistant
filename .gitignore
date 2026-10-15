@@ -428,3 +428,6 @@ FodyWeavers.xsd
 #*.lscache
 
 .idea/
+
+# Local document store written by the API (spec 010)
+.data/

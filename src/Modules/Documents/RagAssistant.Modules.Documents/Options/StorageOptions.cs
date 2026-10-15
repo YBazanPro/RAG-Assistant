@@ -9,4 +9,8 @@ internal sealed class StorageOptions
     /// <summary>Root of the original-file store. The AppHost passes an absolute path; otherwise it is relative to the content root.</summary>
     [Required]
     public string Path { get; set; } = "./.data/documents";
+
+    /// <summary>The absolute store root: <paramref name="path"/> as is when rooted, else relative to the content root (or the working directory).</summary>
+    public static string ResolveRoot(string path, string? contentRoot) =>
+        System.IO.Path.GetFullPath(path, contentRoot ?? Directory.GetCurrentDirectory());
 }

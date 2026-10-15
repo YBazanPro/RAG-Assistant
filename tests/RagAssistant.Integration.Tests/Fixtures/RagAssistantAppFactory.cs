@@ -18,15 +18,35 @@ public sealed class RagAssistantAppFactory : WebApplicationFactory<Program>, IAs
 
     public CapturingLoggerProvider Logs { get; } = new();
 
+    /// <summary>A private original-file store per factory, removed with it, so tests never share or pollute the dev folder.</summary>
+    public string StoragePath { get; } = Path.Combine(Path.GetTempPath(), "ragassistant-tests", Guid.NewGuid().ToString("N"));
+
     public async Task InitializeAsync()
     {
         await using var scope = Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<DatabaseMigrator>().MigrateAsync(CancellationToken.None);
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing && Directory.Exists(StoragePath))
+        {
+            try
+            {
+                Directory.Delete(StoragePath, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Best effort: a leftover temp folder is harmless.
+            }
+        }
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:ragassistant", Postgres.ConnectionString);
+        builder.UseSetting("Documents:Storage:Path", StoragePath);
         builder.UseSetting("Logging:LogLevel:Microsoft.AspNetCore.Diagnostics", "Debug");
         builder.ConfigureLogging(logging => logging.AddProvider(Logs));
         builder.ConfigureServices(services =>

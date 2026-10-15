@@ -7,6 +7,7 @@ using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
+using RagAssistant.Modules.Documents.Storage;
 using RagAssistant.Shared.Common.Behaviors;
 using RagAssistant.Shared.Common.Extensions;
 using RagAssistant.Shared.Persistence;
@@ -44,6 +45,9 @@ public static class DocumentsModule
             .Bind(configuration.GetSection(StorageOptions.Section))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<StorageOptions>, StorageOptionsValidator>();
+        services.AddSingleton<IOriginalFileStore, FileSystemOriginalFileStore>();
+        services.AddHostedService<StagedFileSweeper>();
         services.AddOptions<PdfOptions>()
             .Bind(configuration.GetSection(PdfOptions.Section))
             .ValidateDataAnnotations()

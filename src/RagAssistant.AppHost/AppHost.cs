@@ -40,10 +40,16 @@ var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("mig
     .WithReference(database)
     .WaitFor(database);
 
+// Original files of imported PDFs live outside the database, in a git-ignored folder at the repository root (spec 010).
+// Passing the absolute path makes it visible in the dashboard; back it up together with the database.
+var documentStore = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", ".data", "documents"));
+Directory.CreateDirectory(documentStore);
+
 var api = builder.AddProject<Projects.RagAssistant_Api>("api")
     .WithReference(database)
     .WithReference(keycloak)
     .WithReference(embeddings)
+    .WithEnvironment("Documents__Storage__Path", documentStore)
     .WaitFor(database)
     .WaitFor(keycloak)
     .WaitForCompletion(migrations);
