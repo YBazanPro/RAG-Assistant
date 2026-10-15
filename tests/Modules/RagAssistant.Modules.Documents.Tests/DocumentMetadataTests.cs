@@ -10,7 +10,7 @@ internal sealed class DocumentMetadataTests
     [Arguments("a.MARKDOWN", true, SourceFormat.Markdown)]
     [Arguments("a.txt", true, SourceFormat.PlainText)]
     [Arguments("notes.TXT", true, SourceFormat.PlainText)]
-    [Arguments("a.pdf", false, default(SourceFormat))]
+    [Arguments("a.PDF", true, SourceFormat.Pdf)]
     [Arguments("a.docx", false, default(SourceFormat))]
     [Arguments("README", false, default(SourceFormat))]
     [Arguments("a.md.exe", false, default(SourceFormat))]

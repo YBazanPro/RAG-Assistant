@@ -144,7 +144,7 @@ public sealed class DocumentNewVersionTests(PostgresFixture postgres)
 
     [Test]
     [Arguments("none", "documents.file_required")]
-    [Arguments("pdf", "documents.unsupported_extension")]
+    [Arguments("docx", "documents.unsupported_extension")]
     [Arguments("empty", "documents.empty_content")]
     [Arguments("utf8", "documents.invalid_utf8")]
     [Arguments("big", "documents.file_too_large")]
@@ -156,7 +156,7 @@ public sealed class DocumentNewVersionTests(PostgresFixture postgres)
         var (bytes, name) = kind switch
         {
             "none" => ((byte[]?)null, "x.md"),
-            "pdf" => (Markdown(), "x.pdf"),
+            "docx" => (Markdown(), "x.docx"),
             "empty" => ("  \n"u8.ToArray(), "x.md"),
             "utf8" => ([0xFF, 0xFE, 0xFD], "x.md"),
             _ => (new byte[DocumentUploads.DefaultMaxFileSizeBytes + 1], "x.md"),

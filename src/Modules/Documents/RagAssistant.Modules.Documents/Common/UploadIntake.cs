@@ -1,23 +1,30 @@
-using System.Buffers;
 using RagAssistant.Modules.Documents.Domain;
+using RagAssistant.Modules.Documents.Options;
+using RagAssistant.Modules.Documents.Storage;
 using RagAssistant.Shared.Common;
 
 namespace RagAssistant.Modules.Documents.Common;
 
-internal sealed record UploadedFile(string FileName, string? ContentType, long Length, Stream Content);
+/// <summary>
+/// The first file part of an upload, as <see cref="UploadForm"/> received it: text formats are held in memory (they are small),
+/// a PDF is already on disk in the store's staging area. A part over its size limit is flagged, not stored.
+/// </summary>
+internal sealed record UploadedFile(string FileName, string? ContentType, long Length, ReadOnlyMemory<byte> Text, StagedFile? Staged, bool TooLarge);
 
-/// <summary>A file that passed the import rules: normalized text, its hash and the facts stored on the version.</summary>
+/// <summary>A file that passed the import rules: normalized text or a staged PDF, its hash and the facts stored on the version.</summary>
 internal sealed record AcceptedContent(
-    string Content, string Hash, SourceFormat Format, string FileName, string? ContentType, int SizeBytes);
+    string? Content, string Hash, SourceFormat Format, string FileName, string? ContentType, int SizeBytes, StagedFile? Staged);
 
-/// <summary>The file rules shared by import and "upload a new version" (spec 006 / spec 009).</summary>
+/// <summary>The file rules shared by import and "upload a new version" (spec 006 / spec 009 / spec 010).</summary>
 internal static class UploadIntake
 {
     private const int MaxFileNameLength = 255;
     private const int MaxContentTypeLength = 200;
+    private const int PdfHeaderWindow = 1024;
+    private static readonly byte[] PdfMagic = "%PDF-"u8.ToArray();
 
     public static async Task<Result<AcceptedContent>> ReadAsync(
-        int fileCount, UploadedFile? file, int maxBytes, CancellationToken cancellationToken)
+        int fileCount, UploadedFile? file, ImportOptions options, CancellationToken cancellationToken)
     {
         if (fileCount != 1 || file is null)
         {
@@ -27,49 +34,55 @@ internal static class UploadIntake
         var fileName = DocumentMetadata.SanitizeFileName(file.FileName);
         if (!DocumentMetadata.TryGetFormat(fileName, out var format))
         {
-            return Reject("documents.unsupported_extension", "Only .md, .markdown and .txt files are supported.");
+            return Reject("documents.unsupported_extension", "Only .md, .markdown, .txt and .pdf files are supported.");
         }
 
-        if (file.Length > maxBytes)
+        var maxBytes = DocumentMetadata.MaxBytes(format, options);
+        if (file.TooLarge || file.Length > maxBytes)
         {
             return Reject("documents.file_too_large", $"The file must be at most {maxBytes} bytes.");
         }
 
-        // One byte more than the limit tells an oversize stream apart from one that is exactly at the limit.
-        var buffer = ArrayPool<byte>.Shared.Rent(maxBytes + 1);
-        string decoded;
-        int read;
-        try
-        {
-            read = await file.Content.ReadAtLeastAsync(buffer.AsMemory(0, maxBytes + 1), maxBytes + 1, throwOnEndOfStream: false, cancellationToken);
-            if (read > maxBytes)
-            {
-                return Reject("documents.file_too_large", $"The file must be at most {maxBytes} bytes.");
-            }
+        var contentType = file.ContentType is null ? null : Truncate(file.ContentType, MaxContentTypeLength);
+        return format == SourceFormat.Pdf
+            ? await AcceptPdfAsync(file, Truncate(fileName, MaxFileNameLength), contentType, cancellationToken)
+            : AcceptText(file, format, Truncate(fileName, MaxFileNameLength), contentType);
+    }
 
-            if (!DocumentText.TryDecode(buffer.AsSpan(0, read), out decoded!))
-            {
-                return Reject("documents.invalid_utf8", "The file must be valid UTF-8 text.");
-            }
-        }
-        finally
+    private static async Task<Result<AcceptedContent>> AcceptPdfAsync(
+        UploadedFile file, string fileName, string? contentType, CancellationToken cancellationToken)
+    {
+        if (file.Staged is not { } staged)
         {
-            ArrayPool<byte>.Shared.Return(buffer);
+            return Reject("documents.file_required", "Exactly one file is required.");
+        }
+
+        var header = new byte[PdfHeaderWindow];
+        int read;
+        await using (var stream = staged.OpenRead())
+        {
+            read = await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, cancellationToken);
+        }
+
+        if (header.AsSpan(0, read).IndexOf(PdfMagic) < 0)
+        {
+            return Reject("documents.invalid_pdf", "The file is not a PDF document.");
+        }
+
+        return new AcceptedContent(null, staged.Sha256, SourceFormat.Pdf, fileName, contentType, (int)staged.Length, staged);
+    }
+
+    private static Result<AcceptedContent> AcceptText(UploadedFile file, SourceFormat format, string fileName, string? contentType)
+    {
+        if (!DocumentText.TryDecode(file.Text.Span, out var decoded))
+        {
+            return Reject("documents.invalid_utf8", "The file must be valid UTF-8 text.");
         }
 
         var content = DocumentText.Normalize(decoded);
-        if (string.IsNullOrWhiteSpace(content))
-        {
-            return Reject("documents.empty_content", "The file has no content.");
-        }
-
-        return new AcceptedContent(
-            content,
-            DocumentText.Hash(content),
-            format,
-            Truncate(fileName, MaxFileNameLength),
-            file.ContentType is null ? null : Truncate(file.ContentType, MaxContentTypeLength),
-            read);
+        return string.IsNullOrWhiteSpace(content)
+            ? Reject("documents.empty_content", "The file has no content.")
+            : new AcceptedContent(content, DocumentText.Hash(content), format, fileName, contentType, file.Text.Length, null);
     }
 
     private static Result<AcceptedContent> Reject(string code, string message) =>

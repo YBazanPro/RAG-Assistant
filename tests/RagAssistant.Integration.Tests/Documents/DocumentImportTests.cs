@@ -158,7 +158,7 @@ public sealed class DocumentImportTests(RagAssistantAppFactory factory)
     [Test]
     [Arguments("no-file", "documents.file_required")]
     [Arguments("two-files", "documents.file_required")]
-    [Arguments("pdf", "documents.unsupported_extension")]
+    [Arguments("docx", "documents.unsupported_extension")]
     [Arguments("no-extension", "documents.unsupported_extension")]
     [Arguments("empty", "documents.empty_content")]
     [Arguments("whitespace", "documents.empty_content")]
@@ -172,7 +172,7 @@ public sealed class DocumentImportTests(RagAssistantAppFactory factory)
         {
             "no-file" => DocumentUploads.Form("x.md", null, title),
             "two-files" => TwoFiles(title),
-            "pdf" => DocumentUploads.Form("a.pdf", DocumentUploads.UniqueMarkdown(), title),
+            "docx" => DocumentUploads.Form("a.docx", DocumentUploads.UniqueMarkdown(), title),
             "no-extension" => DocumentUploads.Form("README", DocumentUploads.UniqueMarkdown(), title),
             "empty" => DocumentUploads.Form("a.md", [], title),
             "whitespace" => DocumentUploads.Form("a.md", "  \r\n\t \n"u8.ToArray(), title),

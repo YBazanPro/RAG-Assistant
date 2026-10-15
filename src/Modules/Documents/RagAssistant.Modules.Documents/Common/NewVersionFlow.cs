@@ -15,7 +15,7 @@ internal static class NewVersionFlow
 
     /// <param name="NewLatestHash">The hash to store on the document, or null to leave it (reprocess).</param>
     internal sealed record Source(
-        string? Content, string Hash, SourceFormat Format, string FileName, string? ContentType, int SizeBytes, string? NewLatestHash);
+        string? Content, string? StorageKey, string Hash, SourceFormat Format, string FileName, string? ContentType, int SizeBytes, string? NewLatestHash);
 
     public static async Task<Result<Guard>> GuardAsync(DocumentsDbContext db, Guid documentId, CancellationToken cancellationToken)
     {
@@ -78,6 +78,7 @@ internal static class NewVersionFlow
             OriginalFileName = source.FileName,
             ContentType = source.ContentType,
             Content = source.Content,
+            StorageKey = source.StorageKey,
             ContentHash = source.Hash,
             SizeBytes = source.SizeBytes,
             CreatedAt = now,

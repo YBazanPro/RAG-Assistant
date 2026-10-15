@@ -33,7 +33,7 @@ internal static partial class ReprocessDocument
             var latestNumber = guard.Value.LatestNumber;
             var source = await db.Versions.AsNoTracking()
                 .Where(v => v.DocumentId == command.DocumentId && v.Number == latestNumber)
-                .Select(v => new NewVersionFlow.Source(v.Content, v.ContentHash, v.SourceFormat, v.OriginalFileName, v.ContentType, v.SizeBytes, null))
+                .Select(v => new NewVersionFlow.Source(v.Content, v.StorageKey, v.ContentHash, v.SourceFormat, v.OriginalFileName, v.ContentType, v.SizeBytes, null))
                 .SingleAsync(cancellationToken);
 
             var result = await NewVersionFlow.CommitAsync(

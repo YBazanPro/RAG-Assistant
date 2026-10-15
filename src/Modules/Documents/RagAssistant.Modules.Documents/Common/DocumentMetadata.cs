@@ -19,11 +19,18 @@ internal static class DocumentMetadata
             case ".txt":
                 format = SourceFormat.PlainText;
                 return true;
+            case ".pdf":
+                format = SourceFormat.Pdf;
+                return true;
             default:
                 format = default;
                 return false;
         }
     }
+
+    /// <summary>Text formats keep the small limit; only a PDF may be large (spec 010).</summary>
+    public static int MaxBytes(SourceFormat format, Options.ImportOptions options) =>
+        format == SourceFormat.Pdf ? options.MaxPdfSizeBytes : options.MaxFileSizeBytes;
 
     /// <summary>Keeps only the last path segment, whichever separator the client used.</summary>
     public static string SanitizeFileName(string fileName)

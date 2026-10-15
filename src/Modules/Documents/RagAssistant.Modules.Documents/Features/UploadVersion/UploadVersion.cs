@@ -30,7 +30,7 @@ internal static partial class UploadVersion
                 return Result.Failure<NewVersionResponse>(guard.Error);
             }
 
-            var intake = await UploadIntake.ReadAsync(command.FileCount, command.File, options.Value.MaxFileSizeBytes, cancellationToken);
+            var intake = await UploadIntake.ReadAsync(command.FileCount, command.File, options.Value, cancellationToken);
             if (intake.IsFailure)
             {
                 return Result.Failure<NewVersionResponse>(intake.Error, intake.FieldErrors!);
@@ -49,10 +49,11 @@ internal static partial class UploadVersion
                 return DocumentErrors.DuplicateContent(other);
             }
 
+            var storageKey = accepted.Staged is null ? null : await accepted.Staged.CommitAsync(cancellationToken);
             var result = await NewVersionFlow.CommitAsync(
                 db, queue, clock, command.DocumentId, command.UserId, guard.Value, VersionOrigin.Upload,
                 new NewVersionFlow.Source(
-                    accepted.Content, accepted.Hash, accepted.Format, accepted.FileName, accepted.ContentType, accepted.SizeBytes, accepted.Hash),
+                    accepted.Content, storageKey, accepted.Hash, accepted.Format, accepted.FileName, accepted.ContentType, accepted.SizeBytes, accepted.Hash),
                 cancellationToken);
             if (result.IsSuccess)
             {

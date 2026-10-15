@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Options;
+using RagAssistant.Modules.Documents.Storage;
 using RagAssistant.Shared.Common.Extensions;
 using RagAssistant.Shared.Common.Security;
 using ModuleMediator = RagAssistant.Modules.Documents.Generated.Mediator;
@@ -27,20 +28,22 @@ public sealed class ImportDocumentEndpoint : IEndpointGroup
         ClaimsPrincipal user,
         ModuleMediator mediator,
         IOptions<ImportOptions> options,
+        IOriginalFileStore store,
         DocumentsMetrics metrics,
         CancellationToken cancellationToken)
     {
-        var form = await UploadForm.ReadAsync(request, options.Value.MaxFileSizeBytes, cancellationToken);
+        // Disposing discards a staged PDF the handler did not commit (rejected, duplicate, failed).
+        await using var form = await UploadForm.ReadAsync(request, options.Value, store, cancellationToken);
 
         var command = new ImportDocument.Command(
-            Title: UploadForm.Field(form, "title"),
-            OwnerName: UploadForm.Field(form, "ownerName"),
-            Language: UploadForm.Field(form, "language"),
-            Tags: form?["tags"].Select(t => t ?? string.Empty).ToArray(),
-            EffectiveDate: UploadForm.Field(form, "effectiveDate"),
-            Source: UploadForm.Field(form, "source"),
-            FileCount: form?.Files.Count ?? 0,
-            File: UploadForm.SingleFile(form),
+            Title: form?.Field("title"),
+            OwnerName: form?.Field("ownerName"),
+            Language: form?.Field("language"),
+            Tags: form?.Values("tags"),
+            EffectiveDate: form?.Field("effectiveDate"),
+            Source: form?.Field("source"),
+            FileCount: form?.FileCount ?? 0,
+            File: form?.File,
             UserId: user.GetSubject());
 
         var result = await mediator.Send(command, cancellationToken);

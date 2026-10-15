@@ -32,6 +32,9 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
         ["Documents:Chunking:MinTokens"] = "1",
     };
 
+    private const string StorageKey = "Documents:Storage:Path";
+
+    private readonly string _ownStoragePath = Path.Combine(Path.GetTempPath(), "ragassistant-tests", Guid.NewGuid().ToString("N"));
     private readonly string _connectionString;
     private readonly Dictionary<string, string> _settings;
 
@@ -46,6 +49,9 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
     }
 
     public string DatabaseName { get; }
+
+    /// <summary>The original-file store of this host; a restart harness passes the same path to find the files again.</summary>
+    public string StoragePath => _settings.TryGetValue(StorageKey, out var path) ? path : _ownStoragePath;
 
     /// <summary>Set when the test controls time; the application then only moves when the test advances it.</summary>
     public ManualTimeProvider? Clock { get; }
@@ -95,9 +101,26 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
         return harness;
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing && Directory.Exists(_ownStoragePath))
+        {
+            try
+            {
+                Directory.Delete(_ownStoragePath, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Best effort: a leftover temp folder is harmless.
+            }
+        }
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:ragassistant", _connectionString);
+        builder.UseSetting(StorageKey, StoragePath);
         foreach (var (key, value) in _settings)
         {
             builder.UseSetting(key, value);

@@ -48,7 +48,7 @@ internal static partial class ImportDocument
     {
         public async ValueTask<Result<Response>> Handle(Command command, CancellationToken cancellationToken)
         {
-            var intake = await UploadIntake.ReadAsync(command.FileCount, command.File, options.Value.MaxFileSizeBytes, cancellationToken);
+            var intake = await UploadIntake.ReadAsync(command.FileCount, command.File, options.Value, cancellationToken);
             if (intake.IsFailure)
             {
                 return Result.Failure<Response>(intake.Error, intake.FieldErrors!);
@@ -61,6 +61,9 @@ internal static partial class ImportDocument
             {
                 return Duplicate(existingId);
             }
+
+            // The blob goes in place before the row that references it; a failure after this leaves an unreferenced file, which is harmless.
+            var storageKey = accepted.Staged is null ? null : await accepted.Staged.CommitAsync(cancellationToken);
 
             var now = clock.GetUtcNow();
             var document = new Document
@@ -92,6 +95,7 @@ internal static partial class ImportDocument
                 OriginalFileName = accepted.FileName,
                 ContentType = accepted.ContentType,
                 Content = accepted.Content,
+                StorageKey = storageKey,
                 ContentHash = hash,
                 SizeBytes = accepted.SizeBytes,
                 CreatedAt = now,

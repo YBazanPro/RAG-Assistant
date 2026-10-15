@@ -95,7 +95,7 @@ public sealed class DocumentsSchemaAndConfigTests(RagAssistantAppFactory factory
 
         using var client = isolated.CreateClientAs(Persona.ContentOwner);
         using var accepted = DocumentUploads.Form("a.md", DocumentUploads.UniqueMarkdown(), DocumentUploads.UniqueTitle());
-        using var rejected = DocumentUploads.Form("a.pdf", DocumentUploads.UniqueMarkdown(), DocumentUploads.UniqueTitle());
+        using var rejected = DocumentUploads.Form("a.docx", DocumentUploads.UniqueMarkdown(), DocumentUploads.UniqueTitle());
         var first = await client.PostAsync("/api/documents", accepted);
         var second = await client.PostAsync("/api/documents", rejected);
 
