@@ -91,10 +91,10 @@ GitHub Actions: restore, build (warnings as errors), `dotnet format --verify-no-
 
 ### 0.5 Identity (ADR 0002) — ✅ Done
 
-[Spec 004](specs/004-identity.md): Keycloak 26.8 in the AppHost, JWT bearer + role policies + fallback policy on the Host, persona test helper, Keycloak realm smoke test. Sign-in through the browser arrives with step 0.6.
+[Spec 004](specs/004-identity.md): Keycloak 26.8 in the AppHost, JWT bearer + role policies + fallback policy on the API, persona test helper, Keycloak realm smoke test. Sign-in through the browser arrives with step 0.6.
 
 - Keycloak in the AppHost with the committed realm file (clients, three roles, test users, flat `roles` claim, audience mapper).
-- Host: JWT bearer, policies `KnowledgeSeeker` / `ContentOwner` / `Maintainer`, policy name constants in Shared.
+- API: JWT bearer, policies `KnowledgeSeeker` / `ContentOwner` / `Maintainer`, policy name constants in Shared.
 - Test infrastructure: test signing key in `RagAssistantAppFactory`, `CreateClientAs(Persona…)` helper, and the Keycloak realm smoke test (Testcontainers).
 
 **Why before any business endpoint:** every endpoint requires authentication. Adding it later means rewriting every test.
@@ -104,12 +104,12 @@ GitHub Actions: restore, build (warnings as errors), `dotnet format --verify-no-
 ### 0.6 Web shell (ADR 0001 + 0002) — ✅ Done
 
 - `RagAssistant.Web`: Blazor Web App, `InteractiveWebAssembly`, Fluent UI, wired into the AppHost.
-- BFF: OIDC sign-in/sign-out, cookie session, YARP `/api/**` → Host with token forwarding, no response buffering, antiforgery, auth state serialization to WebAssembly.
+- BFF: OIDC sign-in/sign-out, cookie session, YARP `/api/**` → API with token forwarding, no response buffering, antiforgery, auth state serialization to WebAssembly.
 - App layout: header, navigation (`/`, `/chat`, `/documents`, `/admin` visible to maintainers only; no `/knowledge` route yet), System/Light/Dark theme.
 - **English only** (decided in spec 005): plain English text, no resource files, no language switching.
 - Shared components: `PageHeader`, `EmptyState`, `ErrorState`, `LoadingState`, `ConfirmDialog`.
 
-[Spec 005](specs/005-web-shell.md): `RagAssistant.Web` (BFF, YARP `/api/**` pass-through to the Host, cookie session) and `RagAssistant.Web.Client` (WebAssembly, Fluent UI Blazor 5.0.0), with `tests/RagAssistant.Web.Tests` (bUnit and BFF integration tests).
+[Spec 005](specs/005-web-shell.md): `RagAssistant.Web` (BFF, YARP `/api/**` pass-through to the API, cookie session) and `RagAssistant.Web.Client` (WebAssembly, Fluent UI Blazor 5.0.0), with `tests/RagAssistant.Web.Tests` (bUnit and BFF integration tests).
 
 **Kit:** `/spec` → `/plan`. **Extra skills:** `create-blazor-project`, `configure-auth`, `plan-ui-change`, `author-component`, `support-prerendering`, `fetch-and-send-data`. Kit skills: `aspire`, `authentication`.
 **Done when:** clone → run AppHost → sign in as each test user → see the role-appropriate navigation in both languages and both themes.
@@ -129,7 +129,7 @@ The module owns Corpus Management + Ingestion (+ Retrieval in Phase 2). Start wi
 | 1.5 | ✅ **Browse corpus** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | List with filters (status, language, owner, tags, date) and paging; document detail; passages of a version. | KnowledgeSeeker |
 | 1.6 | ✅ **Documents UI** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | `DocumentTable`, `DocumentUpload`, `DocumentStatusBadge`, live `IngestionStatus`, document detail with `DocumentMetadataPanel` and `PassageList`/`PassageCard`. | — |
 | 1.7 | **Lifecycle** ([spec 009](specs/009-document-lifecycle.md), approved) | Edit metadata, upload a new version (history preserved), archive, reprocess. | ContentOwner |
-| 1.8 | **PDF import** ([spec 010](specs/010-pdf-import.md) and [ADR 0006](adr/0006-pdf-import.md), approved) *(added 2026-10-14, after 1.7)* | PDF upload up to 100 MB. Needs its own spec and ADR: a PDF text-extraction library (PdfPig, Apache 2.0, managed code), storing the original binary outside Postgres (the source text column stays for text formats), upload streaming through the BFF and Host (body limits, timeouts), heading detection from font data, page numbers in citations (`Passage.PageStart/PageEnd` and `DocumentVersion.SourceFormat = Pdf` are already in the schema), and a review of the ADR 0004 corpus and ingestion-time targets. Scanned PDFs (OCR) stay out of scope. | ContentOwner |
+| 1.8 | **PDF import** ([spec 010](specs/010-pdf-import.md) and [ADR 0006](adr/0006-pdf-import.md), approved) *(added 2026-10-14, after 1.7)* | PDF upload up to 100 MB. Needs its own spec and ADR: a PDF text-extraction library (PdfPig, Apache 2.0, managed code), storing the original binary outside Postgres (the source text column stays for text formats), upload streaming through the BFF and API (body limits, timeouts), heading detection from font data, page numbers in citations (`Passage.PageStart/PageEnd` and `DocumentVersion.SourceFormat = Pdf` are already in the schema), and a review of the ADR 0004 corpus and ingestion-time targets. Scanned PDFs (OCR) stay out of scope. | ContentOwner |
 
 **Kit:** `/scaffold` (module), `/spec`, `/plan`, `/tdd`, `/migrate` (each EF migration), `/verify`. Skills: `ef-core`, `vertical-slice`, `configuration`, `logging`, `opentelemetry`. **Extra:** `collect-user-input` (upload, filters), `fetch-and-send-data`, `coordinate-components`.
 **Demo after Phase 1:** a content owner imports a Markdown policy, watches it being indexed live, and browses its passages.

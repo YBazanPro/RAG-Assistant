@@ -1,6 +1,6 @@
 namespace RagAssistant.Web.Client.Documents;
 
-// The client owns its copy of the Host's JSON (it cannot reference a module); members the client does not read are simply absent.
+// The client owns its copy of the API's JSON (it cannot reference a module); members the client does not read are simply absent.
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
 
@@ -123,7 +123,7 @@ public sealed record ImportRequest(
     string? EffectiveDate,
     string? Source);
 
-/// <summary>A failed API call. <see cref="Status"/> is 0 when the Host could not be reached at all.</summary>
+/// <summary>A failed API call. <see cref="Status"/> is 0 when the API could not be reached at all.</summary>
 public sealed record ApiError(
     int Status,
     string Code,

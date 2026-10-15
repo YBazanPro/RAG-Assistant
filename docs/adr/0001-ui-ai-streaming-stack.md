@@ -1,5 +1,7 @@
 # ADR 0001: UI, AI, Streaming, and Testing Stack
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Accepted. Decision 5 amended by [ADR 0002](0002-identity-and-authentication.md)
 **Date:** 2026-10-13
 **Context documents:** [product.md](../product.md), [spec 001](../specs/001-aspire-postgres.md)

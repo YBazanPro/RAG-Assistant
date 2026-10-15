@@ -1,5 +1,7 @@
 # Spec 001: Aspire Orchestration with PostgreSQL + pgvector
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Approved (2026-10-13)
 **Date:** 2026-10-13
 

@@ -32,8 +32,8 @@ Default pgvector HNSW settings remain sufficient at this size. Time to first tok
 
 - One new package (`UglyToad.PdfPig`), versioned in `Directory.Packages.props`.
 - Layout analysis is best effort: columns are handled, but tables (no structure recovery), sidebars and unusual fonts can degrade reading order and heading detection; layout analysis costs extraction time and can be switched off by configuration. Evaluation (Phase 5) decides whether to invest further.
-- Extraction runs in the Host process; very large or hostile files are bounded by page, size and time limits, not isolated. Out-of-process extraction is a later option.
-- The stored files must be included in any backup or deployment of the Host's data, in addition to the database.
+- Extraction runs in the API process; very large or hostile files are bounded by page, size and time limits, not isolated. Out-of-process extraction is a later option.
+- The stored files must be included in any backup or deployment of the API's data, in addition to the database.
 
 ## Rejected
 

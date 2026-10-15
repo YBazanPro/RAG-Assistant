@@ -1,5 +1,7 @@
 # ADR 0005: API Kernel Libraries and Mediator Topology
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Accepted
 **Date:** 2026-10-13
 **Relates to:** [ADR 0001](0001-ui-ai-streaming-stack.md), [spec 002](../specs/002-shared-kernel-api-conventions.md), [roadmap](../roadmap.md) step 0.3

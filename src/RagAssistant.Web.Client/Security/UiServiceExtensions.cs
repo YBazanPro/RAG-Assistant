@@ -22,7 +22,7 @@ public static class UiServiceExtensions
         return services;
     }
 
-    // Same policy names and role mapping as the Host; the UI only uses them to shape pages and navigation.
+    // Same policy names and role mapping as the API; the UI only uses them to shape pages and navigation.
     public static IServiceCollection AddUiAuthorization(this IServiceCollection services)
     {
         services.AddAuthorizationCore(options =>

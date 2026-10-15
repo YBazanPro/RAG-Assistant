@@ -12,7 +12,7 @@ Documents change and content owners cannot keep the corpus truthful: a typo in a
 
 ### In
 
-**Host (Documents module)**
+**API (Documents module)**
 
 - `PUT /api/documents/{id}`: edit metadata, with optimistic concurrency (`If-Match` / `ETag`).
 - `POST /api/documents/{id}/versions`: upload a new version (file only).
@@ -105,7 +105,7 @@ Notes:
 
 - `not_reprocessable` means the latest version is not `Indexed` (failed → use retry; none indexed yet → wait or upload again).
 - A missing `If-Match` is `428`; a value that does not match the current revision is `412` and the body names the current revision so the client can reload. `If-Match: *` is not supported (treated as missing).
-- The Host endpoints use `.DisableAntiforgery()` (multipart) and rely on the BFF CSRF header (spec 005), like import.
+- The API endpoints use `.DisableAntiforgery()` (multipart) and rely on the BFF CSRF header (spec 005), like import.
 - The metadata PUT validates with FluentValidation exactly like import (`validation.failed`, errors under field names). The new-version endpoint reuses the import file rules and codes (`documents.file_required`, `documents.unsupported_extension`, `documents.file_too_large`, `documents.invalid_utf8`, `documents.empty_content`).
 
 ## Authorization
@@ -114,7 +114,7 @@ Notes:
 |---|---|---|---|---|---|
 | `PUT`, `…/versions`, `…/reprocess`, `…/archive`, `…/restore` | `ContentOwner` | 403 | 200 / 202 | 200 / 202 | 401 |
 
-Any content owner may act on any document (ADR 0002; no per-document ownership). `UpdatedBy` and `CreatedBy` on new versions hold the caller's `sub`. The UI shows the controls to owners and maintainers only; the Host remains the authority.
+Any content owner may act on any document (ADR 0002; no per-document ownership). `UpdatedBy` and `CreatedBy` on new versions hold the caller's `sub`. The UI shows the controls to owners and maintainers only; the API remains the authority.
 
 ## UI Design
 
@@ -231,7 +231,7 @@ Architecture
 
 - Integration tests (TUnit, Testcontainers, `RagAssistantAppFactory`) for AC-1 to AC-22. Tests that need indexing use the dedicated ingestion factory with the controllable fake generator introduced in spec 007; tests that do not need it use the default factory, where runs stay queued. State is seeded through `DocumentsDbContext` when a scenario needs an indexed or failed version.
 - Concurrency tests (AC-3, AC-11) run two requests in parallel against the same document and assert exactly one success.
-- bUnit and `StubHost` Web tests for AC-23 to AC-28.
+- bUnit and `StubApi` Web tests for AC-23 to AC-28.
 - Manual: run the AppHost, edit a title, upload a revised file, watch it supersede, reprocess, archive and restore; record in Implementation Notes.
 
 ## Deferred Decisions

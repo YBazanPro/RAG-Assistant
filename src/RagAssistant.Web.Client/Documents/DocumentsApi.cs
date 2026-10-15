@@ -103,7 +103,7 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
 
     private static readonly IReadOnlyDictionary<string, string[]> NoFields = new Dictionary<string, string[]>();
 
-    // The Host and the BFF both answer errors with ProblemDetails carrying a stable `code`; anything else is reduced to its status.
+    // The API and the BFF both answer errors with ProblemDetails carrying a stable `code`; anything else is reduced to its status.
     private static async Task<ApiError> ToErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         var status = (int)response.StatusCode;

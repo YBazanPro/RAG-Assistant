@@ -11,7 +11,7 @@ internal static class BffProxyExtensions
     public const string CsrfHeaderName = "X-Requested-With";
     public const string CsrfHeaderValue = "ragassistant";
 
-    private const string ClusterId = "host";
+    private const string ClusterId = "api";
 
     public static IServiceCollection AddBffProxy(this IServiceCollection services, IConfiguration configuration)
     {
@@ -30,8 +30,8 @@ internal static class BffProxyExtensions
                     new ClusterConfig
                     {
                         ClusterId = ClusterId,
-                        // Resolved through Aspire service discovery (the AppHost's reference to the Host).
-                        Destinations = new Dictionary<string, DestinationConfig> { ["host"] = new() { Address = "https+http://host" } },
+                        // Resolved through Aspire service discovery (the AppHost's reference to the API).
+                        Destinations = new Dictionary<string, DestinationConfig> { ["api"] = new() { Address = "https+http://api" } },
                         // Activity-based, so an SSE stream with heartbeats is never cut by it.
                         HttpRequest = new ForwarderRequestConfig { ActivityTimeout = configuration.GetValue("Bff:ProxyActivityTimeout", TimeSpan.FromMinutes(2)) },
                     },

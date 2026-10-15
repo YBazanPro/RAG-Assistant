@@ -19,8 +19,8 @@ public sealed class WebAppFactory : WebApplicationFactory<Program>, IAsyncInitia
     public const string EndSessionEndpoint = Authority + "/protocol/openid-connect/logout";
     public const string ClientSecret = "test-secret";
 
-    [ClassDataSource<StubHost>(Shared = SharedType.PerTestSession)]
-    public required StubHost Host { get; init; }
+    [ClassDataSource<StubApi>(Shared = SharedType.PerTestSession)]
+    public required StubApi Api { get; init; }
 
     public Task InitializeAsync()
     {
@@ -43,8 +43,8 @@ public sealed class WebAppFactory : WebApplicationFactory<Program>, IAsyncInitia
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Same keys the AppHost's references produce, so service discovery resolves the stub like it resolves the Host.
-        builder.UseSetting("services:host:http:0", Host.Url);
+        // Same keys the AppHost's references produce, so service discovery resolves the stub like it resolves the API.
+        builder.UseSetting("services:api:http:0", Api.Url);
         builder.UseSetting("services:keycloak:http:0", "http://keycloak.test");
         builder.UseSetting("Keycloak:ClientSecret", ClientSecret);
         builder.UseSetting("Bff:ProxyActivityTimeout", "00:00:02");

@@ -1,4 +1,4 @@
-using RagAssistant.Host.Api;
+using RagAssistant.Api.Api;
 using RagAssistant.Modules.Documents;
 using RagAssistant.Shared.Common.Extensions;
 

@@ -1,5 +1,7 @@
 # Spec 008: Browse the corpus and the Documents UI
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Implemented (2026-10-15), approved 2026-10-14. All automated criteria pass; the manual AppHost run is still to be done (see Implementation Notes).
 **Date:** 2026-10-14
 **Roadmap:** steps 1.5 + 1.6 ([roadmap](../roadmap.md)) · **Builds on:** [spec 006](006-documents-data-model-and-import.md), [spec 007](007-background-ingestion-and-progress.md), [spec 005](005-web-shell.md), [spec 002](002-shared-kernel-api-conventions.md) · **Decision records:** [ADR 0001](../adr/0001-ui-ai-streaming-stack.md), [ADR 0004](../adr/0004-document-versioning.md)

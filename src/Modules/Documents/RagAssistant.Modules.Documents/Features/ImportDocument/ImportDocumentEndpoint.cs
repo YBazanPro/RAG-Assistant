@@ -20,7 +20,7 @@ public sealed class ImportDocumentEndpoint : IEndpointGroup
     public void Map(RouteGroupBuilder api)
     {
         // The form is read by hand rather than bound: the body-size limit must be set before the body is touched,
-        // and binding would read it first. CSRF is covered by the BFF's X-Requested-With check; the Host only takes bearer tokens.
+        // and binding would read it first. CSRF is covered by the BFF's X-Requested-With check; the API only takes bearer tokens.
         api.MapGroup("/documents")
             .MapPost(string.Empty, ImportAsync)
             .RequireAuthorization(PolicyNames.ContentOwner)

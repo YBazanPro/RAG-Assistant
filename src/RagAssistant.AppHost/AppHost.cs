@@ -28,7 +28,7 @@ var keycloak = builder.AddKeycloak("keycloak", port: 8180)
     .WithImageTag(KeycloakImageTag)
     .WithRealmImport("./Realms");
 
-// Models live on a named volume, so the download happens once. The Host does not wait for the model: ingestion
+// Models live on a named volume, so the download happens once. The API does not wait for the model: ingestion
 // pauses until it answers (spec 007), which keeps a fresh clone usable while bge-m3 is still being pulled.
 var ollama = builder.AddOllama("ollama")
     .WithImageTag(OllamaImageTag)
@@ -40,7 +40,7 @@ var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("mig
     .WithReference(database)
     .WaitFor(database);
 
-var host = builder.AddProject<Projects.RagAssistant_Host>("host")
+var api = builder.AddProject<Projects.RagAssistant_Api>("api")
     .WithReference(database)
     .WithReference(keycloak)
     .WithReference(embeddings)
@@ -49,10 +49,10 @@ var host = builder.AddProject<Projects.RagAssistant_Host>("host")
     .WaitForCompletion(migrations);
 
 builder.AddProject<Projects.RagAssistant_Web>("web")
-    .WithReference(host)
+    .WithReference(api)
     .WithReference(keycloak)
     .WithEnvironment("Keycloak__ClientSecret", WebClientSecret)
-    .WaitFor(host)
+    .WaitFor(api)
     .WaitFor(keycloak)
     .WithExternalHttpEndpoints();
 

@@ -12,7 +12,7 @@ Most organizational knowledge lives in PDFs: policies, manuals, reports. The cor
 
 ### In
 
-**Host (Documents module)**
+**API (Documents module)**
 
 - Import (`POST /api/documents`) and new version (`POST …/versions`, spec 009) accept `.pdf` up to `Documents:Import:MaxPdfSizeBytes` (default 100 MiB). Text formats keep 1 MiB.
 - A streaming multipart reader for both endpoints (no buffering of the whole file in memory), for all formats.
@@ -74,9 +74,9 @@ The extracted text is **not** stored on the version; passages carry it, and a re
 
 ### Original file store
 
-- Layout: `<Documents:Storage:Path>/pdf/<sha256>.pdf`, `<path>/tmp/<guid>` for in-flight uploads. The **AppHost** chooses the location: it resolves `<repo root>/.data/documents` (git-ignored), creates it, and passes it to the Host as the environment variable `Documents__Storage__Path`, so the path is visible in the Aspire dashboard. When the Host runs without the AppHost, the default is `./.data/documents` under its content root. Tests use a temporary directory per factory.
+- Layout: `<Documents:Storage:Path>/pdf/<sha256>.pdf`, `<path>/tmp/<guid>` for in-flight uploads. The **AppHost** chooses the location: it resolves `<repo root>/.data/documents` (git-ignored), creates it, and passes it to the API as the environment variable `Documents__Storage__Path`, so the path is visible in the Aspire dashboard. When the API runs without the AppHost, the default is `./.data/documents` under its content root. Tests use a temporary directory per factory.
 - Upload writes to `tmp/`, hashing while streaming; on success it is moved to its final name (atomic rename). If the blob already exists (re-import, rollback, archived duplicate), the temp file is discarded. The database transaction is committed **after** the blob is in place; a failure after the move leaves an unreferenced blob, which is harmless because content-addressed.
-- Startup validates the directory (creates it, writes and deletes a probe file); failure stops the Host with an options validation error. A sweep at startup deletes `tmp/` files older than one hour.
+- Startup validates the directory (creates it, writes and deletes a probe file); failure stops the API with an options validation error. A sweep at startup deletes `tmp/` files older than one hour.
 - Nothing deletes final blobs in this phase.
 
 ### PDF extraction and chunking
@@ -182,13 +182,13 @@ The JS module is a small ES module (`wwwroot/js/upload.js`), loaded lazily after
 | PDF containing scripts, embedded files, forms | Ignored, never executed; only the text layer is read |
 | Ligatures or odd encodings producing replacement characters | Kept as extracted; no repair |
 | Very long single line (no spaces) | Split by the chunker's hard-limit rule (spec 007) |
-| Host restart mid-extraction | Run re-queued from the start (spec 007 recovery); no partial passages |
+| API restart mid-extraction | Run re-queued from the start (spec 007 recovery); no partial passages |
 | Download of a version whose document is archived | Allowed (read access) |
 | Range request on the download | Supported (206) so browsers can seek large PDFs |
 
 ## Non-Functional Requirements
 
-- **Upload:** a 100 MiB upload is received with constant memory (buffer size, not file size). The request body limit is raised for the two upload routes only; BFF and Host timeouts for these routes allow slow connections (activity timeout 15 minutes).
+- **Upload:** a 100 MiB upload is received with constant memory (buffer size, not file size). The request body limit is raised for the two upload routes only; BFF and API timeouts for these routes allow slow connections (activity timeout 15 minutes).
 - **Extraction time:** a 200-page text PDF is indexed in under 10 minutes on a dev machine with warm Ollama (ADR 0006 target). Not enforced by a test; measured by hand and by Phase 5.
 - **Extraction memory:** pages are processed one at a time and released; the whole file is never loaded as a byte array. Extraction runs off the request path on the worker.
 - **Configuration** (`ValidateOnStart`, all > 0 where numeric):
@@ -213,7 +213,7 @@ The JS module is a small ES module (`wwwroot/js/upload.js`), loaded lazily after
 ## Integrations
 
 - **PdfPig** (`UglyToad.PdfPig`): the single new package.
-- **Filesystem:** a data directory outside the database, chosen by the AppHost (see Domain Model) and passed to the Host through configuration. Backups must include it. The Host runs as a process, so it is a plain folder on the developer's machine, not a container volume.
+- **Filesystem:** a data directory outside the database, chosen by the AppHost (see Domain Model) and passed to the API through configuration. Backups must include it. The API runs as a process, so it is a plain folder on the developer's machine, not a container volume.
 - **BFF (spec 005):** a dedicated YARP route for `POST /api/documents` and `POST /api/documents/{id}/versions` with the larger body limit and timeout; everything else is unchanged. The GET file route passes through the existing catch-all route, with response streaming (no buffering) and range support preserved.
 - **Spec 007 worker:** the Extracting stage dispatches by `SourceFormat`; the Chunking, Embedding and Storing stages are unchanged except for progress events.
 - **Spec 009:** new version and reprocess accept PDFs; reprocess copies the blob reference.
@@ -229,7 +229,7 @@ Upload and storage (integration tests; PDFs are generated in tests or taken from
 - **AC-4** Given the same PDF bytes imported twice, then the second returns `409 documents.duplicate_content` with `existingDocumentId` and the store holds one blob; given two simultaneous identical imports, then one `202` and one `409`; given the same bytes as an archived document, then `202` and the blob is reused.
 - **AC-5** Given the file part sent before or after the metadata fields, then the result is the same; given a client disconnect mid-upload, then no temp file remains and nothing is persisted.
 - **AC-6** Given a large PDF (generated, tens of MiB), when imported, then peak memory growth of the request stays well below the file size (asserted with a coarse bound on `GC.GetTotalAllocatedBytes`/working set), proving streaming.
-- **AC-7** Given the store directory is not writable, when the Host starts, then startup fails with an options validation error; given stale `tmp/` files older than one hour at startup, then they are deleted.
+- **AC-7** Given the store directory is not writable, when the API starts, then startup fails with an options validation error; given stale `tmp/` files older than one hour at startup, then they are deleted.
 - **AC-8** Given the migration applied to a database with existing text versions, then `content` is nullable, `storage_key` and the events' `current`/`total` columns exist, the check constraint rejects a PDF version with `content` and a text version without it, and existing rows are unchanged.
 
 Extraction and chunking (unit tests on generated PDFs and a fixture)
@@ -268,7 +268,7 @@ Authorization
 
 BFF
 
-- **AC-27** Given the real BFF against `StubHost`, then a multi-megabyte upload to `POST /api/documents` reaches the Host intact, incrementally (the first bytes arrive at the Host before the client finishes) and above the default 28.6 MB limit up to 100 MiB; other routes keep the default limit; the file `GET` is streamed without buffering and range requests pass through.
+- **AC-27** Given the real BFF against `StubApi`, then a multi-megabyte upload to `POST /api/documents` reaches the API intact, incrementally (the first bytes arrive at the API before the client finishes) and above the default 28.6 MB limit up to 100 MiB; other routes keep the default limit; the file `GET` is streamed without buffering and range requests pass through.
 
 UI (bUnit / Web tests)
 
@@ -298,7 +298,7 @@ Architecture and docs
 |---|---|---|
 | OCR for scanned PDFs | Fail with `documents.no_text_layer` | Content owners need scans |
 | Table structure recovery, perfect reading order on arbitrary layouts | Column-aware layout analysis, tables as text blocks | Evaluation (Phase 5) shows retrieval misses on such files |
-| Out-of-process / sandboxed extraction | In the Host, bounded by limits | Hostile or very large files appear |
+| Out-of-process / sandboxed extraction | In the API, bounded by limits | Hostile or very large files appear |
 | Object-storage `IOriginalFileStore`, blob garbage collection | Filesystem, never deleted | Deployment beyond one machine, or storage pressure |
 | Password-protected PDFs | Fail with `documents.pdf_encrypted` | Users need to supply a password |
 | In-app PDF viewer with highlighted passage | Open the file in a new tab at the page | Citation UX work (Phase 6) |

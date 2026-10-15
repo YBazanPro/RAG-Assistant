@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RagAssistant.Shared.Common.Security;
 
-namespace RagAssistant.Host.Api;
+namespace RagAssistant.Api.Api;
 
 internal static class AuthExtensions
 {

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Design;
 namespace RagAssistant.Modules.Documents.Persistence;
 
 /// <summary>
-/// Used by <c>dotnet ef</c> only. It lets the tools build the model without starting the Host,
+/// Used by <c>dotnet ef</c> only. It lets the tools build the model without starting the API,
 /// which would need the Aspire-provided connection string; nothing connects to this database.
 /// </summary>
 internal sealed class DocumentsDbContextFactory : IDesignTimeDbContextFactory<DocumentsDbContext>

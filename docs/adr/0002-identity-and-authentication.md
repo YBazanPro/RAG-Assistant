@@ -1,5 +1,7 @@
 # ADR 0002: Identity and Authentication
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Accepted
 **Date:** 2026-10-13
 **Amends:** [ADR 0001](0001-ui-ai-streaming-stack.md), decision 5 (UI hosting)

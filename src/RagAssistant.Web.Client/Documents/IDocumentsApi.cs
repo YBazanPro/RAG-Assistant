@@ -1,6 +1,6 @@
 namespace RagAssistant.Web.Client.Documents;
 
-/// <summary>The Documents endpoints as the UI uses them. Pages depend on this so component tests can script the Host.</summary>
+/// <summary>The Documents endpoints as the UI uses them. Pages depend on this so component tests can script the API.</summary>
 public interface IDocumentsApi
 {
     Task<ApiResult<PagedResult<DocumentSummary>>> ListAsync(DocumentQuery query, CancellationToken cancellationToken);

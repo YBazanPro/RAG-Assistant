@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
-namespace RagAssistant.Host.Api;
+namespace RagAssistant.Api.Api;
 
 // Client aborts never reach this handler: ExceptionHandlerMiddleware itself drops them with a Debug entry.
 internal sealed partial class ApiExceptionHandler(
