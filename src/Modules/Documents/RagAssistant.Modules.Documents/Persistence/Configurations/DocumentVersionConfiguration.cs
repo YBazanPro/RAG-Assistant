@@ -7,10 +7,15 @@ namespace RagAssistant.Modules.Documents.Persistence.Configurations;
 internal sealed class DocumentVersionConfiguration : IEntityTypeConfiguration<DocumentVersion>
 {
     public const string NumberIndex = "IX_document_versions_document_id_number";
+    public const string SourceCheck = "ck_document_versions_source";
 
     public void Configure(EntityTypeBuilder<DocumentVersion> builder)
     {
-        builder.ToTable("document_versions");
+        // A PDF's original lives in the file store and a text format's source in the column, never both or neither (spec 010).
+        builder.ToTable("document_versions", t => t.HasCheckConstraint(
+            SourceCheck,
+            "(source_format = 'Pdf' AND storage_key IS NOT NULL AND content IS NULL) " +
+            "OR (source_format <> 'Pdf' AND content IS NOT NULL AND storage_key IS NULL)"));
         builder.HasKey(v => v.Id);
         builder.Property(v => v.Id).ValueGeneratedNever();
         builder.Property(v => v.OriginalFileName).HasMaxLength(255);

@@ -129,7 +129,6 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnName("id");
 
                     b.Property<string>("Content")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("content");
 
@@ -187,6 +186,10 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("original_file_name");
 
+                    b.PrimitiveCollection<int[]>("PagesWithoutText")
+                        .HasColumnType("integer[]")
+                        .HasColumnName("pages_without_text");
+
                     b.Property<int?>("PassageCount")
                         .HasColumnType("integer")
                         .HasColumnName("passage_count");
@@ -207,12 +210,21 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("status");
 
+                    b.Property<string>("StorageKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("storage_key");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentId", "Number")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_document_versions_document_id_number");
 
-                    b.ToTable("document_versions", "documents");
+                    b.ToTable("document_versions", "documents", t =>
+                        {
+                            t.HasCheckConstraint("ck_document_versions_source", "(source_format = 'Pdf' AND storage_key IS NOT NULL AND content IS NULL) OR (source_format <> 'Pdf' AND content IS NOT NULL AND storage_key IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("RagAssistant.Modules.Documents.Domain.IngestionEvent", b =>
@@ -223,6 +235,10 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnName("id");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("Current")
+                        .HasColumnType("integer")
+                        .HasColumnName("current");
 
                     b.Property<string>("Message")
                         .HasMaxLength(2000)
@@ -248,6 +264,10 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("status");
+
+                    b.Property<int?>("Total")
+                        .HasColumnType("integer")
+                        .HasColumnName("total");
 
                     b.HasKey("Id");
 
