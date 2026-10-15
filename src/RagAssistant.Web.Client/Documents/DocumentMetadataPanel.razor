@@ -42,6 +42,17 @@
             </MetaRow>
             <MetaRow Label="Effective date">@(Document.EffectiveDate is { } date ? Formatting.Date(date) : "—")</MetaRow>
             <MetaRow Label="Source">@(string.IsNullOrWhiteSpace(Document.Source) ? "—" : Document.Source)</MetaRow>
+            @if (Document.LatestVersion is { } latest)
+            {
+                <MetaRow Label="File">
+                    @latest.OriginalFileName · @Formatting.FormatLabel(latest.SourceFormat) · @Formatting.Size(latest.SizeBytes)
+                    <OriginalFileLink DocumentId="Document.Id" VersionNumber="latest.Number" SourceFormat="@latest.SourceFormat" />
+                    @if (Formatting.PagesWithoutTextWarning(latest.PagesWithoutText) is { } warning)
+                    {
+                        <div class="version-warning" role="note">@warning</div>
+                    }
+                </MetaRow>
+            }
         }
         else
         {

@@ -37,6 +37,16 @@
             }
         </div>
 
+        @if (_progress is { } progress)
+        {
+            <div class="ingestion-progress">
+                <progress role="progressbar" aria-label="@Formatting.ProgressLabel(progress.Stage, progress.Current, progress.Total)"
+                          aria-valuemin="0" aria-valuemax="@progress.Total" aria-valuenow="@progress.Current"
+                          value="@progress.Current" max="@progress.Total"></progress>
+                <FluentText Class="field-hint">@Formatting.ProgressLabel(progress.Stage, progress.Current, progress.Total)</FluentText>
+            </div>
+        }
+
         @if (_live == LiveState.Lost)
         {
             <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">
@@ -70,6 +80,9 @@
 
     private enum LiveState { Idle, Watching, Lost }
 
+    private sealed record StageProgress(string Stage, int Current, int Total);
+
+    private StageProgress? _progress;
     private CancellationTokenSource? _cts;
     private Task? _watching;
     private RunInfo? _lastRun;
@@ -136,6 +149,7 @@
             _message = Run.ErrorMessage;
             _failed = Run.Status == "failed";
             _completed = Run.Status == "succeeded";
+            _progress = null;
             _live = LiveState.Idle;
         }
 
@@ -160,10 +174,20 @@
             var outcome = await watcher.WatchAsync(DocumentId, e => InvokeAsync(() =>
             {
                 _stage = e.Stage;
-                _message = e.Message;
                 _attempt = e.Attempt;
                 _failed = e.Status == "failed";
                 _completed = e.IsTerminal && !_failed;
+                if (e.IsProgress)
+                {
+                    // A progress event refines the current stage; the stage's own message stays as it was.
+                    _progress = new StageProgress(e.Stage, e.Current ?? 0, e.Total!.Value);
+                }
+                else
+                {
+                    _message = e.Message;
+                    _progress = null;
+                }
+
                 StateHasChanged();
             }), token);
 

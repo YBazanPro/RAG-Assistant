@@ -27,7 +27,7 @@
     {
         @foreach (var passage in _page.Items)
         {
-            <PassageCard @key="passage.Id" Passage="passage" Selected="@(passage.Id == _selected)" />
+            <PassageCard @key="passage.Id" Passage="passage" DocumentId="DocumentId" VersionNumber="VersionNumber" Selected="@(passage.Id == _selected)" />
         }
 
         <FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />

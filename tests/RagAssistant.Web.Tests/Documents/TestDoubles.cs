@@ -137,14 +137,11 @@ public sealed class FakeDocumentsApi : IDocumentsApi
     public Func<Guid, ApiResult<RetryAccepted>> OnRetry { get; set; } =
         id => ApiResult.Ok(new RetryAccepted(id, Guid.NewGuid(), Guid.NewGuid(), 2, "queued"));
 
-    public Func<ImportRequest, ApiResult<ImportAccepted>> OnImport { get; set; } =
-        _ => ApiResult.Ok(new ImportAccepted(Guid.NewGuid(), Guid.NewGuid(), 1, Guid.NewGuid(), "queued"));
+    /// <summary>Imports and new versions no longer go through the API client but through the browser uploader (spec 010).</summary>
+    public FakeFileUploader Uploader { get; } = new();
 
     public Func<Guid, int, MetadataUpdate, ApiResult<DocumentInfo>> OnUpdate { get; set; } =
         (id, revision, update) => ApiResult.Ok(Samples.Detail(id, revision: revision + 1) with { Title = update.Title });
-
-    public Func<Guid, ApiResult<VersionAccepted>> OnUploadVersion { get; set; } =
-        id => ApiResult.Ok(new VersionAccepted(id, Guid.NewGuid(), 2, Guid.NewGuid(), "queued"));
 
     public Func<Guid, ApiResult<VersionAccepted>> OnReprocess { get; set; } =
         id => ApiResult.Ok(new VersionAccepted(id, Guid.NewGuid(), 2, Guid.NewGuid(), "queued"));
@@ -154,8 +151,6 @@ public sealed class FakeDocumentsApi : IDocumentsApi
     public Func<Guid, ApiResult<DocumentInfo>> OnRestore { get; set; } = id => ApiResult.Ok(Samples.Detail(id));
 
     public List<(Guid Id, int Revision, MetadataUpdate Update)> UpdateCalls { get; } = [];
-
-    public List<(Guid Id, string FileName)> UploadVersionCalls { get; } = [];
 
     public List<Guid> ReprocessCalls { get; } = [];
 
@@ -168,8 +163,6 @@ public sealed class FakeDocumentsApi : IDocumentsApi
     public List<(Guid Id, int Version, int Page, Guid? Focus)> PassageCalls { get; } = [];
 
     public List<Guid> RetryCalls { get; } = [];
-
-    public List<ImportRequest> ImportCalls { get; } = [];
 
     public int FacetsCalls { get; private set; }
 
@@ -217,12 +210,6 @@ public sealed class FakeDocumentsApi : IDocumentsApi
         return Task.FromResult(OnUpdate(documentId, revision, update));
     }
 
-    public Task<ApiResult<VersionAccepted>> UploadVersionAsync(Guid documentId, VersionUpload upload, CancellationToken cancellationToken)
-    {
-        UploadVersionCalls.Add((documentId, upload.FileName));
-        return Task.FromResult(OnUploadVersion(documentId));
-    }
-
     public Task<ApiResult<VersionAccepted>> ReprocessAsync(Guid documentId, CancellationToken cancellationToken)
     {
         ReprocessCalls.Add(documentId);
@@ -241,18 +228,71 @@ public sealed class FakeDocumentsApi : IDocumentsApi
         return Task.FromResult(OnRestore(documentId));
     }
 
-    /// <summary>When set, imports wait for it, so a test can observe the uploading state.</summary>
-    public Task? ImportGate { get; set; }
+}
 
-    public async Task<ApiResult<ImportAccepted>> ImportAsync(ImportRequest request, CancellationToken cancellationToken)
+/// <summary>Stands in for the browser's file upload: records the request, can report progress, hold the upload open and be aborted.</summary>
+public sealed class FakeFileUploader : IFileUploader
+{
+    private static readonly System.Text.Json.JsonSerializerOptions Web = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    public List<UploadRequest> Requests { get; } = [];
+
+    /// <summary>When set, the upload waits for it (after reporting <see cref="Steps"/>), so a test can observe the uploading state.</summary>
+    public Task? Gate { get; set; }
+
+    /// <summary>Progress reported before the gate: the file is "sent" in these steps.</summary>
+    public List<UploadProgress> Steps { get; } = [];
+
+    public Func<UploadRequest, UploadResult> OnUpload { get; set; } = request =>
+        request.Url == "api/documents"
+            ? Accepted(new ImportAccepted(Guid.NewGuid(), Guid.NewGuid(), 1, Guid.NewGuid(), "queued"))
+            : Accepted(new VersionAccepted(Guid.NewGuid(), Guid.NewGuid(), 2, Guid.NewGuid(), "queued"));
+
+    public static UploadResult Accepted<T>(T body) => new(202, System.Text.Json.JsonSerializer.Serialize(body, Web));
+
+    /// <summary>The answer the API gives for this error: a ProblemDetails body with the stable code, or a bare status.</summary>
+    public static UploadResult Failure(ApiError error)
     {
-        ImportCalls.Add(request);
-        if (ImportGate is not null)
+        if (error.Status == 0)
         {
-            await ImportGate;
+            return new UploadResult(0, null);
         }
 
-        return OnImport(request);
+        var body = new Dictionary<string, object?> { ["status"] = error.Status, ["code"] = error.Code, ["detail"] = error.Message };
+        if (error.Fields.Count > 0)
+        {
+            body["errors"] = error.Fields;
+        }
+
+        if (error.ExistingDocumentId is { } existing)
+        {
+            body["existingDocumentId"] = existing;
+        }
+
+        return new UploadResult(error.Status, System.Text.Json.JsonSerializer.Serialize(body, Web));
+    }
+
+    public async Task<UploadResult> UploadAsync(UploadRequest request, IProgress<UploadProgress> progress, CancellationToken cancellationToken)
+    {
+        Requests.Add(request);
+        foreach (var step in Steps)
+        {
+            progress.Report(step);
+        }
+
+        if (Gate is not null)
+        {
+            try
+            {
+                await Gate.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return new UploadResult(UploadResult.AbortedStatus, null);
+            }
+        }
+
+        return OnUpload(request);
     }
 }
 
@@ -378,6 +418,14 @@ public static class Samples
     {
         var json = System.Text.Json.JsonSerializer.Serialize(
             new IngestionStageEvent(RunId, Guid.NewGuid(), 1, attempt, stage, status, message, At), WebJson);
+        return new SseEvent("ingestion.stage", id, json);
+    }
+
+    /// <summary>A <c>progress</c> event: <paramref name="current"/> of <paramref name="total"/> pages or passages done in the stage.</summary>
+    public static SseEvent Progress(string stage, string? id, int current, int total)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            new IngestionStageEvent(RunId, Guid.NewGuid(), 1, 1, stage, "progress", null, At, current, total), WebJson);
         return new SseEvent("ingestion.stage", id, json);
     }
 

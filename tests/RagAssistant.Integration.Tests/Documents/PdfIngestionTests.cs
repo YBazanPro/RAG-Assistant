@@ -109,6 +109,12 @@ public sealed class PdfIngestionTests(PostgresFixture postgres)
         await Assert.That(await app.ScalarAsync<int[]>("SELECT pages_without_text FROM documents.document_versions WHERE id = $1", doc.VersionId))
             .IsEquivalentTo([9, 10]);
         await Assert.That(await ExtractingMessageAsync(app, doc.RunId)).IsEqualTo("10 pages, 2 without text, 0 margin lines removed");
+
+        using var client = app.CreateClientAs(Persona.KnowledgeSeeker);
+        var versions = await JsonAsync(await client.GetAsync($"/api/documents/{doc.DocumentId}/versions"));
+        var detail = await JsonAsync(await client.GetAsync($"/api/documents/{doc.DocumentId}"));
+        await Assert.That(versions.GetProperty("items")[0].GetProperty("pagesWithoutText").EnumerateArray().Select(p => p.GetInt32()).ToArray()).IsEquivalentTo([9, 10]);
+        await Assert.That(detail.GetProperty("latestVersion").GetProperty("pagesWithoutText").GetArrayLength()).IsEqualTo(2);
     }
 
     [Test]

@@ -41,7 +41,8 @@ public sealed record LatestVersionInfo(
     string OriginalFileName,
     int SizeBytes,
     int? PassageCount,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    int[]? PagesWithoutText = null);
 
 public sealed record DocumentInfo(
     Guid Id,
@@ -74,7 +75,8 @@ public sealed record VersionItem(
     DateTimeOffset CreatedAt,
     string CreatedBy,
     DateTimeOffset? IndexedAt,
-    RunInfo[] Runs);
+    RunInfo[] Runs,
+    int[]? PagesWithoutText = null);
 
 public sealed record VersionList(VersionItem[] Items);
 
@@ -85,7 +87,9 @@ public sealed record PassageItem(
     int SectionOrdinal,
     string Text,
     int CharCount,
-    int TokenEstimate);
+    int TokenEstimate,
+    int? PageStart = null,
+    int? PageEnd = null);
 
 public sealed record PassagePage(
     int VersionNumber,
@@ -111,26 +115,19 @@ public sealed record IngestionStageEvent(
     string Stage,
     string Status,
     string? Message,
-    DateTimeOffset OccurredAt)
+    DateTimeOffset OccurredAt,
+    int? Current = null,
+    int? Total = null)
 {
+    /// <summary>A stage reporting how far it has got (pages read, passages embedded).</summary>
+    public bool IsProgress => Status == "progress" && Total is > 0;
+
     /// <summary>The run is over: it failed, or the last stage completed.</summary>
     public bool IsTerminal => Status == "failed" || (Stage == "completed" && Status == "completed");
 }
 
-public sealed record ImportRequest(
-    string FileName,
-    Stream Content,
-    string Title,
-    string OwnerName,
-    string Language,
-    string[] Tags,
-    string? EffectiveDate,
-    string? Source);
-
 /// <param name="EffectiveDate">Raw <c>yyyy-MM-dd</c> text or null.</param>
 public sealed record MetadataUpdate(string Title, string OwnerName, string Language, string[] Tags, string? EffectiveDate, string? Source);
-
-public sealed record VersionUpload(string FileName, Stream Content);
 
 /// <summary>A failed API call. <see cref="Status"/> is 0 when the API could not be reached at all.</summary>
 public sealed record ApiError(

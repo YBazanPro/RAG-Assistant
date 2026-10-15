@@ -20,6 +20,7 @@ public class DocumentsPageTests
         var api = new FakeDocumentsApi();
         var clock = new ManualTimeProvider();
         ctx.Services.AddSingleton<IDocumentsApi>(api);
+        ctx.Services.AddSingleton<IFileUploader>(api.Uploader);
         ctx.Services.AddSingleton<TimeProvider>(clock);
         var auth = ctx.AddAuthorization().SetAuthorized("someone");
         auth.SetPolicies(owner ? [PolicyNames.KnowledgeSeeker, PolicyNames.ContentOwner] : [PolicyNames.KnowledgeSeeker]);

@@ -35,7 +35,8 @@ internal static class ListVersions
         DateTimeOffset CreatedAt,
         string CreatedBy,
         DateTimeOffset? IndexedAt,
-        RunItem[] Runs);
+        RunItem[] Runs,
+        int[]? PagesWithoutText);
 
     public sealed record Response(VersionItem[] Items);
 
@@ -70,6 +71,7 @@ internal static class ListVersions
                     v.CreatedAt,
                     v.CreatedBy,
                     v.IndexedAt,
+                    v.PagesWithoutText,
                     Runs = v.Runs
                         .OrderByDescending(r => r.Attempt)
                         .Select(r => new RunRow(
@@ -92,7 +94,8 @@ internal static class ListVersions
                 v.CreatedBy,
                 v.IndexedAt,
                 [.. v.Runs.Select(r => new RunItem(
-                    r.Id, r.Attempt, r.Status.ToApi(), r.Stage.ToApi(), r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt))]));
+                    r.Id, r.Attempt, r.Status.ToApi(), r.Stage.ToApi(), r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt))],
+                v.PagesWithoutText));
 
             return new Response([.. items]);
         }

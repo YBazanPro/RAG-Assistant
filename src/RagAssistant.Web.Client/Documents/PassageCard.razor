@@ -14,7 +14,13 @@
                     </ol>
                 </nav>
             }
-            <FluentBadge Appearance="BadgeAppearance.Outline">#@(Passage.Position + 1) · ~@Passage.TokenEstimate tokens</FluentBadge>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8" VerticalAlignment="VerticalAlignment.Center" Wrap="true" Class="passage-meta">
+                @if (Passage.PageStart is { } start)
+                {
+                    <FluentBadge Appearance="BadgeAppearance.Outline" Class="passage-pages">@Formatting.PageLabel(start, Passage.PageEnd ?? start)</FluentBadge>
+                }
+                <FluentBadge Appearance="BadgeAppearance.Outline">#@(Passage.Position + 1) · ~@Passage.TokenEstimate tokens</FluentBadge>
+            </FluentStack>
         </FluentStack>
         @if (Expanded)
         {
@@ -23,6 +29,13 @@
         else
         {
             <FluentText Block="true" Class="passage-text-collapsed">@Preview</FluentText>
+        }
+        @if (Passage.PageStart is { } openPage && DocumentId is { } documentId && VersionNumber is { } versionNumber)
+        {
+            <div>
+                <a class="open-page-link" href="@($"api/documents/{documentId}/versions/{versionNumber}/file#page={openPage}")"
+                   target="_blank" rel="noopener">Open page @openPage</a>
+            </div>
         }
         @if (Passage.Text.Length > PreviewLength)
         {
@@ -44,6 +57,11 @@
     private bool _scrolled;
 
     [Parameter, EditorRequired] public PassageItem Passage { get; set; } = default!;
+
+    /// <summary>With the version number, what the "Open page" link of a PDF passage points at.</summary>
+    [Parameter] public Guid? DocumentId { get; set; }
+
+    [Parameter] public int? VersionNumber { get; set; }
 
     /// <summary>The deep-linked passage: expanded, highlighted and brought into view.</summary>
     [Parameter] public bool Selected { get; set; }

@@ -44,36 +44,6 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
     public Task<ApiResult<RetryAccepted>> RetryAsync(Guid documentId, CancellationToken cancellationToken) =>
         SendAsync<RetryAccepted>(() => Http.PostAsync($"api/documents/{documentId}/ingestion/retry", content: null, cancellationToken), cancellationToken);
 
-    public Task<ApiResult<ImportAccepted>> ImportAsync(ImportRequest request, CancellationToken cancellationToken) =>
-        SendAsync<ImportAccepted>(async () =>
-        {
-            // Awaited inside the lambda: the browser handler reads the form and its stream while the request runs.
-            using var form = new MultipartFormDataContent
-            {
-                { new StringContent(request.Title), "title" },
-                { new StringContent(request.OwnerName), "ownerName" },
-                { new StringContent(request.Language), "language" },
-            };
-
-            foreach (var tag in request.Tags)
-            {
-                form.Add(new StringContent(tag), "tags");
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.EffectiveDate))
-            {
-                form.Add(new StringContent(request.EffectiveDate), "effectiveDate");
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Source))
-            {
-                form.Add(new StringContent(request.Source), "source");
-            }
-
-            form.Add(new StreamContent(request.Content), "file", request.FileName);
-            return await Http.PostAsync("api/documents", form, cancellationToken);
-        }, cancellationToken);
-
     public Task<ApiResult<DocumentInfo>> UpdateAsync(Guid documentId, int revision, MetadataUpdate update, CancellationToken cancellationToken) =>
         SendAsync<DocumentInfo>(() =>
         {
@@ -81,13 +51,6 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
             var request = new HttpRequestMessage(HttpMethod.Put, $"api/documents/{documentId}") { Content = JsonContent.Create(update, options: Json) };
             request.Headers.TryAddWithoutValidation("If-Match", $"\"{revision.ToString(CultureInfo.InvariantCulture)}\"");
             return Http.SendAsync(request, cancellationToken);
-        }, cancellationToken);
-
-    public Task<ApiResult<VersionAccepted>> UploadVersionAsync(Guid documentId, VersionUpload upload, CancellationToken cancellationToken) =>
-        SendAsync<VersionAccepted>(async () =>
-        {
-            using var form = new MultipartFormDataContent { { new StreamContent(upload.Content), "file", upload.FileName } };
-            return await Http.PostAsync($"api/documents/{documentId}/versions", form, cancellationToken);
         }, cancellationToken);
 
     public Task<ApiResult<VersionAccepted>> ReprocessAsync(Guid documentId, CancellationToken cancellationToken) =>
@@ -129,18 +92,58 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
 
     private static readonly IReadOnlyDictionary<string, string[]> NoFields = new Dictionary<string, string[]>();
 
+    /// <summary>Reads the outcome of an upload the browser made itself into the same result type every other call returns.</summary>
+    public static ApiResult<T> FromUpload<T>(UploadResult upload)
+    {
+        if (upload.IsNetworkError || upload.IsAborted || upload.IsMissingFile)
+        {
+            return ApiResult.Fail<T>(new ApiError(0, "network", "The server could not be reached.", NoFields));
+        }
+
+        if (!upload.IsSuccess)
+        {
+            return ApiResult.Fail<T>(ErrorFromBody(upload.Status, null, upload.Body));
+        }
+
+        try
+        {
+            var value = upload.Body is null ? default : JsonSerializer.Deserialize<T>(upload.Body, Json);
+            return value is null
+                ? ApiResult.Fail<T>(new ApiError(upload.Status, "response.empty", "The server sent an empty response.", NoFields))
+                : ApiResult.Ok(value);
+        }
+        catch (JsonException)
+        {
+            return ApiResult.Fail<T>(new ApiError(0, "response.malformed", "The server sent an unreadable response.", NoFields));
+        }
+    }
+
     // The API and the BFF both answer errors with ProblemDetails carrying a stable `code`; anything else is reduced to its status.
     private static async Task<ApiError> ToErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
-        var status = (int)response.StatusCode;
+        string? text = null;
+        try
+        {
+            text = await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            // No readable content.
+        }
+
+        return ErrorFromBody((int)response.StatusCode, response.ReasonPhrase, text);
+    }
+
+    private static ApiError ErrorFromBody(int status, string? reasonPhrase, string? text)
+    {
         string code = $"http.{status}";
-        string message = response.ReasonPhrase ?? "The request failed.";
+        string message = reasonPhrase ?? "The request failed.";
         IReadOnlyDictionary<string, string[]> fields = NoFields;
         Guid? existing = null;
 
         try
         {
-            var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json, cancellationToken);
+            var body = string.IsNullOrWhiteSpace(text) ? default : JsonSerializer.Deserialize<JsonElement>(text, Json);
             if (body.ValueKind == JsonValueKind.Object)
             {
                 code = body.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString()! : code;

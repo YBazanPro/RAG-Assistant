@@ -19,6 +19,7 @@ public static class UiServiceExtensions
         // The HttpClient exists only in the browser; it is resolved on first use, which never happens during prerendering.
         services.AddScoped<IDocumentsApi>(sp => new DocumentsApi(sp.GetRequiredService<HttpClient>));
         services.AddScoped<IIngestionEventSource>(sp => new IngestionEventSource(sp.GetRequiredService<HttpClient>));
+        services.AddScoped<IFileUploader, BrowserFileUploader>();
         return services;
     }
 

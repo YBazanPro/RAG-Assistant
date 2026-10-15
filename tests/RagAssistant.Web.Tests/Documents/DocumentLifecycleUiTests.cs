@@ -24,6 +24,7 @@ public class DocumentLifecycleUiTests
         ctx.Services.AddFluentUIComponents();
         var api = new FakeDocumentsApi();
         ctx.Services.AddSingleton<IDocumentsApi>(api);
+        ctx.Services.AddSingleton<IFileUploader>(api.Uploader);
         ctx.Services.AddSingleton<IIngestionEventSource>(new FakeEventSource());
         ctx.Services.AddSingleton<TimeProvider>(new ManualTimeProvider());
         var auth = ctx.AddAuthorization().SetAuthorized("someone");
@@ -328,13 +329,14 @@ public class DocumentLifecycleUiTests
         Button(cut, "Upload").Click();
 
         cut.WaitForState(() => accepted is not null, TimeSpan.FromSeconds(5));
-        await Assert.That(api.UploadVersionCalls.Single()).IsEqualTo((Id, "policy-v2.md"));
+        await Assert.That(api.Uploader.Requests.Single().Url).IsEqualTo($"api/documents/{Id}/versions");
+        await Assert.That(api.Uploader.Requests.Single().Fields.Count).IsEqualTo(0);
         await Assert.That(accepted!.VersionNumber).IsEqualTo(2);
     }
 
     // AC-26
     [Test]
-    [Arguments("report.pdf", 20, "Only .md, .markdown and .txt")]
+    [Arguments("report.docx", 20, "Only .md, .markdown, .txt and .pdf")]
     [Arguments("big.md", 1_048_577, "File too large")]
     public async Task VersionDialog_invalidFile_showsAClientErrorAndSendsNothing(string name, int size, string message)
     {
@@ -346,7 +348,7 @@ public class DocumentLifecycleUiTests
         Button(cut, "Upload").Click();
 
         await Assert.That(cut.Find("#up-file-error").TextContent).Contains(message);
-        await Assert.That(api.UploadVersionCalls.Count).IsEqualTo(0);
+        await Assert.That(api.Uploader.Requests.Count).IsEqualTo(0);
     }
 
     // AC-26
@@ -356,7 +358,7 @@ public class DocumentLifecycleUiTests
         var (ctx, api) = NewContext(owner: true);
         using var _c = ctx;
         var existing = Guid.NewGuid();
-        api.OnUploadVersion = _ => ApiResult.Fail<VersionAccepted>(new ApiError(
+        api.Uploader.OnUpload = _ => FakeFileUploader.Failure(new ApiError(
             409, "documents.duplicate_content", "dup", new Dictionary<string, string[]>(), existing));
         var cut = RenderVersionDialog(ctx);
 
@@ -375,7 +377,7 @@ public class DocumentLifecycleUiTests
     {
         var (ctx, api) = NewContext(owner: true);
         using var _c = ctx;
-        api.OnUploadVersion = _ => ApiResult.Fail<VersionAccepted>(new ApiError(409, code, "conflict", new Dictionary<string, string[]>()));
+        api.Uploader.OnUpload = _ => FakeFileUploader.Failure(new ApiError(409, code, "conflict", new Dictionary<string, string[]>()));
         var staleCalls = 0;
         var cut = RenderVersionDialog(ctx, stale: () => staleCalls++);
 
@@ -396,7 +398,7 @@ public class DocumentLifecycleUiTests
         api.OnGet = id => ApiResult.Ok(uploaded
             ? Samples.Detail(id, run: Samples.Run("queued", "queued", attempt: 1), latestStatus: "queued")
             : Samples.Detail(id));
-        api.OnUploadVersion = id => { uploaded = true; return ApiResult.Ok(new VersionAccepted(id, Guid.NewGuid(), 2, Guid.NewGuid(), "queued")); };
+        api.Uploader.OnUpload = _ => { uploaded = true; return FakeFileUploader.Accepted(new VersionAccepted(Id, Guid.NewGuid(), 2, Guid.NewGuid(), "queued")); };
         var cut = RenderPage(ctx);
 
         ActionButton(cut, "Upload new version").Click();
@@ -406,7 +408,7 @@ public class DocumentLifecycleUiTests
 
         cut.WaitForState(() => IsDisabled(ActionButton(cut, "Upload new version")), TimeSpan.FromSeconds(5));
         await Assert.That(cut.FindComponent<DocumentUpload>().Instance.Open).IsFalse();
-        await Assert.That(api.UploadVersionCalls.Count).IsEqualTo(1);
+        await Assert.That(api.Uploader.Requests.Count).IsEqualTo(1);
     }
 
     // AC-28

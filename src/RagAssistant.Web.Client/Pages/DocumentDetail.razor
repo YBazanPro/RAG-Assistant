@@ -118,7 +118,7 @@ else
         <FluentTab Id="history" Header="History">
             @if (ActiveTab == "history")
             {
-                <VersionHistory Versions="_versions" OnViewPassages="ViewPassages" />
+                <VersionHistory DocumentId="DocumentId" Versions="_versions" OnViewPassages="ViewPassages" />
             }
         </FluentTab>
     </FluentTabs>

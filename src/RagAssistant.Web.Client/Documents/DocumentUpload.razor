@@ -1,5 +1,5 @@
 @inject NavigationManager Navigation
-@inject IDocumentsApi Api
+@inject IFileUploader Uploader
 
 <div @onkeydown="OnKeyDownAsync">
     <FluentDialog @ref="_dialog" Modal="true" OnStateChange="OnStateChangeAsync" aria-label="@DialogTitle">
@@ -24,8 +24,8 @@
                     }
 
                     <div>
-                        <FluentLabel Required="true">File (.md, .markdown or .txt, up to 1 MiB)</FluentLabel>
-                        <FluentInputFile Mode="InputFileMode.Stream" Accept=".md,.markdown,.txt" Multiple="false" Disabled="_busy"
+                        <FluentLabel Required="true">File (.md, .markdown or .txt up to 1 MiB, or .pdf up to 100 MiB)</FluentLabel>
+                        <FluentInputFile Id="up-file" Mode="InputFileMode.Stream" Accept=".md,.markdown,.txt,.pdf" Multiple="false" Disabled="_busy"
                                          DragDropZoneVisible="true" Height="80px" OnInputFileChange="OnFileChosenAsync">
                             <ChildContent>Drop a file here, or <b>browse</b></ChildContent>
                         </FluentInputFile>
@@ -54,6 +54,14 @@
                     <FluentTextInput Id="up-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="_busy"
                                      @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
                     }
+                    @if (_busy)
+                    {
+                        <div class="upload-progress" aria-live="polite">
+                            <progress role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Percent"
+                                      value="@Percent" max="100"></progress>
+                            <FluentText Block="true" Class="field-hint">@ProgressLabel</FluentText>
+                        </div>
+                    }
                 </FluentStack>
             </ChildContent>
             <ActionTemplate>
@@ -64,24 +72,36 @@
                     }
                     @(IsNewVersion ? "Upload" : "Import")
                 </FluentButton>
-                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" OnClick="CancelAsync">Cancel</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="CancelButtonAsync">@(_busy ? "Cancel upload" : "Cancel")</FluentButton>
             </ActionTemplate>
         </FluentDialogBody>
     </FluentDialog>
 </div>
 
 @code {
-    /// <summary>Mirrors <c>Documents:Import:MaxFileSizeBytes</c>; the API stays authoritative.</summary>
+    /// <summary>Mirrors <c>Documents:Import:MaxFileSizeBytes</c> (text formats); the API stays authoritative.</summary>
     public const int MaxFileSizeBytes = 1_048_576;
 
-    private static readonly string[] AllowedExtensions = [".md", ".markdown", ".txt"];
+    /// <summary>Mirrors <c>Documents:Import:MaxPdfSizeBytes</c>.</summary>
+    public const int MaxPdfSizeBytes = 104_857_600;
+
+    /// <summary>Where the browser keeps the chosen file; the upload module reads it from there, so it never enters the .NET heap.</summary>
+    public const string FileInputSelector = "#up-file input[type=file]";
+
+    private static readonly string[] AllowedExtensions = [".md", ".markdown", ".txt", ".pdf"];
 
     private static readonly string[] FileCodes =
-        ["documents.file_required", "documents.unsupported_extension", "documents.file_too_large", "documents.empty_content"];
+    [
+        "documents.file_required", "documents.unsupported_extension", "documents.file_too_large", "documents.empty_content",
+        "documents.invalid_pdf", "documents.requires_ocr", "documents.text_layer_unusable",
+    ];
 
     private FluentDialog? _dialog;
     private bool _shown;
     private bool _busy;
+    private long _sent;
+    private long _total;
+    private CancellationTokenSource? _upload;
     private IBrowserFile? _file;
     private string? _fileName;
     private string? _title = "";
@@ -134,6 +154,24 @@
 
     private string DialogTitle => IsNewVersion ? "Upload a new version" : "Import a document";
 
+    private bool IsPdf => _file is { } file && IsPdfName(file.Name);
+
+    private int Percent => _total <= 0 ? 0 : (int)Math.Min(100, _sent * 100 / _total);
+
+    private bool BytesSent => _total > 0 && _sent >= _total;
+
+    private string ProgressLabel => _total <= 0
+        ? "Starting the upload…"
+        : BytesSent
+            ? (IsPdf ? "Checking PDF…" : "Saving…")
+            : $"Uploading {Formatting.Size(_sent)} of {Formatting.Size(_total)} ({Percent}%)";
+
+    private static bool IsPdfName(string name) => Path.GetExtension(name).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+
+    private static string LimitText(bool pdf) => pdf ? "100 MiB" : "1 MiB";
+
+    private string FileTooLargeMessage => $"File too large (the limit is {LimitText(IsPdf)}).";
+
     private static DateTime? ParseDate(string? text) =>
         DateTime.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date) ? date : null;
 
@@ -167,15 +205,15 @@
         ClearErrors();
         if (_file is null)
         {
-            _fileError = "Choose a .md, .markdown or .txt file.";
+            _fileError = "Choose a .md, .markdown, .txt or .pdf file.";
         }
         else if (!AllowedExtensions.Contains(Path.GetExtension(_file.Name).ToLowerInvariant()))
         {
-            _fileError = "Only .md, .markdown and .txt files can be imported.";
+            _fileError = "Only .md, .markdown, .txt and .pdf files can be imported.";
         }
-        else if (_file.Size > MaxFileSizeBytes)
+        else if (_file.Size > (IsPdf ? MaxPdfSizeBytes : MaxFileSizeBytes))
         {
-            _fileError = "File too large (the limit is 1 MiB).";
+            _fileError = FileTooLargeMessage;
         }
 
         void Require(string field, string value, string label, int max)
@@ -220,6 +258,28 @@
     private string[] ParseTags() =>
         [.. (_tags ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct()];
 
+    private List<KeyValuePair<string, string>> BuildFields()
+    {
+        var fields = new List<KeyValuePair<string, string>>
+        {
+            new("title", (_title ?? "").Trim()),
+            new("ownerName", (_owner ?? "").Trim()),
+            new("language", (_language ?? "").Trim()),
+        };
+        fields.AddRange(ParseTags().Select(tag => new KeyValuePair<string, string>("tags", tag)));
+        if (!string.IsNullOrWhiteSpace(_effectiveDate))
+        {
+            fields.Add(new("effectiveDate", _effectiveDate));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_source))
+        {
+            fields.Add(new("source", _source));
+        }
+
+        return fields;
+    }
+
     private async Task SubmitAsync()
     {
         if (_busy || !Validate())
@@ -227,26 +287,60 @@
             return;
         }
 
-        _busy = true;
         if (IsNewVersion)
         {
-            await SubmitVersionAsync();
+            if (await UploadAsync($"api/documents/{DocumentId}/versions", []) is { } versionUpload)
+            {
+                await FinishVersionAsync(DocumentsApi.FromUpload<VersionAccepted>(versionUpload));
+            }
+
             return;
         }
 
-        ApiResult<ImportAccepted> result;
+        if (await UploadAsync("api/documents", BuildFields()) is { } importUpload)
+        {
+            await FinishImportAsync(DocumentsApi.FromUpload<ImportAccepted>(importUpload));
+        }
+    }
+
+    /// <summary>Sends the chosen file; null when the user cancelled or the browser no longer had the file (both leave the form as it is).</summary>
+    private async Task<UploadResult?> UploadAsync(string url, List<KeyValuePair<string, string>> fields)
+    {
+        _busy = true;
+        _sent = 0;
+        _total = 0;
+        _upload = new CancellationTokenSource();
+        UploadResult upload;
         try
         {
-            await using var content = _file!.OpenReadStream(MaxFileSizeBytes);
-            result = await Api.ImportAsync(
-                new ImportRequest(_file.Name, content, (_title ?? "").Trim(), (_owner ?? "").Trim(), (_language ?? "").Trim(), ParseTags(), _effectiveDate, _source),
-                CancellationToken.None);
+            upload = await Uploader.UploadAsync(
+                new UploadRequest(url, FileInputSelector, fields, UploadHeaders.Default), new UiProgress(this), _upload.Token);
         }
         finally
         {
             _busy = false;
+            _upload.Dispose();
+            _upload = null;
         }
 
+        if (upload.IsAborted)
+        {
+            return null;
+        }
+
+        if (upload.IsMissingFile)
+        {
+            _file = null;
+            _fileName = null;
+            _fileError = "The browser no longer has the file. Choose it again.";
+            return null;
+        }
+
+        return upload;
+    }
+
+    private async Task FinishImportAsync(ApiResult<ImportAccepted> result)
+    {
         if (result.IsSuccess)
         {
             ResetForm();
@@ -257,19 +351,8 @@
         ShowError(result.Error!);
     }
 
-    private async Task SubmitVersionAsync()
+    private async Task FinishVersionAsync(ApiResult<VersionAccepted> result)
     {
-        ApiResult<VersionAccepted> result;
-        try
-        {
-            await using var content = _file!.OpenReadStream(MaxFileSizeBytes);
-            result = await Api.UploadVersionAsync(DocumentId!.Value, new VersionUpload(_file.Name, content), CancellationToken.None);
-        }
-        finally
-        {
-            _busy = false;
-        }
-
         if (result.IsSuccess)
         {
             ResetForm();
@@ -305,7 +388,7 @@
                 _formError = "You are not allowed to import documents.";
                 break;
             case { Status: 413 } or { Code: "documents.file_too_large" }:
-                _fileError = "File too large (the limit is 1 MiB).";
+                _fileError = FileTooLargeMessage;
                 break;
             case { Status: 409, Code: "documents.duplicate_content" }:
                 _duplicateId = error.ExistingDocumentId;
@@ -348,6 +431,19 @@
         _source = null;
     }
 
+    /// <summary>The Cancel button: aborts the upload in flight, or closes the dialog when none is.</summary>
+    private Task CancelButtonAsync()
+    {
+        if (_busy)
+        {
+            _upload?.Cancel();
+            return Task.CompletedTask;
+        }
+
+        return OnClose.InvokeAsync();
+    }
+
+    // Escape never aborts a long upload by accident; it only closes an idle dialog.
     private Task CancelAsync() => _busy ? Task.CompletedTask : OnClose.InvokeAsync();
 
     private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
@@ -362,6 +458,18 @@
             await CancelAsync();
             StateHasChanged();
         }
+    }
+
+    private void ApplyProgress(UploadProgress progress)
+    {
+        _sent = progress.Sent;
+        _total = progress.Total;
+        StateHasChanged();
+    }
+
+    private sealed class UiProgress(DocumentUpload owner) : IProgress<UploadProgress>
+    {
+        public void Report(UploadProgress value) => _ = owner.InvokeAsync(() => owner.ApplyProgress(value));
     }
 
     private static class DocumentMetadataDefaults

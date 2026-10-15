@@ -1,0 +1,19 @@
+@* A PDF opens in the browser's own viewer in a new tab; a text version downloads as the normalized text the passages were cut from. *@
+@if (SourceFormat == "pdf")
+{
+    <a class="original-file-link" href="@Url" target="_blank" rel="noopener">Open original</a>
+}
+else
+{
+    <a class="original-file-link" href="@Url" download>Download original</a>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid DocumentId { get; set; }
+
+    [Parameter, EditorRequired] public int VersionNumber { get; set; }
+
+    [Parameter, EditorRequired] public string SourceFormat { get; set; } = "";
+
+    private string Url => $"api/documents/{DocumentId}/versions/{VersionNumber}/file";
+}

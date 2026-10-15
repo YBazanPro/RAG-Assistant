@@ -9,8 +9,15 @@
         }
     </TemplateColumn>
     <TemplateColumn Title="Status">@context.Status</TemplateColumn>
-    <TemplateColumn Title="Format">@context.SourceFormat</TemplateColumn>
-    <TemplateColumn Title="File"><span title="@context.OriginalFileName">@context.OriginalFileName</span></TemplateColumn>
+    <TemplateColumn Title="Format">@Formatting.FormatLabel(context.SourceFormat)</TemplateColumn>
+    <TemplateColumn Title="File">
+        <span title="@context.OriginalFileName">@context.OriginalFileName</span>
+        <div><OriginalFileLink DocumentId="DocumentId" VersionNumber="context.Number" SourceFormat="@context.SourceFormat" /></div>
+        @if (Formatting.PagesWithoutTextWarning(context.PagesWithoutText) is { } warning)
+        {
+            <div class="version-warning" role="note">@warning</div>
+        }
+    </TemplateColumn>
     <TemplateColumn Title="Size" Align="DataGridCellAlignment.End">@Formatting.Size(context.SizeBytes)</TemplateColumn>
     <TemplateColumn Title="Passages" Align="DataGridCellAlignment.End">@(context.PassageCount?.ToString() ?? "—")</TemplateColumn>
     <TemplateColumn Title="Created">
@@ -43,6 +50,9 @@
         origin.Length == 0 ? origin : string.Concat(char.ToUpperInvariant(origin[0]).ToString(), origin.AsSpan(1));
 
     [Parameter, EditorRequired] public IReadOnlyList<VersionItem> Versions { get; set; } = [];
+
+    /// <summary>Needed to build the link to each version's original file.</summary>
+    [Parameter, EditorRequired] public Guid DocumentId { get; set; }
 
     [Parameter] public EventCallback<int> OnViewPassages { get; set; }
 }

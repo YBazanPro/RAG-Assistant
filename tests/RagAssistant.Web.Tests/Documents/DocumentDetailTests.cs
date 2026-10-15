@@ -23,6 +23,7 @@ public class DocumentDetailTests
         var events = new FakeEventSource();
         var clock = new ManualTimeProvider();
         ctx.Services.AddSingleton<IDocumentsApi>(api);
+        ctx.Services.AddSingleton<IFileUploader>(api.Uploader);
         ctx.Services.AddSingleton<IIngestionEventSource>(events);
         ctx.Services.AddSingleton<TimeProvider>(clock);
         var auth = ctx.AddAuthorization().SetAuthorized("someone");

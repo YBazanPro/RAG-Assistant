@@ -18,6 +18,7 @@ public class DocumentUploadTests
         ctx.Services.AddFluentUIComponents();
         var api = new FakeDocumentsApi();
         ctx.Services.AddSingleton<IDocumentsApi>(api);
+        ctx.Services.AddSingleton<IFileUploader>(api.Uploader);
         return (ctx, api);
     }
 
@@ -47,8 +48,9 @@ public class DocumentUploadTests
     }
 
     [Test]
-    [Arguments("report.pdf", 20, "Only .md, .markdown and .txt")]
-    [Arguments("big.md", 1_048_577, "File too large")]
+    [Arguments("report.docx", 20, "Only .md, .markdown, .txt and .pdf")]
+    [Arguments("big.md", 1_048_577, "File too large (the limit is 1 MiB)")]
+    [Arguments("big.pdf", 104_857_601, "File too large (the limit is 100 MiB)")]
     public async Task Submit_invalidFile_showsAClientErrorAndSendsNothing(string name, int size, string message)
     {
         var (ctx, api) = NewContext();
@@ -60,7 +62,7 @@ public class DocumentUploadTests
         Submit(cut);
 
         await Assert.That(cut.Find("#up-file-error").TextContent).Contains(message);
-        await Assert.That(api.ImportCalls.Count).IsEqualTo(0);
+        await Assert.That(api.Uploader.Requests.Count).IsEqualTo(0);
     }
 
     [Test]
@@ -74,7 +76,7 @@ public class DocumentUploadTests
         Submit(cut);
 
         await Assert.That(cut.Markup).Contains("Owner is required.");
-        await Assert.That(api.ImportCalls.Count).IsEqualTo(0);
+        await Assert.That(api.Uploader.Requests.Count).IsEqualTo(0);
     }
 
     [Test]
@@ -91,11 +93,14 @@ public class DocumentUploadTests
         Submit(cut);
 
         cut.WaitForState(() => accepted is not null, TimeSpan.FromSeconds(5));
-        var request = api.ImportCalls.Single();
-        await Assert.That(request.Title).IsEqualTo("report");
-        await Assert.That(request.OwnerName).IsEqualTo("Finance");
-        await Assert.That(request.Tags.SequenceEqual(["budget", "finance"])).IsTrue();
-        await Assert.That(request.FileName).IsEqualTo("report.md");
+        var request = api.Uploader.Requests.Single();
+        await Assert.That(request.Url).IsEqualTo("api/documents");
+        await Assert.That(request.FileInputSelector).IsEqualTo(DocumentUpload.FileInputSelector);
+        await Assert.That(request.Headers["X-Requested-With"]).IsEqualTo("ragassistant");
+        await Assert.That(request.Fields.Where(f => f.Key == "title").Select(f => f.Value).ToArray()).IsEquivalentTo(["report"]);
+        await Assert.That(request.Fields.Where(f => f.Key == "ownerName").Select(f => f.Value).ToArray()).IsEquivalentTo(["Finance"]);
+        await Assert.That(request.Fields.Where(f => f.Key == "tags").Select(f => f.Value).ToArray()).IsEquivalentTo(["budget", "finance"]);
+        await Assert.That(request.Fields.Any(f => f.Key == "file")).IsFalse();
     }
 
     [Test]
@@ -107,7 +112,7 @@ public class DocumentUploadTests
         var cut = Render(ctx);
         Choose(cut, "report.md");
         await cut.SetTextAsync("Owner", "Finance");
-        api.ImportGate = gate.Task;
+        api.Uploader.Gate = gate.Task;
 
         Submit(cut);
         cut.WaitForState(() => cut.Markup.Contains("Uploading", StringComparison.Ordinal), TimeSpan.FromSeconds(5));
@@ -129,7 +134,7 @@ public class DocumentUploadTests
         var (ctx, api) = NewContext();
         using var _c = ctx;
         var fields = field is null ? new Dictionary<string, string[]>() : new Dictionary<string, string[]> { [field] = [message] };
-        api.OnImport = _ => ApiResult.Fail<ImportAccepted>(new ApiError(status, code, message, fields));
+        api.Uploader.OnUpload = _ => FakeFileUploader.Failure(new ApiError(status, code, message, fields));
         var cut = Render(ctx);
         Choose(cut, "report.md");
         await cut.SetTextAsync("Owner", "Finance");
@@ -156,7 +161,7 @@ public class DocumentUploadTests
         var (ctx, api) = NewContext();
         using var _c = ctx;
         var existing = Guid.NewGuid();
-        api.OnImport = _ => ApiResult.Fail<ImportAccepted>(
+        api.Uploader.OnUpload = _ => FakeFileUploader.Failure(
             new ApiError(409, "documents.duplicate_content", "dup", new Dictionary<string, string[]>(), existing));
         var cut = Render(ctx);
         Choose(cut, "report.md");

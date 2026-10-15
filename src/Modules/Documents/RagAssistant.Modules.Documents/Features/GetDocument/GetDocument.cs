@@ -19,7 +19,8 @@ internal static class GetDocument
         string OriginalFileName,
         int SizeBytes,
         int? PassageCount,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        int[]? PagesWithoutText);
 
     public sealed record LatestRun(
         Guid Id,
@@ -63,7 +64,7 @@ internal static class GetDocument
                     Document = d,
                     Latest = d.Versions
                         .OrderByDescending(v => v.Number)
-                        .Select(v => new VersionRow(v.Id, v.Number, v.Status, v.SourceFormat, v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt))
+                        .Select(v => new VersionRow(v.Id, v.Number, v.Status, v.SourceFormat, v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt, v.PagesWithoutText))
                         .FirstOrDefault(),
                     Run = d.Versions
                         .OrderByDescending(v => v.Number)
@@ -83,7 +84,7 @@ internal static class GetDocument
 
             var d = row.Document;
             var latest = row.Latest is { } v
-                ? new LatestVersion(v.Id, v.Number, v.Status.ToApi(), v.SourceFormat.ToApi(), v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt)
+                ? new LatestVersion(v.Id, v.Number, v.Status.ToApi(), v.SourceFormat.ToApi(), v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt, v.PagesWithoutText)
                 : null;
             var run = row.Run is { } r
                 ? new LatestRun(r.Id, r.Attempt, r.Status.ToApi(), r.Stage.ToApi(), r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt)
@@ -96,7 +97,7 @@ internal static class GetDocument
         }
 
         private sealed record VersionRow(
-            Guid Id, int Number, VersionStatus Status, SourceFormat SourceFormat, string OriginalFileName, int SizeBytes, int? PassageCount, DateTimeOffset CreatedAt);
+            Guid Id, int Number, VersionStatus Status, SourceFormat SourceFormat, string OriginalFileName, int SizeBytes, int? PassageCount, DateTimeOffset CreatedAt, int[]? PagesWithoutText);
 
         private sealed record RunRow(
             Guid Id, int Attempt, RunStatus Status, IngestionStage Stage, string? ErrorCode, string? ErrorMessage,

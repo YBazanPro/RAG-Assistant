@@ -183,10 +183,11 @@ public class UploadBffTests(WebAppFactory factory)
     [Test]
     public async Task Upload_aBodyJustOverTheLimit_getsAProblemDetails413()
     {
-        var (app, client) = await KestrelAsync(factory, Persona.ContentOwner, ("Bff:UploadMaxBodyBytes", OneMiB.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        var (app, client) = await KestrelAsync(factory, Persona.ContentOwner, ("Bff:UploadMaxBodyBytes", "65536"));
         await using var _ = app;
         using var __ = client;
-        using var content = new GeneratedFileContent(OneMiB + 1024);
+        // Small enough to sit in the socket buffers: the client has finished sending when the server answers and closes.
+        using var content = new GeneratedFileContent(100 * 1024);
 
         using var response = await client.SendAsync(Upload("/api/documents", content));
 
