@@ -20,6 +20,7 @@ The reference implementation is `src/Modules/Documents/RagAssistant.Modules.Docu
 - **Event id** is a monotonic id that already exists in the data (here the `IngestionEvent.Id` identity). Never invent ids that are not persisted; `Last-Event-ID` resume only works when the id means something in storage.
 - **Data** is a JSON record (`StageEvent`) with camelCase names (`JsonSerializerDefaults.Web`) and lowercase string values for enums (`"stage":"embedding"`). Serialize yourself and yield `SseItem<string>`: `TypedResults.ServerSentEvents` writes a `string` payload as is, which also lets a heartbeat carry truly empty data.
 - Event DTOs are content-free where the log is (no document text); they are an API, so keep them small and additive.
+- **Progress inside a stage** is the same event type with `status: "progress"` and nullable `current` / `total` (spec 010): added to the DTO and the table, not a new event type. Every other event carries `null` for both. Clients must treat an unknown `status` as "refine the current stage", never as terminal; only `failed` and `completed/completed` end a run. Throttle what you persist (`ProgressTracker`: `floor(done * 10 / total)` grows, never at the end, so at most nine per stage), because every event is a row that every reader replays.
 
 ## Reading and tailing
 
@@ -47,5 +48,6 @@ Integration tests (`tests/RagAssistant.Integration.Tests/Documents/IngestionStre
 - Stop reading with a predicate (`stopWhen`) for open-ended streams (heartbeats, disconnect); read to the end for streams that terminate.
 - To observe a run in progress, hold the fake model (`Generator.HoldBatches()` / `WaitUntilHeldAsync()` / `Release()`), connect, then release.
 - Compare event ids with the ids in the table, not with counts alone.
+- A test of the order of `Started` / `Completed` must ignore `Progress` rows (they may appear between them, or not at all for a small document); a test of progress asserts they sit between the stage's `Started` and `Completed`, increase strictly and stay below the total (`IngestionProgressTests`).
 - The parser returns the heartbeat as an item with `EventType == "heartbeat"` and empty `Data`.
 - Use the `IngestionHarness` (own database, fast intervals) so a worker never sees another test's runs.

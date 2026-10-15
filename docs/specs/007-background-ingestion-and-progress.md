@@ -62,6 +62,7 @@ Retry            Version Failed → Queued; new Run (Attempt + 1)
 | Each stage begins / ends | `Extracting`, `Chunking`, `Embedding`, `Storing` | `Started` / `Completed` | Content-free summary, e.g. `42 passages`, `3 batches` |
 | Run succeeded | `Completed` | `Completed` | `Indexed` |
 | Any failure | the failing stage | `Failed` | Content-free error message |
+| Inside `Extracting` (PDF pages) and `Embedding` (passages), added by [spec 010](010-pdf-import.md) | the running stage | `Progress` | none; `current` / `total` carry the counts (at most nine per stage, never at the end) |
 
 The terminal events are `Completed/Completed` and any `Failed`. The final `Storing/Completed` and `Completed/Completed` events are written in the same transaction as the passages and the state changes, so a stream never announces completion before the data is committed. Earlier stage events are committed as they happen, so the stream is live.
 
@@ -115,6 +116,7 @@ data: {"runId":"…","versionId":"…","versionNumber":1,"attempt":1,"stage":"em
 
 - The stream targets the **latest run** of the document's **latest version**. It first replays that run's events with `Id > Last-Event-ID` (all of them if the header is absent or not a number), then tails the log (polling `ingestion_events` every `ProgressPollInterval`), and ends after sending the terminal event. A run already terminal with nothing newer than `Last-Event-ID` yields an empty stream that closes at once.
 - Event ids are global and monotonic, so a client holding an id from an older run receives the whole latest run after a retry.
+- Since [spec 010](010-pdf-import.md) the data also carries `current` and `total` (integers, `null` on every event that is not `progress`), and `status` can be `progress`, for example `{…,"stage":"embedding","status":"progress","message":null,"current":120,"total":540}`. Terminal detection and `Last-Event-ID` resume are unchanged.
 - While idle, a `heartbeat` event (no id, empty data) is sent every `HeartbeatInterval` so proxies keep the connection open, for example while the worker waits for the model.
 - Implemented with `TypedResults.ServerSentEvents` and typed event DTOs; client disconnect cancels the loop and changes no state.
 
@@ -186,7 +188,7 @@ Seekers see failure state only through the derived `status` and `latestRun` on `
 Pipeline
 
 - **AC-1** Given an imported Markdown document, when the worker runs with a working generator, then the run becomes `Succeeded` (stage `Completed`), the version `Indexed` with `PassageCount`, `EmbeddingModel`, `EmbeddingDimensions` and `IndexedAt`, `Document.ActiveVersionId` is the version, and every passage has an embedding of the configured dimension.
-- **AC-2** Given AC-1, then the event log contains, in order: `Queued/Completed`, then `Started` and `Completed` for `Extracting`, `Chunking`, `Embedding`, `Storing`, then `Completed/Completed`; ids are strictly increasing.
+- **AC-2** Given AC-1, then the event log contains, in order: `Queued/Completed`, then `Started` and `Completed` for `Extracting`, `Chunking`, `Embedding`, `Storing`, then `Completed/Completed`; ids are strictly increasing. *Amended by [spec 010](010-pdf-import.md): `Progress` events may appear between a stage's `Started` and `Completed`; the order and presence of `Started` / `Completed` are unchanged, and a small document may have no `Progress` events.*
 - **AC-3** Given a document with a second indexed version, when the second is indexed, then `ActiveVersionId` is the second version, the first is `Superseded` and its passages remain.
 - **AC-4** Given a plain-text file, when ingested, then passages have empty `SectionPath` and are split on paragraphs.
 - **AC-5** Given a `.md` file with nested headings, then `SectionPath` equals the heading chain, headings are not in `Text`, `SectionOrdinal` restarts per path, and `Position` is 0-based and gapless.
