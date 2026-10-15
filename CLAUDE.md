@@ -6,13 +6,13 @@ RagAssistant is a .NET 10 demo of a Retrieval-Augmented Generation (RAG) assista
 
 It is a **modular monolith**: one backend deployable (the API) composed of independent modules with strict boundaries. Each module owns its features, data (own DbContext + schema), and logic. Modules use **Vertical Slice Architecture** internally (moderate domain complexity, solo developer — keep ceremony low). The UI is a separate Blazor project (`RagAssistant.Web`) acting as a backend for frontend (BFF): it holds the session cookie and forwards `/api/**` (REST + SSE) to the API through YARP with the user's access token.
 
-Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention) and [ADR 0005](docs/adr/0005-api-kernel-libraries.md) (API kernel libraries, Mediator topology, no Serilog) and [ADR 0007](docs/adr/0007-browser-smoke-tests-playwright.md) (Playwright browser smoke tests).
+Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention) and [ADR 0005](docs/adr/0005-api-kernel-libraries.md) (API kernel libraries, Mediator topology, no Serilog) and [ADR 0006](docs/adr/0006-pdf-import.md) (PDF import: PdfPig, original-file store, targets) and [ADR 0007](docs/adr/0007-browser-smoke-tests-playwright.md) (Playwright browser smoke tests).
 
 ### Modules
 
 | Module | Owns | Schema |
 |--------|------|--------|
-| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); background ingestion (`IngestionWorker`, chunker, batched embedding), `POST /api/documents/{id}/ingestion/retry` and the `GET …/ingestion/events` SSE stream ([spec 007](docs/specs/007-background-ingestion-and-progress.md)); listing with filters and paging, facets, versions and passages of a version (`GET /api/documents`, `/facets`, `/{id}/versions`, `/{id}/versions/{n}/passages`) and the Documents UI ([spec 008](docs/specs/008-browse-corpus-and-documents-ui.md)); edit metadata (`PUT`, `If-Match`/`ETag`), new version, reprocess, archive and restore, with the matching detail-page actions ([spec 009](docs/specs/009-document-lifecycle.md)); search is still to come | `documents` |
+| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); background ingestion (`IngestionWorker`, chunker, batched embedding), `POST /api/documents/{id}/ingestion/retry` and the `GET …/ingestion/events` SSE stream ([spec 007](docs/specs/007-background-ingestion-and-progress.md)); listing with filters and paging, facets, versions and passages of a version (`GET /api/documents`, `/facets`, `/{id}/versions`, `/{id}/versions/{n}/passages`) and the Documents UI ([spec 008](docs/specs/008-browse-corpus-and-documents-ui.md)); edit metadata (`PUT`, `If-Match`/`ETag`), new version, reprocess, archive and restore, with the matching detail-page actions ([spec 009](docs/specs/009-document-lifecycle.md)); PDF import up to 100 MiB (streamed upload into a content-addressed file store, text-layer extraction with page numbers on passages, scanned PDFs rejected at upload), `GET …/versions/{n}/file` for the original and `progress` events inside long ingestion stages ([spec 010](docs/specs/010-pdf-import.md)); search is still to come | `documents` |
 | `Chat` | Conversations and messages, prompt building, retrieval orchestration, LLM answer generation with citations. Not started | `chat` |
 
 Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `GenerateTypesAsInternal = true` and `Assemblies = [typeof(<Module>Module)]`: the default scans every referenced assembly and generates public helper types, which collide with other modules and with the test projects' own Mediator (ADR 0005). A module reads its connection string itself (`UseNpgsql(connectionString, o => o.UseVector())`) and ships an `IDesignTimeDbContextFactory` so `dotnet ef` does not need to start the API.
@@ -29,6 +29,7 @@ Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `Gen
 - **Blazor Web App** (`RagAssistant.Web` server/BFF + `RagAssistant.Web.Client` WebAssembly; layout, pages and shared components live in the client) — `InteractiveWebAssembly`, prerendering on. English only: plain English text, no localization ([spec 005](docs/specs/005-web-shell.md)). The BFF forwards `/api/**` to the API through YARP as a pass-through (no path rewriting), attaches the session's access token, requires `X-Requested-With: ragassistant` on POST/PUT/PATCH/DELETE (CSRF), and returns ProblemDetails for 401/403/502/504. No token refresh: an expired session re-challenges and the Keycloak SSO session signs the user back in
 - **Fluent UI Blazor** (`Microsoft.FluentUI.AspNetCore.Components`) — the only component suite; RAG domain components are app-owned. No Syncfusion or second design system
 - **Background ingestion** — `BackgroundService` + `Channel<T>`, stage state persisted in the `documents` schema
+- **PdfPig** (NuGet id `PdfPig`, namespace `UglyToad.PdfPig`) — reads the text layer, layout and outline of PDFs; **no OCR** (ADR 0006). It is used only inside the Documents module, behind `IPdfTextExtractor` (ingestion) and `IPdfProbe` (upload check). The browser sends files itself through `wwwroot/js/upload.js` (`XMLHttpRequest`, behind `IFileUploader`), so a 100 MiB PDF never enters the WebAssembly heap
 - **HybridCache** — caching (e.g. query embeddings, retrieval results); no L2 backend yet
 - **Mediator** (source-generated, MIT) — intra-module command/query dispatch; one scoped Mediator per module with `ValidationBehavior`, inject the module's concrete generated `Mediator` (aliased, e.g. `ModuleMediator`), never `IMediator`/`ISender` (ADR 0005)
 - **FluentValidation** — request validation
@@ -123,11 +124,15 @@ One PostgreSQL database (`ragassistant`, connection string name `ragassistant`),
 - Register every module's `AddXxxPersistence` in `src/RagAssistant.MigrationService/Program.cs`. The AppHost runs the MigrationService before the API (`WaitForCompletion`); a failed migration keeps the API from starting.
 - The integration-test fixture runs the same `DatabaseMigrator`, so register persistence in the API via `AddXxxModule` and tests pick it up.
 - Dev Postgres: image `pgvector/pgvector:0.8.7-pg18-trixie`, `localhost:5433`, persistent container + volume `ragassistant-postgres-data` mounted at `/var/lib/postgresql` (PG18 layout — don't switch to `WithDataVolume`). The password is generated by Aspire into the AppHost user secrets (`Parameters:postgres-password`).
+- Original files of PDF versions live outside Postgres in the file store (`IOriginalFileStore`, `Documents:Storage:Path`): content-addressed (`pdf/<sha256>.pdf`), written through `tmp/` and moved atomically, never deleted. The AppHost passes `<repo>/.data/documents` (git-ignored) as `Documents__Storage__Path`; tests use a temporary folder per factory. Back it up together with the database.
+- The AppHost enables the Aspire CLI bundle (`AspireUseCliBundle`): `aspire start`, `ps`, `logs`, `describe` and `stop` work against it, and `dotnet run` still works. Keep the CLI at the SDK's version (13.6.1); an older CLI cannot connect.
 
 ### RAG Conventions
 
 - Embedding dimensions are configuration (`Documents:Embeddings:Dimensions`) and must match the `vector(n)` column — changing the embedding model requires a migration and re-embedding.
 - Chunking parameters (size, overlap) live in a module Options class, not constants.
+- PDFs: only the text layer is read. The upload probe rejects scanned or garbled PDFs before anything is stored; full extraction repeats the check over all pages, records `pages_without_text` and gives passages `PageStart`/`PageEnd`. The parser cannot be cancelled, so both run off the request path with a bounded wait; the probe checks for `startxref` and parses strictly, because lenient parsing scans a whole junk file for minutes.
+- The standard HTTP resilience timeouts are raised in `ServiceDefaults` (2 min per attempt, 5 min in all). The module's `Documents:Ingestion:EmbeddingTimeout`, with its own retries, is the deadline that counts; the defaults (10 s, 30 s) failed slow embedding batches with an unexpected error.
 - Documents are versioned with stable passage IDs; only the active, indexed version is retrievable, and each answer stores a snapshot of the passages it cited in the `chat` schema (ADR 0004).
 - Prompts are built in one place in the Chat module; retrieved chunks are passed with source identifiers so answers can cite them.
 - AI provider calls are always made through the `Microsoft.Extensions.AI` abstractions — never reference a provider SDK from a module.
@@ -157,6 +162,7 @@ One PostgreSQL database (`ragassistant`, connection string name `ragassistant`),
 - Web tests (`tests/RagAssistant.Web.Tests`) need no Docker or Keycloak: `WebAppFactory` signs a persona in through the real cookie handler (`/test/sign-in`), points YARP at a real Kestrel `StubApi` through the same `services:api` configuration keys Aspire uses, and uses a static OIDC configuration. bUnit runs under TUnit.
 - Browser smoke tests (`tests/RagAssistant.Ui.Smoke`, Playwright) drive a **running AppHost** and are run on demand: `dotnet test --project tests/RagAssistant.Ui.Smoke -c Release` (setup in the `ui-smoke-tests` skill). Add or extend a smoke test when a UI spec touches dialogs, file inputs, focus, keyboard or multi-tab behaviour; bUnit cannot catch those. Prefer these over the in-app browser pane for verification, which stops rendering when hidden.
 - Test names: `Method_scenario_expected`.
+- PDFs in tests are generated with PdfPig's `PdfDocumentBuilder` (`tests/Modules/RagAssistant.Modules.Documents.Tests/TestPdf.cs`, linked into the integration tests; the integration `TestPdfs` adds padded and generated-stream files for size tests). No PDF fixtures are committed. Web upload tests (`UploadBffTests`) run the BFF on real Kestrel, because the in-process test server has no body limit, and are `[NotInParallel]`. `upload.js` itself is covered only by the smoke tests (`PdfImportSmokeTests`), since bUnit has no browser.
 
 ## Skills
 
@@ -205,6 +211,11 @@ dotnet test --project tests/RagAssistant.Integration.Tests
 
 # Browser smoke tests (needs the AppHost running with --launch-profile https; see the ui-smoke-tests skill)
 dotnet test --project tests/RagAssistant.Ui.Smoke -c Release
+
+# Aspire CLI (needs CLI 13.6.1 or newer): start the AppHost in the background, read a resource's logs, stop it
+aspire start --apphost src/RagAssistant.AppHost
+aspire logs api --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
+aspire stop --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 
 # Add EF migration for a module
 dotnet ef migrations add [Name] --project src/Modules/[Module]/RagAssistant.Modules.[Module] --startup-project src/RagAssistant.Api --context [Module]DbContext

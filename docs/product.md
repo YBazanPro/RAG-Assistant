@@ -55,7 +55,7 @@ The UI must make provenance, uncertainty, processing status, and failure states 
 
 - Multi-tenant SaaS administration.
 - Complex role-based document security.
-- Large-scale PDF extraction.
+- OCR of scanned PDFs, and table or layout recovery beyond a text-layer PDF import.
 - Internet search.
 - Autonomous multi-agent workflows.
 - Automatic publishing or sending of communications.
@@ -291,7 +291,7 @@ Content Ingestion transforms source material into searchable knowledge. It recei
 
 ### First-release formats
 
-Markdown and plain text only. Markdown headings provide the structure needed for section-aware chunking. DOCX and simple PDFs may follow (roadmap step 1.8 plans PDF import); OCR for scanned PDFs remains out of scope.
+Markdown, plain text and PDFs with a text layer (up to 100 MB). Markdown headings provide the structure needed for section-aware chunking; for a PDF, headings come from its outline or from font sizes, and every passage knows its pages so a citation can point at one. A scanned PDF is detected at upload and refused: OCR remains out of scope. DOCX may follow.
 
 Ingestion runs in the background: an import is accepted immediately, and the user follows its progress (queued, extracting, chunking, embedding, indexed or failed) as it happens.
 

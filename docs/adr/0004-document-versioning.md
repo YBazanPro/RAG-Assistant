@@ -33,6 +33,8 @@ Order-of-magnitude design targets, not guarantees; Phase 5 measures them:
 
 At this scale the default HNSW settings are sufficient.
 
+> **Amended 2026-10-14 by [ADR 0006](0006-pdf-import.md), decision 3:** the corpus target is ~100 documents / **~50k passages** (a 200-page PDF yields hundreds of passages), and a 200-page PDF is ingested in under 10 minutes with visible progress. The other targets are unchanged.
+
 ### 4. Retention (D4)
 
 For the demo, conversations and request traces are **kept indefinitely**. Users can delete their own conversations. Traces never store full document text. Retention must be revisited before any real deployment.

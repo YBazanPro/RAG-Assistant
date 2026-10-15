@@ -13,7 +13,7 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4); browsing the corpus and the Documents UI (spec 008, steps 1.5 and 1.6) | The rest of Phase 1 (lifecycle, PDF import), Chat module, remaining project skills |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4); browsing the corpus and the Documents UI (spec 008, steps 1.5 and 1.6); document lifecycle (spec 009, step 1.7); PDF import (spec 010, step 1.8) | Chat module, remaining project skills |
 
 
 
@@ -37,7 +37,7 @@ Phase 5  Evaluate   ── golden dataset, metrics harness       ┘ (in paralle
                                                                    ▼
 Phase 6  First release hardening ── i18n, accessibility, home, README, versioning UX
                                                                    ▼
-Later    hybrid search · reranking · conflict surfacing · Knowledge module · DOCX/PDF
+Later    hybrid search · reranking · conflict surfacing · Knowledge module · DOCX/OCR
 ```
 
 **First-release cut** (`product.md`, "First release definition"): end of Phase 6. Phases 4 and 5 are part of it ("basic evaluation", "basic observability", "administrative visibility").
@@ -129,11 +129,11 @@ The module owns Corpus Management + Ingestion (+ Retrieval in Phase 2). Start wi
 | 1.5 | ✅ **Browse corpus** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | List with filters (status, language, owner, tags, date) and paging; document detail; passages of a version. | KnowledgeSeeker |
 | 1.6 | ✅ **Documents UI** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | `DocumentTable`, `DocumentUpload`, `DocumentStatusBadge`, live `IngestionStatus`, document detail with `DocumentMetadataPanel` and `PassageList`/`PassageCard`. | — |
 | 1.7 | ✅ **Lifecycle** ([spec 009](specs/009-document-lifecycle.md)) | Edit metadata, upload a new version (history preserved), archive, reprocess. | ContentOwner |
-| 1.8 | **PDF import** ([spec 010](specs/010-pdf-import.md) and [ADR 0006](adr/0006-pdf-import.md), approved) *(added 2026-10-14, after 1.7)* | PDF upload up to 100 MB. Needs its own spec and ADR: a PDF text-extraction library (PdfPig, Apache 2.0, managed code), storing the original binary outside Postgres (the source text column stays for text formats), upload streaming through the BFF and API (body limits, timeouts), heading detection from font data, page numbers in citations (`Passage.PageStart/PageEnd` and `DocumentVersion.SourceFormat = Pdf` are already in the schema), and a review of the ADR 0004 corpus and ingestion-time targets. Scanned PDFs (OCR) stay out of scope. | ContentOwner |
+| 1.8 | ✅ **PDF import** ([spec 010](specs/010-pdf-import.md) and [ADR 0006](adr/0006-pdf-import.md)) *(added 2026-10-14, after 1.7)* | PDF upload up to 100 MiB, streamed through the BFF and API into a content-addressed file store outside Postgres. PdfPig reads the text layer page by page: column-aware reading order, outline or font-based headings, repeated headers and footers removed, page numbers on passages. Scanned and garbled PDFs are rejected at upload (`requires_ocr`, `text_layer_unusable`), PDFs with some text-less pages are accepted and list them. `GET …/versions/{n}/file` serves the original (range requests). `progress` events with counters inside extraction and embedding. UI: upload with progress and cancel, determinate ingestion bar, page numbers and "Open page N" on passages, links to the original. OCR stays out of scope. | ContentOwner |
 
 **Kit:** `/scaffold` (module), `/spec`, `/plan`, `/tdd`, `/migrate` (each EF migration), `/verify`. Skills: `ef-core`, `vertical-slice`, `configuration`, `logging`, `opentelemetry`. **Extra:** `collect-user-input` (upload, filters), `fetch-and-send-data`, `coordinate-components`.
-**Phase 1 is complete (2026-10-15).** Step 1.8 (PDF import) was added after the original scope and follows as its own spec.
-**Demo after Phase 1:** a content owner imports a Markdown policy, watches it being indexed live, and browses its passages.
+**Phase 1 is complete (2026-10-15),** including step 1.8 (PDF import), which was added after the original scope.
+**Demo after Phase 1:** a content owner imports a Markdown policy or a PDF, watches it being indexed live (with page and passage progress), and browses its passages, with page numbers and a link to the original for a PDF.
 
 ## Phase 2 — Retrieval
 
@@ -203,7 +203,7 @@ Order inside the phase matters: **the refusal path first.** It needs no LLM, pro
 | Reranking | Evaluation shows good recall but poor ordering |
 | Conflict surfacing between sources | Golden-dataset cases with conflicting documents |
 | Knowledge module (entities, relationships, `/knowledge`) | Questions that need relationships, after the first release |
-| DOCX / simple PDF import | Content owners need it |
+| DOCX import; OCR for scanned PDFs | Content owners need it |
 | Per-corpus access rules | A second audience with restricted content (ADR 0002) |
 
 ---

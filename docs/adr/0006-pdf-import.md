@@ -45,3 +45,10 @@ Default pgvector HNSW settings remain sufficient at this size. Time to first tok
 | Object storage container (MinIO, Azure Blob) | A new infrastructure component and SDK for a demo; the interface keeps it possible later. |
 | Commercial PDF libraries (iText, Aspose, Syncfusion) | Licensing; Syncfusion is excluded by ADR 0001. |
 | OCR for scanned PDFs | Out of scope for the first release (`product.md`); they are detected and rejected at upload instead. |
+
+## Implementation notes (2026-10-15)
+
+- The NuGet package id is `PdfPig` (`UglyToad.PdfPig` on NuGet only lists an old alpha and a custom build); the namespace is still `UglyToad.PdfPig`. Version 0.1.16, Apache-2.0, same author and repository. Layout analysis ships in the same package.
+- **Parser safety:** PdfPig cannot be cancelled and its lenient mode searches a whole file for structure, which took minutes on a 40 MiB file that merely started with `%PDF-`. The upload probe therefore checks the last 4 KiB for `startxref`, parses strictly, and both the probe and extraction are awaited with a bounded wait. A file the probe cannot read is accepted and ingestion reports the specific failure.
+- **Browser viewer:** the download endpoint's `Content-Security-Policy: default-src 'none'; sandbox` does not stop Chromium's built-in PDF viewer: a headed run rendered the PDF and honoured `#page=N` (checked 2026-10-15).
+- **HTTP timeouts:** the default 10 s and 30 s resilience timeouts failed slow embedding batches with an unexpected error; `ServiceDefaults` now allows 2 min and 5 min so the module's `EmbeddingTimeout` decides.
