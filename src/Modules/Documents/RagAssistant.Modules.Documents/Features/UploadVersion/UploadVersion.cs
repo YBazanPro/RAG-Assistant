@@ -5,6 +5,7 @@ using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
+using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.Shared.Common;
 
@@ -17,6 +18,7 @@ internal static partial class UploadVersion
     internal sealed partial class Handler(
         DocumentsDbContext db,
         IOptions<ImportOptions> options,
+        IPdfProbe probe,
         DocumentsMetrics metrics,
         IngestionQueue queue,
         TimeProvider clock,
@@ -30,7 +32,7 @@ internal static partial class UploadVersion
                 return Result.Failure<NewVersionResponse>(guard.Error);
             }
 
-            var intake = await UploadIntake.ReadAsync(command.FileCount, command.File, options.Value, cancellationToken);
+            var intake = await UploadIntake.ReadAsync(command.FileCount, command.File, options.Value, probe, cancellationToken);
             if (intake.IsFailure)
             {
                 return Result.Failure<NewVersionResponse>(intake.Error, intake.FieldErrors!);

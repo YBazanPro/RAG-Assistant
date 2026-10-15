@@ -6,7 +6,9 @@ using Pgvector;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
+using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
+using RagAssistant.Modules.Documents.Storage;
 
 namespace RagAssistant.Modules.Documents.Ingestion;
 
@@ -20,13 +22,18 @@ internal sealed partial class IngestionRunProcessor(
     IOptions<ChunkingOptions> chunking,
     IOptions<IngestionOptions> ingestion,
     IOptions<EmbeddingOptions> embeddingOptions,
+    IOptions<PdfOptions> pdfOptions,
+    IOriginalFileStore store,
+    IPdfTextExtractor pdfExtractor,
     DocumentsMetrics metrics,
     TimeProvider clock,
     ILogger<IngestionRunProcessor> logger)
 {
     private const string UnexpectedMessage = "Unexpected error; see logs";
 
-    private sealed record VersionInput(Guid DocumentId, int Number, string? Content, SourceFormat Format);
+    private sealed record VersionInput(Guid DocumentId, int Number, string? Content, string? StorageKey, SourceFormat Format);
+
+    private sealed record Extracted(string? Text, PdfExtraction? Pdf);
 
     public async Task ProcessAsync(Guid runId, CancellationToken cancellationToken)
     {
@@ -53,12 +60,10 @@ internal sealed partial class IngestionRunProcessor(
         {
             var version = await db.Versions.AsNoTracking()
                 .Where(v => v.Id == run.VersionId)
-                .Select(v => new VersionInput(v.DocumentId, v.Number, v.Content, v.SourceFormat))
+                .Select(v => new VersionInput(v.DocumentId, v.Number, v.Content, v.StorageKey, v.SourceFormat))
                 .SingleAsync(cancellationToken);
 
-            // PDF extraction arrives with the extractor (spec 010); until then a version without text cannot be ingested.
-            var text = version.Content ?? throw new InvalidOperationException("The version has no text content.");
-            await RunStageAsync(runId, stage, () => (text, $"{text.Length} characters"), cancellationToken);
+            var extracted = await RunStageAsync(runId, stage, () => ExtractAsync(version, run.VersionId, cancellationToken), cancellationToken);
 
             stage = IngestionStage.Chunking;
             var passages = await RunStageAsync(
@@ -66,7 +71,9 @@ internal sealed partial class IngestionRunProcessor(
                 stage,
                 () =>
                 {
-                    var chunks = Chunker.Chunk(text, version.Format, chunking.Value);
+                    var chunks = extracted.Pdf is { } pdf
+                        ? Chunker.Chunk(pdf.Blocks, chunking.Value)
+                        : Chunker.Chunk(extracted.Text!, version.Format, chunking.Value);
                     return chunks.Count == 0
                         ? throw new IngestionException(IngestionErrorCodes.NoPassages, "The document has no indexable text.")
                         : (chunks, $"{chunks.Count} passages");
@@ -111,6 +118,39 @@ internal sealed partial class IngestionRunProcessor(
                 runId, run.VersionId, run.Attempt, stage, IngestionErrorCodes.IngestionError, UnexpectedMessage,
                 clock.GetElapsedTime(started), activity, cancellationToken);
         }
+    }
+
+    private async Task<(Extracted Result, string Summary)> ExtractAsync(VersionInput version, Guid versionId, CancellationToken cancellationToken)
+    {
+        if (version.Format != SourceFormat.Pdf)
+        {
+            var text = version.Content ?? throw new InvalidOperationException("The version has no text content.");
+            return (new Extracted(text, null), $"{text.Length} characters");
+        }
+
+        var key = version.StorageKey ?? throw new InvalidOperationException("The PDF version has no storage key.");
+        await using var stream = store.OpenRead(key)
+            ?? throw new IngestionException(IngestionErrorCodes.FileMissing, "The original file is missing from the store.");
+
+        using var timeout = new CancellationTokenSource(pdfOptions.Value.ExtractionTimeout, clock);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        PdfExtraction pdf;
+        var work = Task.Run(() => pdfExtractor.Extract(stream, onPageDone: null, linked.Token), linked.Token);
+        try
+        {
+            // The parser checks the token between pages only; waiting on the token as well frees the run even inside one slow call.
+            pdf = await work.WaitAsync(linked.Token);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            _ = work.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            throw new IngestionException(IngestionErrorCodes.ExtractionTimeout, "Extracting the text took too long.");
+        }
+
+        int[]? withoutText = pdf.PagesWithoutText.Length == 0 ? null : pdf.PagesWithoutText;
+        await db.Versions.Where(v => v.Id == versionId)
+            .ExecuteUpdateAsync(s => s.SetProperty(v => v.PagesWithoutText, withoutText), cancellationToken);
+        return (new Extracted(null, pdf), $"{pdf.PageCount} pages, {pdf.PagesWithoutText.Length} without text, {pdf.MarginLinesRemoved} margin lines removed");
     }
 
     private async Task<bool> ClaimAsync(Guid runId, Guid versionId, CancellationToken cancellationToken)
@@ -185,6 +225,8 @@ internal sealed partial class IngestionRunProcessor(
             SectionPath = c.SectionPath,
             SectionOrdinal = c.SectionOrdinal,
             Text = c.Text,
+            PageStart = c.PageStart,
+            PageEnd = c.PageEnd,
             CharCount = c.CharCount,
             TokenEstimate = c.TokenEstimate,
             Embedding = new Vector(vectors[i]),

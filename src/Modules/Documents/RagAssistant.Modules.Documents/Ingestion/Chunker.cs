@@ -5,7 +5,7 @@ using RagAssistant.Modules.Documents.Options;
 
 namespace RagAssistant.Modules.Documents.Ingestion;
 
-internal sealed record ChunkedPassage(int Position, string[] SectionPath, int SectionOrdinal, string Text)
+internal sealed record ChunkedPassage(int Position, string[] SectionPath, int SectionOrdinal, string Text, int? PageStart = null, int? PageEnd = null)
 {
     public int CharCount => Text.Length;
 
@@ -27,6 +27,28 @@ internal static partial class Chunker
     {
         var markdown = format == SourceFormat.Markdown;
         var sections = markdown ? ParseMarkdown(content) : [new Section([], null, ParseBlocks(content.Split('\n'), markdown: false))];
+        return Assemble(sections, options);
+    }
+
+    /// <summary>Chunks the paragraphs of an extracted PDF (spec 010); every passage records the first and last page of its text.</summary>
+    public static IReadOnlyList<ChunkedPassage> Chunk(IReadOnlyList<SourceBlock> blocks, ChunkingOptions options)
+    {
+        var sections = new List<Section>();
+        foreach (var block in blocks.Where(b => !string.IsNullOrWhiteSpace(b.Text)))
+        {
+            if (sections.Count == 0 || !sections[^1].Path.AsSpan().SequenceEqual(block.SectionPath))
+            {
+                sections.Add(new Section(block.SectionPath, null, []));
+            }
+
+            sections[^1].Blocks.Add(new Block(BlockKind.Paragraph, [.. block.Text.Split('\n')], block.Page));
+        }
+
+        return Assemble(sections, options);
+    }
+
+    private static List<ChunkedPassage> Assemble(List<Section> sections, ChunkingOptions options)
+    {
         var limits = new Limits(options.MaxTokens * CharsPerToken, options.OverlapTokens * CharsPerToken);
 
         var drafts = new List<Draft>();
@@ -55,7 +77,7 @@ internal static partial class Chunker
         Table,
     }
 
-    private sealed record Block(BlockKind Kind, List<string> Lines)
+    private sealed record Block(BlockKind Kind, List<string> Lines, int Page = 0)
     {
         public string Text => string.Join('\n', Lines);
     }
@@ -76,7 +98,14 @@ internal static partial class Chunker
 
         /// <summary>Set for pieces of a split code block or table: they are self-contained (fence, header rows) and get no prefix.</summary>
         public bool NoOverlap { get; init; } = noOverlap;
+
+        /// <summary>First and last page of the text, 0 when the source has no pages.</summary>
+        public int PageStart { get; set; }
+
+        public int PageEnd { get; set; }
     }
+
+    private static int FirstPage(int a, int b) => a == 0 ? b : b == 0 ? a : Math.Min(a, b);
 
     private static List<Section> ParseMarkdown(string content)
     {
@@ -208,21 +237,31 @@ internal static partial class Chunker
     {
         var count = 0;
         var current = new StringBuilder();
+        var currentStart = 0;
+        var currentEnd = 0;
 
         int Budget() => count == 0 ? limits.Max : limits.Continuation;
 
-        void Emit(string text, bool noOverlap)
+        void Emit(string text, bool noOverlap, int pageStart, int pageEnd)
         {
-            drafts.Add(new Draft(section.Path, text, index, section.HeadingLine, noOverlap));
+            drafts.Add(new Draft(section.Path, text, index, section.HeadingLine, noOverlap) { PageStart = pageStart, PageEnd = pageEnd });
             count++;
+        }
+
+        void Take(Block block)
+        {
+            currentStart = FirstPage(currentStart, block.Page);
+            currentEnd = Math.Max(currentEnd, block.Page);
         }
 
         void Flush()
         {
             if (current.Length > 0)
             {
-                Emit(current.ToString(), noOverlap: false);
+                Emit(current.ToString(), noOverlap: false, currentStart, currentEnd);
                 current.Clear();
+                currentStart = 0;
+                currentEnd = 0;
             }
         }
 
@@ -234,6 +273,7 @@ internal static partial class Chunker
                 if (current.Length + BlockSeparator.Length + text.Length <= Budget())
                 {
                     current.Append(BlockSeparator).Append(text);
+                    Take(block);
                     continue;
                 }
 
@@ -243,6 +283,7 @@ internal static partial class Chunker
             if (text.Length <= Budget())
             {
                 current.Append(text);
+                Take(block);
                 continue;
             }
 
@@ -250,7 +291,7 @@ internal static partial class Chunker
             var pieces = Split(block, i => i == 0 ? first : limits.Continuation);
             foreach (var piece in pieces)
             {
-                Emit(piece, noOverlap: block.Kind != BlockKind.Paragraph);
+                Emit(piece, noOverlap: block.Kind != BlockKind.Paragraph, block.Page, block.Page);
             }
         }
 
@@ -400,6 +441,8 @@ internal static partial class Chunker
         }
 
         first.Text = text;
+        first.PageStart = FirstPage(first.PageStart, second.PageStart);
+        first.PageEnd = Math.Max(first.PageEnd, second.PageEnd);
         first.EndSection = second.EndSection;
         drafts.RemoveAt(at + 1);
         return true;
@@ -425,6 +468,8 @@ internal static partial class Chunker
             if (tail.Length > 0 && !StructuralLine().IsMatch(tail))
             {
                 drafts[i].Text = $"{tail}\n{drafts[i].Text}";
+                // The prefix is the end of the previous passage, so its page counts too (approximated by that passage's last page).
+                drafts[i].PageStart = FirstPage(drafts[i].PageStart, drafts[i - 1].PageEnd);
             }
         }
     }
@@ -468,7 +513,9 @@ internal static partial class Chunker
             var key = string.Join('\u001f', draft.Path);
             var ordinal = ordinals.GetValueOrDefault(key);
             ordinals[key] = ordinal + 1;
-            result.Add(new ChunkedPassage(position, draft.Path, ordinal, draft.Text));
+            result.Add(new ChunkedPassage(
+                position, draft.Path, ordinal, draft.Text,
+                draft.PageStart == 0 ? null : draft.PageStart, draft.PageEnd == 0 ? null : draft.PageEnd));
         }
 
         return result;

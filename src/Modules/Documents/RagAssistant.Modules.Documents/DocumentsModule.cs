@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
+using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.Modules.Documents.Storage;
 using RagAssistant.Shared.Common.Behaviors;
@@ -47,6 +48,8 @@ public static class DocumentsModule
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<StorageOptions>, StorageOptionsValidator>();
         services.AddSingleton<IOriginalFileStore, FileSystemOriginalFileStore>();
+        services.AddSingleton<IPdfProbe, PdfProbe>();
+        services.AddSingleton<IPdfTextExtractor, PdfTextExtractor>();
         services.AddHostedService<StagedFileSweeper>();
         services.AddOptions<PdfOptions>()
             .Bind(configuration.GetSection(PdfOptions.Section))

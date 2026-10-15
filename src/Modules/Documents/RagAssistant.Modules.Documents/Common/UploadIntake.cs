@@ -1,5 +1,6 @@
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
+using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Storage;
 using RagAssistant.Shared.Common;
 
@@ -24,7 +25,7 @@ internal static class UploadIntake
     private static readonly byte[] PdfMagic = "%PDF-"u8.ToArray();
 
     public static async Task<Result<AcceptedContent>> ReadAsync(
-        int fileCount, UploadedFile? file, ImportOptions options, CancellationToken cancellationToken)
+        int fileCount, UploadedFile? file, ImportOptions options, IPdfProbe probe, CancellationToken cancellationToken)
     {
         if (fileCount != 1 || file is null)
         {
@@ -45,12 +46,12 @@ internal static class UploadIntake
 
         var contentType = file.ContentType is null ? null : Truncate(file.ContentType, MaxContentTypeLength);
         return format == SourceFormat.Pdf
-            ? await AcceptPdfAsync(file, Truncate(fileName, MaxFileNameLength), contentType, cancellationToken)
+            ? await AcceptPdfAsync(file, Truncate(fileName, MaxFileNameLength), contentType, probe, cancellationToken)
             : AcceptText(file, format, Truncate(fileName, MaxFileNameLength), contentType);
     }
 
     private static async Task<Result<AcceptedContent>> AcceptPdfAsync(
-        UploadedFile file, string fileName, string? contentType, CancellationToken cancellationToken)
+        UploadedFile file, string fileName, string? contentType, IPdfProbe probe, CancellationToken cancellationToken)
     {
         if (file.Staged is not { } staged)
         {
@@ -67,6 +68,21 @@ internal static class UploadIntake
         if (header.AsSpan(0, read).IndexOf(PdfMagic) < 0)
         {
             return Reject("documents.invalid_pdf", "The file is not a PDF document.");
+        }
+
+        // Scanned and garbled PDFs are turned away now, before anything is stored (spec 010, OCR detection).
+        PdfProbeResult verdict;
+        await using (var stream = staged.OpenRead())
+        {
+            verdict = await probe.ProbeAsync(stream, cancellationToken);
+        }
+
+        switch (verdict.Kind)
+        {
+            case PdfKind.ScannedNeedsOcr:
+                return Reject("documents.requires_ocr", "This PDF has no text layer (it looks scanned). OCR is not supported yet.");
+            case PdfKind.UnusableText:
+                return Reject("documents.text_layer_unusable", "The text layer of this PDF is not readable text.");
         }
 
         return new AcceptedContent(null, staged.Sha256, SourceFormat.Pdf, fileName, contentType, (int)staged.Length, staged);

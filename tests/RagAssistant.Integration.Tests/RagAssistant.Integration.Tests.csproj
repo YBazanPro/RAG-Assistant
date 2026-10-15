@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Modules\RagAssistant.Modules.Documents.Tests\TestPdf.cs" Link="Documents\TestPdf.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\RagAssistant.Api\RagAssistant.Api.csproj" />
   </ItemGroup>
 
