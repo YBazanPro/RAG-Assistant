@@ -58,7 +58,8 @@ public sealed record DocumentInfo(
     DateTimeOffset CreatedAt,
     string CreatedBy,
     DateTimeOffset UpdatedAt,
-    string UpdatedBy);
+    string UpdatedBy,
+    int Revision = 0);
 
 public sealed record VersionItem(
     Guid Id,
@@ -97,6 +98,9 @@ public sealed record PassagePage(
 
 public sealed record ImportAccepted(Guid DocumentId, Guid VersionId, int VersionNumber, Guid IngestionRunId, string Status);
 
+/// <summary>Answer of "upload a new version" and "reprocess" (spec 009).</summary>
+public sealed record VersionAccepted(Guid DocumentId, Guid VersionId, int VersionNumber, Guid IngestionRunId, string Status);
+
 public sealed record RetryAccepted(Guid DocumentId, Guid VersionId, Guid IngestionRunId, int Attempt, string Status);
 
 public sealed record IngestionStageEvent(
@@ -122,6 +126,11 @@ public sealed record ImportRequest(
     string[] Tags,
     string? EffectiveDate,
     string? Source);
+
+/// <param name="EffectiveDate">Raw <c>yyyy-MM-dd</c> text or null.</param>
+public sealed record MetadataUpdate(string Title, string OwnerName, string Language, string[] Tags, string? EffectiveDate, string? Source);
+
+public sealed record VersionUpload(string FileName, Stream Content);
 
 /// <summary>A failed API call. <see cref="Status"/> is 0 when the API could not be reached at all.</summary>
 public sealed record ApiError(

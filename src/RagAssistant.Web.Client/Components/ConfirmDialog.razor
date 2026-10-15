@@ -1,5 +1,5 @@
 <div @onkeydown="OnKeyDownAsync">
-    <FluentDialog @ref="_dialog" Modal="true" PreventDismissOnEscape="true" OnStateChange="OnStateChangeAsync" aria-label="@Title">
+    <FluentDialog @ref="_dialog" Modal="true" OnStateChange="OnStateChangeAsync" aria-label="@Title">
         <FluentDialogBody>
             <TitleTemplate>@Title</TitleTemplate>
             <ChildContent>
@@ -57,8 +57,17 @@
 
     private Task CancelAsync() => OnCancel.InvokeAsync();
 
-    // Escape is handled here (not by the web component) so the parent's state stays the single source of truth.
     private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
 
-    private Task OnStateChangeAsync(DialogEventArgs args) => Task.CompletedTask;
+    // The web component swallows Escape before Blazor sees a keydown, so a dismissal by the component is reported here.
+    // The parent stays the source of truth: if it keeps Open true, the next render shows the dialog again.
+    private async Task OnStateChangeAsync(DialogEventArgs args)
+    {
+        if (args.State == DialogState.Closed && _shown)
+        {
+            _shown = false;
+            await CancelAsync();
+            StateHasChanged();
+        }
+    }
 }

@@ -2,6 +2,7 @@
                 GridTemplateColumns="1.2fr 0.8fr 0.8fr 1.2fr 0.7fr 0.7fr 1.4fr 2.4fr 1fr" Class="version-table">
     <TemplateColumn Title="Version">
         Version @context.Number
+        <span class="version-origin">(@Origin(context.Origin))</span>
         @if (context.IsActive)
         {
             <FluentBadge Appearance="BadgeAppearance.Tint" Color="BadgeColor.Success" Class="active-chip">Active</FluentBadge>
@@ -38,6 +39,9 @@
 </FluentDataGrid>
 
 @code {
+    private static string Origin(string origin) =>
+        origin.Length == 0 ? origin : string.Concat(char.ToUpperInvariant(origin[0]).ToString(), origin.AsSpan(1));
+
     [Parameter, EditorRequired] public IReadOnlyList<VersionItem> Versions { get; set; } = [];
 
     [Parameter] public EventCallback<int> OnViewPassages { get; set; }

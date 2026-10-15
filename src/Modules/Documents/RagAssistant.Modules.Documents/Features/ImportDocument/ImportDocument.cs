@@ -1,4 +1,3 @@
-using System.Buffers;
 using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -17,17 +16,6 @@ namespace RagAssistant.Modules.Documents.Features.ImportDocument;
 
 internal static partial class ImportDocument
 {
-    public const int MaxTitleLength = 200;
-    public const int MaxOwnerNameLength = 100;
-    public const int MaxTags = 20;
-    public const int MaxTagLength = 50;
-    public const int MaxSourceLength = 500;
-
-    private const int MaxFileNameLength = 255;
-    private const int MaxContentTypeLength = 200;
-
-    public sealed record UploadedFile(string FileName, string? ContentType, long Length, Stream Content);
-
     /// <param name="FileCount">Number of file parts in the request; exactly one is accepted.</param>
     /// <param name="EffectiveDate">Raw <c>yyyy-MM-dd</c> text, parsed by the validator so a bad value is a field error.</param>
     /// <param name="UserId">The caller's <c>sub</c> claim.</param>
@@ -46,36 +34,8 @@ internal static partial class ImportDocument
 
     public sealed class Validator : AbstractValidator<Command>
     {
-        public Validator()
-        {
-            RuleFor(c => c.Title).Cascade(CascadeMode.Stop)
-                .Must(t => !string.IsNullOrWhiteSpace(t)).WithMessage("Title is required.")
-                .Must(t => t!.Trim().Length <= MaxTitleLength).WithMessage($"Title must be at most {MaxTitleLength} characters.");
-
-            RuleFor(c => c.OwnerName).Cascade(CascadeMode.Stop)
-                .Must(o => !string.IsNullOrWhiteSpace(o)).WithMessage("Owner name is required.")
-                .Must(o => o!.Trim().Length <= MaxOwnerNameLength).WithMessage($"Owner name must be at most {MaxOwnerNameLength} characters.");
-
-            RuleFor(c => c.Language)
-                .Must(l => DocumentMetadata.IsValidLanguage(DocumentMetadata.NormalizeLanguage(l)))
-                .WithMessage("Language must be a two-letter ISO 639-1 code such as 'en'.");
-
-            RuleFor(c => c.Tags).Cascade(CascadeMode.Stop)
-                .Must(tags => DocumentMetadata.NormalizeTags(tags).All(t => t.Length > 0))
-                .WithMessage("Tags must not be empty.")
-                .Must(tags => DocumentMetadata.NormalizeTags(tags).All(t => t.Length <= MaxTagLength))
-                .WithMessage($"Each tag must be at most {MaxTagLength} characters.")
-                .Must(tags => DocumentMetadata.NormalizeTags(tags).Length <= MaxTags)
-                .WithMessage($"At most {MaxTags} tags are allowed.");
-
-            RuleFor(c => c.EffectiveDate)
-                .Must(d => DocumentMetadata.TryParseDate(d, out _))
-                .WithMessage($"Effective date must use the format {DocumentMetadata.DateFormat}.");
-
-            RuleFor(c => c.Source)
-                .Must(s => s is null || s.Trim().Length <= MaxSourceLength)
-                .WithMessage($"Source must be at most {MaxSourceLength} characters.");
-        }
+        public Validator() =>
+            this.AddMetadataRules(c => c.Title, c => c.OwnerName, c => c.Language, c => c.Tags, c => c.EffectiveDate, c => c.Source);
     }
 
     internal sealed partial class Handler(
@@ -88,53 +48,14 @@ internal static partial class ImportDocument
     {
         public async ValueTask<Result<Response>> Handle(Command command, CancellationToken cancellationToken)
         {
-            if (command.FileCount != 1 || command.File is null)
+            var intake = await UploadIntake.ReadAsync(command.FileCount, command.File, options.Value.MaxFileSizeBytes, cancellationToken);
+            if (intake.IsFailure)
             {
-                return RejectFile("documents.file_required", "Exactly one file is required.");
+                return Result.Failure<Response>(intake.Error, intake.FieldErrors!);
             }
 
-            var file = command.File;
-            var fileName = DocumentMetadata.SanitizeFileName(file.FileName);
-            if (!DocumentMetadata.TryGetFormat(fileName, out var format))
-            {
-                return RejectFile("documents.unsupported_extension", "Only .md, .markdown and .txt files are supported.");
-            }
-
-            var maxBytes = options.Value.MaxFileSizeBytes;
-            if (file.Length > maxBytes)
-            {
-                return RejectFile("documents.file_too_large", $"The file must be at most {maxBytes} bytes.");
-            }
-
-            // One byte more than the limit tells an oversize stream apart from one that is exactly at the limit.
-            var buffer = ArrayPool<byte>.Shared.Rent(maxBytes + 1);
-            string decoded;
-            int read;
-            try
-            {
-                read = await file.Content.ReadAtLeastAsync(buffer.AsMemory(0, maxBytes + 1), maxBytes + 1, throwOnEndOfStream: false, cancellationToken);
-                if (read > maxBytes)
-                {
-                    return RejectFile("documents.file_too_large", $"The file must be at most {maxBytes} bytes.");
-                }
-
-                if (!DocumentText.TryDecode(buffer.AsSpan(0, read), out decoded!))
-                {
-                    return RejectFile("documents.invalid_utf8", "The file must be valid UTF-8 text.");
-                }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-
-            var content = DocumentText.Normalize(decoded);
-            if (string.IsNullOrWhiteSpace(content))
-            {
-                return RejectFile("documents.empty_content", "The file has no content.");
-            }
-
-            var hash = DocumentText.Hash(content);
+            var accepted = intake.Value;
+            var hash = accepted.Hash;
             var existingId = await FindActiveDuplicateAsync(hash, cancellationToken);
             if (existingId is not null)
             {
@@ -167,12 +88,12 @@ internal static partial class ImportDocument
                 Number = 1,
                 Origin = VersionOrigin.Upload,
                 Status = VersionStatus.Queued,
-                SourceFormat = format,
-                OriginalFileName = Truncate(fileName, MaxFileNameLength),
-                ContentType = file.ContentType is null ? null : Truncate(file.ContentType, MaxContentTypeLength),
-                Content = content,
+                SourceFormat = accepted.Format,
+                OriginalFileName = accepted.FileName,
+                ContentType = accepted.ContentType,
+                Content = accepted.Content,
                 ContentHash = hash,
-                SizeBytes = read,
+                SizeBytes = accepted.SizeBytes,
                 CreatedAt = now,
                 CreatedBy = command.UserId,
             };
@@ -213,8 +134,8 @@ internal static partial class ImportDocument
 
             // After commit: if the process dies before this line the run is still Queued in the table and startup recovery picks it up.
             queue.Enqueue(run.Id);
-            metrics.Imported(format);
-            LogImported(logger, document.Id, version.Id, read, format);
+            metrics.Imported(accepted.Format);
+            LogImported(logger, document.Id, version.Id, accepted.SizeBytes, accepted.Format);
             return new Response(document.Id, version.Id, version.Number, run.Id, "queued");
         }
 
@@ -229,14 +150,6 @@ internal static partial class ImportDocument
                 "documents.duplicate_content",
                 "A document with identical content already exists.",
                 existingId is null ? null : new Dictionary<string, object?> { ["existingDocumentId"] = existingId });
-
-        private static Result<Response> RejectFile(string code, string message) =>
-            Result.Failure<Response>(
-                Error.Validation(code, message),
-                new Dictionary<string, string[]> { ["file"] = [message] });
-
-        private static string Truncate(string value, int maxLength) =>
-            value.Length <= maxLength ? value : value[..maxLength];
 
         [LoggerMessage(Level = LogLevel.Information,
             Message = "Imported document {DocumentId} version {VersionId} ({SizeBytes} bytes, {Format}); ingestion queued")]

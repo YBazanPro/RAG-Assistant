@@ -6,13 +6,13 @@ RagAssistant is a .NET 10 demo of a Retrieval-Augmented Generation (RAG) assista
 
 It is a **modular monolith**: one backend deployable (the API) composed of independent modules with strict boundaries. Each module owns its features, data (own DbContext + schema), and logic. Modules use **Vertical Slice Architecture** internally (moderate domain complexity, solo developer — keep ceremony low). The UI is a separate Blazor project (`RagAssistant.Web`) acting as a backend for frontend (BFF): it holds the session cookie and forwards `/api/**` (REST + SSE) to the API through YARP with the user's access token.
 
-Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention) and [ADR 0005](docs/adr/0005-api-kernel-libraries.md) (API kernel libraries, Mediator topology, no Serilog).
+Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention) and [ADR 0005](docs/adr/0005-api-kernel-libraries.md) (API kernel libraries, Mediator topology, no Serilog) and [ADR 0007](docs/adr/0007-browser-smoke-tests-playwright.md) (Playwright browser smoke tests).
 
 ### Modules
 
 | Module | Owns | Schema |
 |--------|------|--------|
-| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); background ingestion (`IngestionWorker`, chunker, batched embedding), `POST /api/documents/{id}/ingestion/retry` and the `GET …/ingestion/events` SSE stream ([spec 007](docs/specs/007-background-ingestion-and-progress.md)); listing with filters and paging, facets, versions and passages of a version (`GET /api/documents`, `/facets`, `/{id}/versions`, `/{id}/versions/{n}/passages`) and the Documents UI ([spec 008](docs/specs/008-browse-corpus-and-documents-ui.md)); search is still to come | `documents` |
+| `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); background ingestion (`IngestionWorker`, chunker, batched embedding), `POST /api/documents/{id}/ingestion/retry` and the `GET …/ingestion/events` SSE stream ([spec 007](docs/specs/007-background-ingestion-and-progress.md)); listing with filters and paging, facets, versions and passages of a version (`GET /api/documents`, `/facets`, `/{id}/versions`, `/{id}/versions/{n}/passages`) and the Documents UI ([spec 008](docs/specs/008-browse-corpus-and-documents-ui.md)); edit metadata (`PUT`, `If-Match`/`ETag`), new version, reprocess, archive and restore, with the matching detail-page actions ([spec 009](docs/specs/009-document-lifecycle.md)); search is still to come | `documents` |
 | `Chat` | Conversations and messages, prompt building, retrieval orchestration, LLM answer generation with citations. Not started | `chat` |
 
 Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `GenerateTypesAsInternal = true` and `Assemblies = [typeof(<Module>Module)]`: the default scans every referenced assembly and generates public helper types, which collide with other modules and with the test projects' own Mediator (ADR 0005). A module reads its connection string itself (`UseNpgsql(connectionString, o => o.UseVector())`) and ships an `IDesignTimeDbContextFactory` so `dotnet ef` does not need to start the API.
@@ -35,6 +35,7 @@ Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `Gen
 - **Logging** — built-in `ILogger` + OpenTelemetry (logs, traces, metrics) via ServiceDefaults; no Serilog (ADR 0005)
 - **TUnit** + **WebApplicationFactory** + **Testcontainers (PostgreSQL)** — testing, on Microsoft.Testing.Platform; **bUnit** for Blazor components
 - **Microsoft.Extensions.AI.Evaluation** — answer-quality evaluation in a separate harness, never in `dotnet test`
+- **Playwright for .NET** (`Microsoft.Playwright`) — real-browser smoke tests in `tests/RagAssistant.Ui.Smoke`, outside the solution and `dotnet test --solution`; for what bUnit cannot show (real file input, dialogs, focus, keyboard, multi-tab). Load the `ui-smoke-tests` skill to run, write or debug them ([ADR 0007](docs/adr/0007-browser-smoke-tests-playwright.md))
 - **Auth** — Keycloak (dev-only container, `Aspire.Hosting.Keycloak`, preview) configured entirely by the committed realm file `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` (no data volume — re-imported every run). API: JWT bearer (`AddKeycloakJwtBearer`, audience `ragassistant-api`, `RoleClaimType = "roles"`). Web: OIDC code + PKCE, cookie session, tokens never sent to the browser. Roles `knowledge-seeker` ⊂ `content-owner` ⊂ `maintainer`; policies `KnowledgeSeeker`, `ContentOwner`, `Maintainer` (names in `RagAssistant.Shared/Common/Security`); a fallback policy requires an authenticated user on every endpoint, so opt out explicitly with `AllowAnonymous`. Realm clients: `ragassistant-web` (BFF), `ragassistant-api` (audience), `ragassistant-dev` (public, password grant, dev tokens and the smoke test). Claims are not remapped (`sub`, `roles` as issued)
 - **Messaging** — none; no message bus or messaging library (see Module Communication)
 
@@ -84,6 +85,7 @@ src/
 tests/
   RagAssistant.Integration.Tests/        # Full-app tests (WebApplicationFactory + Testcontainers)
   RagAssistant.Web.Tests/                # bUnit component tests + BFF tests against an in-process stub API (no Docker)
+  RagAssistant.Ui.Smoke/                 # Playwright browser smoke tests against a running AppHost (not in the .slnx, run on demand)
   Modules/
     RagAssistant.Modules.[Module].Tests/
 ```
@@ -153,6 +155,7 @@ One PostgreSQL database (`ragassistant`, connection string name `ragassistant`),
 - Integration tests require Docker.
 - Authorization tests do **not** start Keycloak: `RagAssistantAppFactory` validates tokens signed with a test key (same issuer, audience and `roles` claim as Keycloak); use the persona helper `factory.CreateClientAs(Persona.ContentOwner)` (`tests/RagAssistant.Integration.Tests/Fixtures/TestTokens.cs`) and cover 401 / 403 / success per policy. A single smoke test runs Keycloak via Testcontainers with the same realm file and the same pinned image tag as the AppHost.
 - Web tests (`tests/RagAssistant.Web.Tests`) need no Docker or Keycloak: `WebAppFactory` signs a persona in through the real cookie handler (`/test/sign-in`), points YARP at a real Kestrel `StubApi` through the same `services:api` configuration keys Aspire uses, and uses a static OIDC configuration. bUnit runs under TUnit.
+- Browser smoke tests (`tests/RagAssistant.Ui.Smoke`, Playwright) drive a **running AppHost** and are run on demand: `dotnet test --project tests/RagAssistant.Ui.Smoke -c Release` (setup in the `ui-smoke-tests` skill). Add or extend a smoke test when a UI spec touches dialogs, file inputs, focus, keyboard or multi-tab behaviour; bUnit cannot catch those. Prefer these over the in-app browser pane for verification, which stops rendering when hidden.
 - Test names: `Method_scenario_expected`.
 
 ## Skills
@@ -199,6 +202,9 @@ dotnet test --solution RagAssistant.slnx
 
 # Run one test project
 dotnet test --project tests/RagAssistant.Integration.Tests
+
+# Browser smoke tests (needs the AppHost running with --launch-profile https; see the ui-smoke-tests skill)
+dotnet test --project tests/RagAssistant.Ui.Smoke -c Release
 
 # Add EF migration for a module
 dotnet ef migrations add [Name] --project src/Modules/[Module]/RagAssistant.Modules.[Module] --startup-project src/RagAssistant.Api --context [Module]DbContext

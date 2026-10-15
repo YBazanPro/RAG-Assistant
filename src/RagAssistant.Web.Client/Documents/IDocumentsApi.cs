@@ -16,4 +16,15 @@ public interface IDocumentsApi
     Task<ApiResult<RetryAccepted>> RetryAsync(Guid documentId, CancellationToken cancellationToken);
 
     Task<ApiResult<ImportAccepted>> ImportAsync(ImportRequest request, CancellationToken cancellationToken);
+
+    /// <param name="revision">The document's current revision; sent as <c>If-Match</c>.</param>
+    Task<ApiResult<DocumentInfo>> UpdateAsync(Guid documentId, int revision, MetadataUpdate update, CancellationToken cancellationToken);
+
+    Task<ApiResult<VersionAccepted>> UploadVersionAsync(Guid documentId, VersionUpload upload, CancellationToken cancellationToken);
+
+    Task<ApiResult<VersionAccepted>> ReprocessAsync(Guid documentId, CancellationToken cancellationToken);
+
+    Task<ApiResult<DocumentInfo>> ArchiveAsync(Guid documentId, CancellationToken cancellationToken);
+
+    Task<ApiResult<DocumentInfo>> RestoreAsync(Guid documentId, CancellationToken cancellationToken);
 }

@@ -6,6 +6,8 @@ public enum ErrorType
     NotFound,
     Conflict,
     Forbidden,
+    PreconditionFailed,
+    PreconditionRequired,
     Failure,
 }
 
@@ -27,6 +29,11 @@ public sealed record Error(
         new(code, message, ErrorType.Conflict, extensions);
 
     public static Error Forbidden(string code, string message) => new(code, message, ErrorType.Forbidden);
+
+    public static Error PreconditionFailed(string code, string message, IReadOnlyDictionary<string, object?>? extensions = null) =>
+        new(code, message, ErrorType.PreconditionFailed, extensions);
+
+    public static Error PreconditionRequired(string code, string message) => new(code, message, ErrorType.PreconditionRequired);
 
     public static Error Failure(string code, string message) => new(code, message, ErrorType.Failure);
 }

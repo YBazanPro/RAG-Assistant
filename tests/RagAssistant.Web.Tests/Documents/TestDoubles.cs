@@ -140,6 +140,29 @@ public sealed class FakeDocumentsApi : IDocumentsApi
     public Func<ImportRequest, ApiResult<ImportAccepted>> OnImport { get; set; } =
         _ => ApiResult.Ok(new ImportAccepted(Guid.NewGuid(), Guid.NewGuid(), 1, Guid.NewGuid(), "queued"));
 
+    public Func<Guid, int, MetadataUpdate, ApiResult<DocumentInfo>> OnUpdate { get; set; } =
+        (id, revision, update) => ApiResult.Ok(Samples.Detail(id, revision: revision + 1) with { Title = update.Title });
+
+    public Func<Guid, ApiResult<VersionAccepted>> OnUploadVersion { get; set; } =
+        id => ApiResult.Ok(new VersionAccepted(id, Guid.NewGuid(), 2, Guid.NewGuid(), "queued"));
+
+    public Func<Guid, ApiResult<VersionAccepted>> OnReprocess { get; set; } =
+        id => ApiResult.Ok(new VersionAccepted(id, Guid.NewGuid(), 2, Guid.NewGuid(), "queued"));
+
+    public Func<Guid, ApiResult<DocumentInfo>> OnArchive { get; set; } = id => ApiResult.Ok(Samples.Detail(id, "archived"));
+
+    public Func<Guid, ApiResult<DocumentInfo>> OnRestore { get; set; } = id => ApiResult.Ok(Samples.Detail(id));
+
+    public List<(Guid Id, int Revision, MetadataUpdate Update)> UpdateCalls { get; } = [];
+
+    public List<(Guid Id, string FileName)> UploadVersionCalls { get; } = [];
+
+    public List<Guid> ReprocessCalls { get; } = [];
+
+    public List<Guid> ArchiveCalls { get; } = [];
+
+    public List<Guid> RestoreCalls { get; } = [];
+
     public List<DocumentQuery> ListCalls { get; } = [];
 
     public List<(Guid Id, int Version, int Page, Guid? Focus)> PassageCalls { get; } = [];
@@ -186,6 +209,36 @@ public sealed class FakeDocumentsApi : IDocumentsApi
     {
         RetryCalls.Add(documentId);
         return Task.FromResult(OnRetry(documentId));
+    }
+
+    public Task<ApiResult<DocumentInfo>> UpdateAsync(Guid documentId, int revision, MetadataUpdate update, CancellationToken cancellationToken)
+    {
+        UpdateCalls.Add((documentId, revision, update));
+        return Task.FromResult(OnUpdate(documentId, revision, update));
+    }
+
+    public Task<ApiResult<VersionAccepted>> UploadVersionAsync(Guid documentId, VersionUpload upload, CancellationToken cancellationToken)
+    {
+        UploadVersionCalls.Add((documentId, upload.FileName));
+        return Task.FromResult(OnUploadVersion(documentId));
+    }
+
+    public Task<ApiResult<VersionAccepted>> ReprocessAsync(Guid documentId, CancellationToken cancellationToken)
+    {
+        ReprocessCalls.Add(documentId);
+        return Task.FromResult(OnReprocess(documentId));
+    }
+
+    public Task<ApiResult<DocumentInfo>> ArchiveAsync(Guid documentId, CancellationToken cancellationToken)
+    {
+        ArchiveCalls.Add(documentId);
+        return Task.FromResult(OnArchive(documentId));
+    }
+
+    public Task<ApiResult<DocumentInfo>> RestoreAsync(Guid documentId, CancellationToken cancellationToken)
+    {
+        RestoreCalls.Add(documentId);
+        return Task.FromResult(OnRestore(documentId));
     }
 
     /// <summary>When set, imports wait for it, so a test can observe the uploading state.</summary>
@@ -308,9 +361,9 @@ public static class Samples
     public static RunInfo Run(string status = "succeeded", string stage = "completed", int attempt = 1, string? error = null) =>
         new(RunId, attempt, status, stage, error is null ? null : "ingestion.failed", error, At, At, status is "queued" or "running" ? null : At);
 
-    public static DocumentInfo Detail(Guid id, string status = "active", RunInfo? run = null) =>
+    public static DocumentInfo Detail(Guid id, string status = "active", RunInfo? run = null, int revision = 1, string latestStatus = "indexed") =>
         new(id, "Budget Exception Policy", "Finance", "en", ["budget"], new DateOnly(2026, 1, 1), "https://example.test/policy", status, Guid.NewGuid(),
-            new LatestVersionInfo(Guid.NewGuid(), 1, "indexed", "markdown", "policy.md", 2048, 3, At), run ?? Run(), At, "user-a", At, "user-b");
+            new LatestVersionInfo(Guid.NewGuid(), 1, latestStatus, "markdown", "policy.md", 2048, 3, At), run ?? Run(), At, "user-a", At, "user-b", revision);
 
     public static VersionItem Version(int number, bool isActive = false, string status = "indexed", RunInfo[]? runs = null) =>
         new(Guid.NewGuid(), number, status, "upload", "markdown", "policy.md", 2048, 3, isActive, At, "user-a", At, runs ?? [Run()]);

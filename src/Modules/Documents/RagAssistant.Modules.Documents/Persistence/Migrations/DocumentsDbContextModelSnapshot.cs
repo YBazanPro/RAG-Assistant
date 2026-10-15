@@ -67,6 +67,13 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("owner_name");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("revision");
+
                     b.Property<string>("Source")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")

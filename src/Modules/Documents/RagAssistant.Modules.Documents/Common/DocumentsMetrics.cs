@@ -19,6 +19,11 @@ internal sealed class DocumentsMetrics
     public const string IngestionCompletedName = "documents.ingestion.completed";
     public const string IngestionFailedName = "documents.ingestion.failed";
     public const string PassagesCreatedName = "documents.passages.created";
+    public const string VersionsCreatedName = "documents.versions.created";
+    public const string MetadataUpdatedName = "documents.metadata.updated";
+    public const string ArchivedName = "documents.archived";
+    public const string RestoredName = "documents.restored";
+    public const string LifecycleRejectedName = "documents.lifecycle.rejected";
     public const string IngestionDurationName = "documents.ingestion.duration";
 
     private readonly Counter<long> _imported;
@@ -26,6 +31,11 @@ internal sealed class DocumentsMetrics
     private readonly Counter<long> _ingestionCompleted;
     private readonly Counter<long> _ingestionFailed;
     private readonly Counter<long> _passagesCreated;
+    private readonly Counter<long> _versionsCreated;
+    private readonly Counter<long> _metadataUpdated;
+    private readonly Counter<long> _archived;
+    private readonly Counter<long> _restored;
+    private readonly Counter<long> _lifecycleRejected;
     private readonly Histogram<double> _ingestionDuration;
 
     public DocumentsMetrics(IMeterFactory meterFactory)
@@ -36,6 +46,11 @@ internal sealed class DocumentsMetrics
         _ingestionCompleted = meter.CreateCounter<long>(IngestionCompletedName, description: "Ingestion runs that indexed a version.");
         _ingestionFailed = meter.CreateCounter<long>(IngestionFailedName, description: "Ingestion runs that failed, by error code.");
         _passagesCreated = meter.CreateCounter<long>(PassagesCreatedName, description: "Passages stored by successful ingestion runs.");
+        _versionsCreated = meter.CreateCounter<long>(VersionsCreatedName, description: "New versions created by a lifecycle action, by origin.");
+        _metadataUpdated = meter.CreateCounter<long>(MetadataUpdatedName, description: "Metadata edits applied.");
+        _archived = meter.CreateCounter<long>(ArchivedName, description: "Documents archived.");
+        _restored = meter.CreateCounter<long>(RestoredName, description: "Documents restored.");
+        _lifecycleRejected = meter.CreateCounter<long>(LifecycleRejectedName, description: "Lifecycle actions rejected, by error code.");
         _ingestionDuration = meter.CreateHistogram<double>(IngestionDurationName, unit: "s", description: "Run start to finish.");
     }
 
@@ -44,6 +59,18 @@ internal sealed class DocumentsMetrics
 
     public void Rejected(string reason) =>
         _rejected.Add(1, new KeyValuePair<string, object?>("reason", reason));
+
+    public void VersionCreated(VersionOrigin origin) =>
+        _versionsCreated.Add(1, new KeyValuePair<string, object?>("origin", origin.ToString().ToLowerInvariant()));
+
+    public void MetadataUpdated() => _metadataUpdated.Add(1);
+
+    public void DocumentArchived() => _archived.Add(1);
+
+    public void DocumentRestored() => _restored.Add(1);
+
+    public void LifecycleRejected(string reason) =>
+        _lifecycleRejected.Add(1, new KeyValuePair<string, object?>("reason", reason));
 
     public void IngestionCompleted(int passages, TimeSpan duration)
     {

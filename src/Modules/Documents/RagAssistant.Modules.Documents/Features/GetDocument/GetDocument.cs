@@ -47,7 +47,8 @@ internal static class GetDocument
         DateTimeOffset CreatedAt,
         string CreatedBy,
         DateTimeOffset UpdatedAt,
-        string UpdatedBy);
+        string UpdatedBy,
+        int Revision);
 
     internal sealed class Handler(DocumentsDbContext db) : IRequestHandler<Query, Result<Response>>
     {
@@ -91,7 +92,7 @@ internal static class GetDocument
             return new Response(
                 d.Id, d.Title, d.OwnerName, d.Language, d.Tags, d.EffectiveDate, d.Source,
                 DocumentStatusRules.Derive(d.Status, row.Latest?.Status),
-                d.ActiveVersionId, latest, run, d.CreatedAt, d.CreatedBy, d.UpdatedAt, d.UpdatedBy);
+                d.ActiveVersionId, latest, run, d.CreatedAt, d.CreatedBy, d.UpdatedAt, d.UpdatedBy, d.Revision);
         }
 
         private sealed record VersionRow(

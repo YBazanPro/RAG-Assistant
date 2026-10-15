@@ -38,6 +38,26 @@ else
         </Actions>
     </PageHeader>
 
+    @if (_isOwner)
+    {
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8" Wrap="true" role="group" aria-label="Document actions" Class="document-actions">
+            <span title="@NewVersionBlockedReason">
+                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="@(NewVersionBlockedReason is not null)" OnClick="@(() => _uploadOpen = true)">Upload new version</FluentButton>
+            </span>
+            <span title="@ReprocessBlockedReason">
+                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="@(ReprocessBlockedReason is not null)" OnClick="@(() => _confirm = Confirm.Reprocess)">Reprocess</FluentButton>
+            </span>
+            @if (_document.Status == "archived")
+            {
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="@(() => _confirm = Confirm.Restore)">Restore</FluentButton>
+            }
+            else
+            {
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="@(() => _confirm = Confirm.Archive)">Archive</FluentButton>
+            }
+        </FluentStack>
+    }
+
     <p class="detail-summary">
         @_document.Language
         · Version @(DisplayVersionNumber?.ToString() ?? "—")
@@ -48,11 +68,21 @@ else
     {
         <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@_retryError</FluentMessageBar>
     }
+    @if (_actionError is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert" Class="action-error">
+            @_actionError
+            @if (_actionDuplicateId is { } existing)
+            {
+                <FluentLink Href="@($"documents/{existing}")">Open it</FluentLink>
+            }
+        </FluentMessageBar>
+    }
 
     <IngestionStatus Run="_document.LatestRun"
                      DocumentId="DocumentId"
-                     Live="_canStream"
-                     CanRetry="@(_canStream && _document.Status != "archived")"
+                     Live="_isOwner"
+                     CanRetry="@(_isOwner && _document.Status != "archived")"
                      OnRefresh="ReloadAsync"
                      OnRetry="RetryAsync"
                      OnFinished="ReloadAsync"
@@ -60,7 +90,11 @@ else
 
     <FluentTabs ActiveTabId="@ActiveTab" ActiveTabIdChanged="OnTabChanged" aria-label="Document sections">
         <FluentTab Id="metadata" Header="Metadata">
-            <DocumentMetadataPanel Document="_document" />
+            <DocumentMetadataPanel Document="_document"
+                                   CanEdit="_isOwner"
+                                   OnSaved="OnMetadataSaved"
+                                   OnReload="ReloadAsync"
+                                   OnSessionExpired="@(() => { _state = LoadState.SessionExpired; StateHasChanged(); })" />
         </FluentTab>
         <FluentTab Id="passages" Header="Passages">
             @if (ActiveTab == "passages")
@@ -88,10 +122,29 @@ else
             }
         </FluentTab>
     </FluentTabs>
+
+    @if (_isOwner)
+    {
+        <DocumentUpload Open="_uploadOpen"
+                        DocumentId="DocumentId"
+                        DocumentTitle="@_document.Title"
+                        OnClose="@(() => _uploadOpen = false)"
+                        OnVersionUploaded="OnVersionUploadedAsync"
+                        OnStale="ReloadAsync" />
+        <ConfirmDialog Open="@(_confirm != Confirm.None)"
+                       Title="@ConfirmTitle"
+                       Message="@ConfirmMessage"
+                       ConfirmLabel="@ConfirmTitle"
+                       Destructive="@(_confirm == Confirm.Archive)"
+                       OnConfirm="ConfirmActionAsync"
+                       OnCancel="@(() => _confirm = Confirm.None)" />
+    }
 }
 
 @code {
     private enum LoadState { Loading, Loaded, NotFound, Failed, SessionExpired }
+
+    private enum Confirm { None, Reprocess, Archive, Restore }
 
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -100,7 +153,11 @@ else
     private IReadOnlyList<VersionItem> _versions = [];
     private string _errorMessage = "";
     private string? _retryError;
-    private bool _canStream;
+    private bool _isOwner;
+    private bool _uploadOpen;
+    private Confirm _confirm;
+    private string? _actionError;
+    private Guid? _actionDuplicateId;
     private bool _started;
     private int _reloadToken;
 
@@ -111,6 +168,32 @@ else
     [SupplyParameterFromQuery(Name = "version")] public string? Version { get; set; }
 
     [SupplyParameterFromQuery(Name = "passage")] public string? Passage { get; set; }
+
+    private string? LatestStatus => _document?.LatestVersion?.Status;
+
+    private string? NewVersionBlockedReason =>
+        _document?.Status == "archived" ? "Restore the document before uploading a new version."
+        : LatestStatus is "queued" or "processing" ? "Wait until the current version has been indexed."
+        : null;
+
+    private string? ReprocessBlockedReason =>
+        NewVersionBlockedReason ?? (LatestStatus == "indexed" ? null : "Only an indexed version can be reprocessed.");
+
+    private string ConfirmTitle => _confirm switch
+    {
+        Confirm.Reprocess => "Reprocess",
+        Confirm.Archive => "Archive",
+        Confirm.Restore => "Restore",
+        _ => "Confirm",
+    };
+
+    private string ConfirmMessage => _confirm switch
+    {
+        Confirm.Reprocess => "Reprocess builds a new version from the stored content. The current version stays available until the new one is indexed.",
+        Confirm.Archive => "Archived documents are no longer used to answer questions. You can restore it later.",
+        Confirm.Restore => "The document will be used to answer questions again.",
+        _ => "",
+    };
 
     private string ActiveTab => Tab is "passages" or "history" ? Tab : "metadata";
 
@@ -140,7 +223,7 @@ else
 
         _started = true;
         var user = (await AuthenticationState.GetAuthenticationStateAsync()).User;
-        _canStream = (await Authorization.AuthorizeAsync(user, PolicyNames.ContentOwner)).Succeeded;
+        _isOwner = (await Authorization.AuthorizeAsync(user, PolicyNames.ContentOwner)).Succeeded;
         await LoadAsync(showLoading: false);
         StateHasChanged();
     }
@@ -198,6 +281,54 @@ else
         }
 
         // The new run is the document's latest: reload so the status switches to it and a new stream opens.
+        await LoadAndRefreshAsync();
+    }
+
+    private Task OnMetadataSaved(DocumentInfo saved)
+    {
+        _document = saved;
+        _actionError = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnVersionUploadedAsync(VersionAccepted accepted)
+    {
+        _uploadOpen = false;
+        _actionError = null;
+        _actionDuplicateId = null;
+        // The new run is the document's latest: reload so the status switches to it and a new stream opens.
+        await LoadAndRefreshAsync();
+    }
+
+    private async Task ConfirmActionAsync()
+    {
+        var action = _confirm;
+        _confirm = Confirm.None;
+        _actionError = null;
+        _actionDuplicateId = null;
+
+        ApiError? error = action switch
+        {
+            Confirm.Reprocess => (await Api.ReprocessAsync(DocumentId, _lifetime.Token)).Error,
+            Confirm.Archive => (await Api.ArchiveAsync(DocumentId, _lifetime.Token)).Error,
+            Confirm.Restore => (await Api.RestoreAsync(DocumentId, _lifetime.Token)).Error,
+            _ => null,
+        };
+
+        if (error is not null)
+        {
+            _actionError = error switch
+            {
+                { Status: 401 } => "Your session has expired. Sign in again, then retry.",
+                { Status: 403 } => "You are not allowed to do that.",
+                { Status: 409, Code: "documents.duplicate_content" } => "Another active document already has this content.",
+                { Status: 409 } => error.Message,
+                _ => "The action could not be completed. Try again.",
+            };
+            _actionDuplicateId = error.Code == "documents.duplicate_content" ? error.ExistingDocumentId : null;
+        }
+
+        // Success or a 409 both mean the copy on this page may be stale.
         await LoadAndRefreshAsync();
     }
 

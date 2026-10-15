@@ -147,7 +147,7 @@ Seekers see failure state only through the derived `status` and `latestRun` on `
 | SSE connection open while the worker is paused | Stays open, heartbeats only, until the run progresses. |
 | Superseded version | Passages and embeddings are kept (history, ADR 0004); only the active version is retrievable. |
 | Embedding input longer than the model context | Not possible: `MaxTokens` (400, estimate) is far below `bge-m3`'s 8k context; the estimate error is accepted. |
-| Document archived before its run starts | Archive arrives in 1.7; the 1.7 spec decides. Here every document is `Active`. |
+| Document archived before its run starts | Resolved in [spec 009](009-document-lifecycle.md): the run finishes and indexes normally and the document stays `Archived`, so nothing is retrievable; a later restore finds the content already indexed. |
 
 ## Non-Functional Requirements
 

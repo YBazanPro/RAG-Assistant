@@ -13,6 +13,7 @@ internal sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.ToTable("documents");
         builder.HasKey(d => d.Id);
         builder.Property(d => d.Id).ValueGeneratedNever();
+        builder.Property(d => d.Revision).IsConcurrencyToken().HasDefaultValue(1);
         builder.Property(d => d.Title).HasMaxLength(200);
         builder.Property(d => d.OwnerName).HasMaxLength(100);
         builder.Property(d => d.Language).HasMaxLength(2);

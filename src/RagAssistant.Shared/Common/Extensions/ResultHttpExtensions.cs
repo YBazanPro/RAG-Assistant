@@ -18,6 +18,8 @@ public static class ResultHttpExtensions
         ErrorType.NotFound => StatusCodes.Status404NotFound,
         ErrorType.Conflict => StatusCodes.Status409Conflict,
         ErrorType.Forbidden => StatusCodes.Status403Forbidden,
+        ErrorType.PreconditionFailed => StatusCodes.Status412PreconditionFailed,
+        ErrorType.PreconditionRequired => StatusCodes.Status428PreconditionRequired,
         _ => StatusCodes.Status500InternalServerError,
     };
 

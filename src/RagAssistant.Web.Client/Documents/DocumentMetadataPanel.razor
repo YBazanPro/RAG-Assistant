@@ -1,25 +1,247 @@
+@inject IDocumentsApi Api
+
 <FluentCard Class="meta-card">
     <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
-        <MetaRow Label="Title">@Document.Title</MetaRow>
-        <MetaRow Label="Owner">@Document.OwnerName</MetaRow>
-        <MetaRow Label="Language">@Document.Language</MetaRow>
-        <MetaRow Label="Tags">
-            @if (Document.Tags.Length == 0)
+        @if (_mode == Mode.Conflict)
+        {
+            <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="alert" Class="conflict-banner">
+                <ChildContent>This document was changed by someone else.</ChildContent>
+                <ActionsTemplate>
+                    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="ReloadAsync">Reload</FluentButton>
+                    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="KeepEditing">Keep editing</FluentButton>
+                </ActionsTemplate>
+            </FluentMessageBar>
+        }
+
+        @if (_formError is not null)
+        {
+            <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@_formError</FluentMessageBar>
+        }
+
+        <div aria-live="polite">
+            @if (_saved)
             {
-                <span>—</span>
+                <FluentText Class="saved-note">Changes saved.</FluentText>
             }
-            @foreach (var tag in Document.Tags)
-            {
-                <FluentBadge Appearance="BadgeAppearance.Outline" Class="tag-chip">@tag</FluentBadge>
-            }
-        </MetaRow>
-        <MetaRow Label="Effective date">@(Document.EffectiveDate is { } date ? Formatting.Date(date) : "—")</MetaRow>
-        <MetaRow Label="Source">@(string.IsNullOrWhiteSpace(Document.Source) ? "—" : Document.Source)</MetaRow>
+        </div>
+
+        @if (!IsEditing)
+        {
+            <MetaRow Label="Title">@Document.Title</MetaRow>
+            <MetaRow Label="Owner">@Document.OwnerName</MetaRow>
+            <MetaRow Label="Language">@Document.Language</MetaRow>
+            <MetaRow Label="Tags">
+                @if (Document.Tags.Length == 0)
+                {
+                    <span>—</span>
+                }
+                @foreach (var tag in Document.Tags)
+                {
+                    <FluentBadge Appearance="BadgeAppearance.Outline" Class="tag-chip">@tag</FluentBadge>
+                }
+            </MetaRow>
+            <MetaRow Label="Effective date">@(Document.EffectiveDate is { } date ? Formatting.Date(date) : "—")</MetaRow>
+            <MetaRow Label="Source">@(string.IsNullOrWhiteSpace(Document.Source) ? "—" : Document.Source)</MetaRow>
+        }
+        else
+        {
+            <FluentTextInput Id="md-title" Label="Title" Required="true" MaxLength="200" Immediate="true" ImmediateDelay="0" Disabled="Saving"
+                             @bind-Value="_title" Message="@Error("title")" MessageCondition="@(_ => Error("title") is not null)" MessageState="MessageState.Error" />
+            <FluentTextInput Id="md-owner" Label="Owner" Required="true" MaxLength="100" Immediate="true" ImmediateDelay="0" Disabled="Saving"
+                             @bind-Value="_owner" Message="@Error("ownerName")" MessageCondition="@(_ => Error("ownerName") is not null)" MessageState="MessageState.Error" />
+            <FluentTextInput Id="md-language" Label="Language" Required="true" MaxLength="2" Immediate="true" ImmediateDelay="0" Disabled="Saving"
+                             @bind-Value="_language" Message="@Error("language")" MessageCondition="@(_ => Error("language") is not null)" MessageState="MessageState.Error" />
+            <FluentTextInput Id="md-tags" Label="Tags (comma-separated)" Immediate="true" ImmediateDelay="0" Disabled="Saving"
+                             @bind-Value="_tags" Message="@Error("tags")" MessageCondition="@(_ => Error("tags") is not null)" MessageState="MessageState.Error" />
+            <FluentDatePicker TValue="DateTime?" Id="md-effective" Label="Effective date" Disabled="Saving"
+                              Value="@ParseDate(_effectiveDate)" ValueChanged="@(d => _effectiveDate = d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" />
+            <FluentTextInput Id="md-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="Saving"
+                             @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8">
+                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="Saving" OnClick="SaveAsync">
+                    @if (Saving)
+                    {
+                        <FluentSpinner aria-label="Saving" />
+                    }
+                    Save
+                </FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="Saving" OnClick="CancelEdit">Cancel</FluentButton>
+            </FluentStack>
+        }
+
         <MetaRow Label="Created"><time title="@Formatting.UtcTooltip(Document.CreatedAt)">@Formatting.Local(Document.CreatedAt)</time> by @Document.CreatedBy</MetaRow>
         <MetaRow Label="Updated"><time title="@Formatting.UtcTooltip(Document.UpdatedAt)">@Formatting.Local(Document.UpdatedAt)</time> by @Document.UpdatedBy</MetaRow>
+
+        @if (CanEdit && !IsEditing)
+        {
+            <div>
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="BeginEdit">Edit</FluentButton>
+            </div>
+        }
     </FluentStack>
 </FluentCard>
 
 @code {
+    private enum Mode { View, Editing, Saving, Conflict }
+
+    private Mode _mode = Mode.View;
+    private string? _title = "";
+    private string? _owner = "";
+    private string? _language = "";
+    private string? _tags = "";
+    private string? _effectiveDate;
+    private string? _source;
+    private string? _formError;
+    private bool _saved;
+    private Dictionary<string, string[]> _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
+
     [Parameter, EditorRequired] public DocumentInfo Document { get; set; } = default!;
+
+    /// <summary>Only owners and maintainers see Edit; the API decides.</summary>
+    [Parameter] public bool CanEdit { get; set; }
+
+    /// <summary>The server accepted the edit; carries the document as it is now (new revision included).</summary>
+    [Parameter] public EventCallback<DocumentInfo> OnSaved { get; set; }
+
+    /// <summary>The user chose to discard the edit and load the current values.</summary>
+    [Parameter] public EventCallback OnReload { get; set; }
+
+    [Parameter] public EventCallback OnSessionExpired { get; set; }
+
+    private bool IsEditing => _mode != Mode.View;
+
+    private bool Saving => _mode == Mode.Saving;
+
+    private static DateTime? ParseDate(string? text) =>
+        DateTime.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date) ? date : null;
+
+    private string? Error(string field) =>
+        _fieldErrors.TryGetValue(field, out var messages) && messages.Length > 0 ? string.Join(' ', messages) : null;
+
+    private void BeginEdit()
+    {
+        _title = Document.Title;
+        _owner = Document.OwnerName;
+        _language = Document.Language;
+        _tags = string.Join(", ", Document.Tags);
+        _effectiveDate = Document.EffectiveDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        _source = Document.Source;
+        _formError = null;
+        _saved = false;
+        _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
+        _mode = Mode.Editing;
+    }
+
+    private void CancelEdit()
+    {
+        _mode = Mode.View;
+        _formError = null;
+        _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void KeepEditing() => _mode = Mode.Editing;
+
+    private async Task ReloadAsync()
+    {
+        _mode = Mode.View;
+        _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
+        await OnReload.InvokeAsync();
+    }
+
+    private string[] ParseTags() =>
+        [.. (_tags ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct()];
+
+    private bool Validate()
+    {
+        _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
+
+        void Require(string field, string value, string label, int max)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                _fieldErrors[field] = [$"{label} is required."];
+            }
+            else if (value.Trim().Length > max)
+            {
+                _fieldErrors[field] = [$"{label} must be at most {max} characters."];
+            }
+        }
+
+        Require("title", _title ?? "", "Title", 200);
+        Require("ownerName", _owner ?? "", "Owner", 100);
+        var language = (_language ?? "").Trim();
+        if (language.Length != 2 || !language.All(char.IsAsciiLetter))
+        {
+            _fieldErrors["language"] = ["Language must be two letters, for example en."];
+        }
+
+        var tags = ParseTags();
+        if (tags.Length > 20 || tags.Any(t => t.Length > 50))
+        {
+            _fieldErrors["tags"] = ["Use at most 20 tags of up to 50 characters."];
+        }
+
+        if (_source?.Length > 500)
+        {
+            _fieldErrors["source"] = ["Source must be at most 500 characters."];
+        }
+
+        return _fieldErrors.Count == 0;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (Saving || !Validate())
+        {
+            return;
+        }
+
+        _formError = null;
+        _mode = Mode.Saving;
+        var update = new MetadataUpdate(
+            (_title ?? "").Trim(), (_owner ?? "").Trim(), (_language ?? "").Trim(), ParseTags(),
+            string.IsNullOrWhiteSpace(_effectiveDate) ? null : _effectiveDate, string.IsNullOrWhiteSpace(_source) ? null : _source.Trim());
+
+        var result = await Api.UpdateAsync(Document.Id, Document.Revision, update, CancellationToken.None);
+        if (result.IsSuccess)
+        {
+            _mode = Mode.View;
+            _saved = true;
+            await OnSaved.InvokeAsync(result.Value);
+            return;
+        }
+
+        _mode = Mode.Editing;
+        ShowError(result.Error!);
+    }
+
+    private void ShowError(ApiError error)
+    {
+        switch (error)
+        {
+            case { Status: 401 }:
+                _ = OnSessionExpired.InvokeAsync();
+                break;
+            case { Status: 403 }:
+                _formError = "You are not allowed to edit documents.";
+                break;
+            case { Status: 404 }:
+                _formError = "This document no longer exists.";
+                break;
+            case { Status: 412 }:
+                _mode = Mode.Conflict;
+                break;
+            case { Status: 400 }:
+                foreach (var (field, messages) in error.Fields)
+                {
+                    _fieldErrors[field] = messages;
+                }
+
+                _formError = _fieldErrors.Count == 0 ? error.Message : null;
+                break;
+            default:
+                _formError = "The changes could not be saved. Check your connection and try again.";
+                break;
+        }
+    }
 }

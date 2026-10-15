@@ -2,9 +2,9 @@
 @inject IDocumentsApi Api
 
 <div @onkeydown="OnKeyDownAsync">
-    <FluentDialog @ref="_dialog" Modal="true" PreventDismissOnEscape="true" aria-label="Import a document">
+    <FluentDialog @ref="_dialog" Modal="true" OnStateChange="OnStateChangeAsync" aria-label="@DialogTitle">
         <FluentDialogBody>
-            <TitleTemplate>Import a document</TitleTemplate>
+            <TitleTemplate>@DialogTitle</TitleTemplate>
             <ChildContent>
                 <FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Class="upload-form">
                     @if (_formError is not null)
@@ -16,6 +16,11 @@
                         <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">
                             This content is already in the corpus. <FluentLink Href="@($"documents/{existing}")">Open the existing document</FluentLink>.
                         </FluentMessageBar>
+                    }
+
+                    @if (IsNewVersion)
+                    {
+                        <FluentText Block="true" Class="field-hint">New version of <b>@DocumentTitle</b>. The metadata stays as it is.</FluentText>
                     }
 
                     <div>
@@ -34,6 +39,8 @@
                         }
                     </div>
 
+                    @if (!IsNewVersion)
+                    {
                     <FluentTextInput Id="up-title" Label="Title" Required="true" MaxLength="200" Immediate="true" ImmediateDelay="0" Disabled="_busy"
                                      @bind-Value="_title" Message="@Error("title")" MessageCondition="@(_ => Error("title") is not null)" MessageState="MessageState.Error" />
                     <FluentTextInput Id="up-owner" Label="Owner" Required="true" MaxLength="100" Immediate="true" ImmediateDelay="0" Disabled="_busy"
@@ -46,6 +53,7 @@
                                       Value="@ParseDate(_effectiveDate)" ValueChanged="@(d => _effectiveDate = d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" />
                     <FluentTextInput Id="up-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="_busy"
                                      @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
+                    }
                 </FluentStack>
             </ChildContent>
             <ActionTemplate>
@@ -54,7 +62,7 @@
                     {
                         <FluentSpinner aria-label="Uploading" />
                     }
-                    Import
+                    @(IsNewVersion ? "Upload" : "Import")
                 </FluentButton>
                 <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" OnClick="CancelAsync">Cancel</FluentButton>
             </ActionTemplate>
@@ -90,6 +98,16 @@
 
     [Parameter] public bool Open { get; set; }
 
+    /// <summary>Set to switch to "new version" mode: only the file is asked for (spec 009).</summary>
+    [Parameter] public Guid? DocumentId { get; set; }
+
+    [Parameter] public string? DocumentTitle { get; set; }
+
+    [Parameter] public EventCallback<VersionAccepted> OnVersionUploaded { get; set; }
+
+    /// <summary>A 409 showed that the page's copy of the document is out of date.</summary>
+    [Parameter] public EventCallback OnStale { get; set; }
+
     [Parameter] public EventCallback OnClose { get; set; }
 
     [Parameter] public EventCallback<ImportAccepted> OnImported { get; set; }
@@ -111,6 +129,10 @@
             await _dialog.HideAsync();
         }
     }
+
+    private bool IsNewVersion => DocumentId is not null;
+
+    private string DialogTitle => IsNewVersion ? "Upload a new version" : "Import a document";
 
     private static DateTime? ParseDate(string? text) =>
         DateTime.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date) ? date : null;
@@ -168,6 +190,11 @@
             }
         }
 
+        if (IsNewVersion)
+        {
+            return _fileError is null;
+        }
+
         Require("title", _title ?? "", "Title", 200);
         Require("ownerName", _owner ?? "", "Owner", 100);
         var language = (_language ?? "").Trim();
@@ -201,6 +228,12 @@
         }
 
         _busy = true;
+        if (IsNewVersion)
+        {
+            await SubmitVersionAsync();
+            return;
+        }
+
         ApiResult<ImportAccepted> result;
         try
         {
@@ -224,11 +257,47 @@
         ShowError(result.Error!);
     }
 
+    private async Task SubmitVersionAsync()
+    {
+        ApiResult<VersionAccepted> result;
+        try
+        {
+            await using var content = _file!.OpenReadStream(MaxFileSizeBytes);
+            result = await Api.UploadVersionAsync(DocumentId!.Value, new VersionUpload(_file.Name, content), CancellationToken.None);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        if (result.IsSuccess)
+        {
+            ResetForm();
+            await OnVersionUploaded.InvokeAsync(result.Value);
+            return;
+        }
+
+        ShowError(result.Error!);
+        if (result.Error is { Status: 409, Code: "documents.archived" or "documents.ingestion_in_progress" })
+        {
+            await OnStale.InvokeAsync();
+        }
+    }
+
     private void ShowError(ApiError error)
     {
         ClearErrors();
         switch (error)
         {
+            case { Status: 409, Code: "documents.archived" }:
+                _formError = "This document is archived. Restore it before uploading a new version.";
+                break;
+            case { Status: 409, Code: "documents.ingestion_in_progress" }:
+                _formError = "The latest version is still being indexed. Try again when it has finished.";
+                break;
+            case { Status: 404 }:
+                _formError = "This document no longer exists.";
+                break;
             case { Status: 401 }:
                 _formError = "Your session has expired. Sign in again, then retry the import.";
                 break;
@@ -282,6 +351,18 @@
     private Task CancelAsync() => _busy ? Task.CompletedTask : OnClose.InvokeAsync();
 
     private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
+
+    // The web component swallows Escape before Blazor sees a keydown, so a dismissal by the component is reported here.
+    // While busy the parent keeps Open true and the next render shows the dialog again.
+    private async Task OnStateChangeAsync(DialogEventArgs args)
+    {
+        if (args.State == DialogState.Closed && _shown)
+        {
+            _shown = false;
+            await CancelAsync();
+            StateHasChanged();
+        }
+    }
 
     private static class DocumentMetadataDefaults
     {

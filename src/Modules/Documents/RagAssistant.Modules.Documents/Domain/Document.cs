@@ -25,6 +25,9 @@ internal sealed class Document
     /// <summary>Hash of the latest version's normalized content; backs the duplicate guard.</summary>
     public required string LatestContentHash { get; set; }
 
+    /// <summary>Concurrency token for metadata edits (the ETag); bumped only by those edits, never by ingestion or archiving.</summary>
+    public int Revision { get; set; } = 1;
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public required string CreatedBy { get; set; }

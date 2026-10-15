@@ -45,8 +45,9 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
         SendAsync<RetryAccepted>(() => Http.PostAsync($"api/documents/{documentId}/ingestion/retry", content: null, cancellationToken), cancellationToken);
 
     public Task<ApiResult<ImportAccepted>> ImportAsync(ImportRequest request, CancellationToken cancellationToken) =>
-        SendAsync<ImportAccepted>(() =>
+        SendAsync<ImportAccepted>(async () =>
         {
+            // Awaited inside the lambda: the browser handler reads the form and its stream while the request runs.
             using var form = new MultipartFormDataContent
             {
                 { new StringContent(request.Title), "title" },
@@ -70,8 +71,33 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
             }
 
             form.Add(new StreamContent(request.Content), "file", request.FileName);
-            return Http.PostAsync("api/documents", form, cancellationToken);
+            return await Http.PostAsync("api/documents", form, cancellationToken);
         }, cancellationToken);
+
+    public Task<ApiResult<DocumentInfo>> UpdateAsync(Guid documentId, int revision, MetadataUpdate update, CancellationToken cancellationToken) =>
+        SendAsync<DocumentInfo>(() =>
+        {
+            // The request is disposed by the client once sent; the body is small JSON.
+            var request = new HttpRequestMessage(HttpMethod.Put, $"api/documents/{documentId}") { Content = JsonContent.Create(update, options: Json) };
+            request.Headers.TryAddWithoutValidation("If-Match", $"\"{revision.ToString(CultureInfo.InvariantCulture)}\"");
+            return Http.SendAsync(request, cancellationToken);
+        }, cancellationToken);
+
+    public Task<ApiResult<VersionAccepted>> UploadVersionAsync(Guid documentId, VersionUpload upload, CancellationToken cancellationToken) =>
+        SendAsync<VersionAccepted>(async () =>
+        {
+            using var form = new MultipartFormDataContent { { new StreamContent(upload.Content), "file", upload.FileName } };
+            return await Http.PostAsync($"api/documents/{documentId}/versions", form, cancellationToken);
+        }, cancellationToken);
+
+    public Task<ApiResult<VersionAccepted>> ReprocessAsync(Guid documentId, CancellationToken cancellationToken) =>
+        SendAsync<VersionAccepted>(() => Http.PostAsync($"api/documents/{documentId}/reprocess", content: null, cancellationToken), cancellationToken);
+
+    public Task<ApiResult<DocumentInfo>> ArchiveAsync(Guid documentId, CancellationToken cancellationToken) =>
+        SendAsync<DocumentInfo>(() => Http.PostAsync($"api/documents/{documentId}/archive", content: null, cancellationToken), cancellationToken);
+
+    public Task<ApiResult<DocumentInfo>> RestoreAsync(Guid documentId, CancellationToken cancellationToken) =>
+        SendAsync<DocumentInfo>(() => Http.PostAsync($"api/documents/{documentId}/restore", content: null, cancellationToken), cancellationToken);
 
     private Task<ApiResult<T>> GetAsync<T>(string url, CancellationToken cancellationToken) =>
         SendAsync<T>(() => Http.GetAsync(url, cancellationToken), cancellationToken);

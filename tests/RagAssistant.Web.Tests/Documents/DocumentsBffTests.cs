@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using RagAssistant.Web.Tests.Fixtures;
 
@@ -48,6 +49,42 @@ public class DocumentsBffTests(WebAppFactory factory)
         factory.Api.ReleaseIngestion(id);
         await reader.ReadLineAsync(cts.Token);
         await Assert.That(await reader.ReadLineAsync(cts.Token)).IsEqualTo("id: 2");
+    }
+
+    [Test]
+    public async Task Proxy_forwardsIfMatchAndETagOnMetadataEdits()
+    {
+        var id = Guid.NewGuid();
+        var client = await factory.CreateSignedInAsync(Persona.ContentOwner);
+        using var request = new HttpRequestMessage(HttpMethod.Put, new Uri($"/api/documents/{id}", UriKind.Relative))
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new { title = "T" }),
+        };
+        request.Headers.Add("X-Requested-With", "ragassistant");
+        request.Headers.TryAddWithoutValidation("If-Match", "\"1\"");
+
+        var response = await client.SendAsync(request);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That(response.Headers.ETag?.Tag).IsEqualTo("\"2\"");
+        await Assert.That(body.GetProperty("ifMatch").GetString()).IsEqualTo("\"1\"");
+    }
+
+    [Test]
+    [Arguments("PUT", "")]
+    [Arguments("POST", "/archive")]
+    [Arguments("POST", "/restore")]
+    [Arguments("POST", "/reprocess")]
+    [Arguments("POST", "/versions")]
+    public async Task Proxy_lifecycleWritesWithoutTheCsrfHeader_areRefused(string method, string suffix)
+    {
+        var client = await factory.CreateSignedInAsync(Persona.ContentOwner);
+        using var request = new HttpRequestMessage(new HttpMethod(method), new Uri($"/api/documents/{Guid.NewGuid()}{suffix}", UriKind.Relative));
+
+        var response = await client.SendAsync(request);
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
     }
 
     [Test]

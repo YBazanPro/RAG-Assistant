@@ -65,6 +65,16 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
         app.MapGet("/api/documents/{id:guid}/versions/{number:int}/passages", (int number) =>
             Results.Json(new { versionNumber = number, versionStatus = "indexed", isActive = true, items = Array.Empty<object>(), page = 1, pageSize = 50, totalCount = 0 }));
         app.MapGet("/api/documents/{id:guid}/ingestion/events", IngestionEventsAsync);
+        // The lifecycle routes (spec 009): the stub reports the conditional-request header it received so the test can prove the BFF forwards it.
+        app.MapPut("/api/documents/{id:guid}", (HttpRequest request, HttpResponse response) =>
+        {
+            response.Headers.ETag = "\"2\"";
+            return Results.Json(new { ifMatch = request.Headers.IfMatch.ToString(), requestedWith = request.Headers["X-Requested-With"].ToString() });
+        });
+        app.MapPost("/api/documents/{id:guid}/archive", () => Results.Json(new { status = "archived" }));
+        app.MapPost("/api/documents/{id:guid}/restore", () => Results.Json(new { status = "active" }));
+        app.MapPost("/api/documents/{id:guid}/reprocess", () => Results.Accepted());
+        app.MapPost("/api/documents/{id:guid}/versions", () => Results.Accepted());
         app.MapGet("/api/problem", () => Results.Problem(statusCode: 404, title: "Not found", extensions: new Dictionary<string, object?> { ["code"] = "stub.not_found" }));
         app.MapGet("/api/hang", async (CancellationToken ct) =>
         {

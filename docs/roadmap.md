@@ -128,10 +128,11 @@ The module owns Corpus Management + Ingestion (+ Retrieval in Phase 2). Start wi
 | 1.4 | ✅ **Ingestion progress (SSE)** ([spec 007](specs/007-background-ingestion-and-progress.md)) | `GET /documents/{id}/ingestion/events`: persisted stage changes, `Last-Event-ID` resume. Integration test reads the stream with `SseParser`. | ContentOwner |
 | 1.5 | ✅ **Browse corpus** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | List with filters (status, language, owner, tags, date) and paging; document detail; passages of a version. | KnowledgeSeeker |
 | 1.6 | ✅ **Documents UI** ([spec 008](specs/008-browse-corpus-and-documents-ui.md)) | `DocumentTable`, `DocumentUpload`, `DocumentStatusBadge`, live `IngestionStatus`, document detail with `DocumentMetadataPanel` and `PassageList`/`PassageCard`. | — |
-| 1.7 | **Lifecycle** ([spec 009](specs/009-document-lifecycle.md), approved) | Edit metadata, upload a new version (history preserved), archive, reprocess. | ContentOwner |
+| 1.7 | ✅ **Lifecycle** ([spec 009](specs/009-document-lifecycle.md)) | Edit metadata, upload a new version (history preserved), archive, reprocess. | ContentOwner |
 | 1.8 | **PDF import** ([spec 010](specs/010-pdf-import.md) and [ADR 0006](adr/0006-pdf-import.md), approved) *(added 2026-10-14, after 1.7)* | PDF upload up to 100 MB. Needs its own spec and ADR: a PDF text-extraction library (PdfPig, Apache 2.0, managed code), storing the original binary outside Postgres (the source text column stays for text formats), upload streaming through the BFF and API (body limits, timeouts), heading detection from font data, page numbers in citations (`Passage.PageStart/PageEnd` and `DocumentVersion.SourceFormat = Pdf` are already in the schema), and a review of the ADR 0004 corpus and ingestion-time targets. Scanned PDFs (OCR) stay out of scope. | ContentOwner |
 
 **Kit:** `/scaffold` (module), `/spec`, `/plan`, `/tdd`, `/migrate` (each EF migration), `/verify`. Skills: `ef-core`, `vertical-slice`, `configuration`, `logging`, `opentelemetry`. **Extra:** `collect-user-input` (upload, filters), `fetch-and-send-data`, `coordinate-components`.
+**Phase 1 is complete (2026-10-15).** Step 1.8 (PDF import) was added after the original scope and follows as its own spec.
 **Demo after Phase 1:** a content owner imports a Markdown policy, watches it being indexed live, and browses its passages.
 
 ## Phase 2 — Retrieval
