@@ -1,0 +1,27 @@
+<FluentBadge Appearance="BadgeAppearance.Tint" Color="@BadgeColorFor" Class="@($"status-badge status-{Status}")" data-status="@Status">
+    <span class="status-icon" aria-hidden="true">@Icon</span>
+    <span>@Formatting.StatusLabel(Status)</span>
+</FluentBadge>
+
+@code {
+    [Parameter, EditorRequired] public string Status { get; set; } = "";
+
+    // Text and a glyph carry the status; colour only reinforces it.
+    private string Icon => Status switch
+    {
+        "active" => "✓",
+        "queued" => "…",
+        "processing" => "⟳",
+        "failed" => "✕",
+        "archived" => "▣",
+        _ => "•",
+    };
+
+    private BadgeColor BadgeColorFor => Status switch
+    {
+        "active" => BadgeColor.Success,
+        "processing" => BadgeColor.Brand,
+        "failed" => BadgeColor.Danger,
+        _ => BadgeColor.Subtle,
+    };
+}

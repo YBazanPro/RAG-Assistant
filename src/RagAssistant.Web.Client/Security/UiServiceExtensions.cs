@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.FluentUI.AspNetCore.Components;
 using RagAssistant.Shared.Common.Security;
+using RagAssistant.Web.Client.Documents;
 
 namespace RagAssistant.Web.Client.Security;
 
@@ -12,6 +14,11 @@ public static class UiServiceExtensions
         services.AddFluentUIComponents();
         services.AddCascadingAuthenticationState();
         services.AddUiAuthorization();
+        services.TryAddSingleton(TimeProvider.System);
+
+        // The HttpClient exists only in the browser; it is resolved on first use, which never happens during prerendering.
+        services.AddScoped<IDocumentsApi>(sp => new DocumentsApi(sp.GetRequiredService<HttpClient>));
+        services.AddScoped<IIngestionEventSource>(sp => new IngestionEventSource(sp.GetRequiredService<HttpClient>));
         return services;
     }
 

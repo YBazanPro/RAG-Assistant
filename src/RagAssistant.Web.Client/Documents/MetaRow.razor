@@ -1,0 +1,10 @@
+<FluentStack HorizontalGap="16" Class="meta-row">
+    <FluentLabel Class="meta-label">@Label</FluentLabel>
+    <FluentText Class="meta-value">@ChildContent</FluentText>
+</FluentStack>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

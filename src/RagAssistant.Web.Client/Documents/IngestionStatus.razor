@@ -1,0 +1,217 @@
+@implements IAsyncDisposable
+@inject IIngestionEventSource Source
+@inject TimeProvider Clock
+
+<FluentCard Class="ingestion-status" aria-label="Ingestion status">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+        <FluentStack Wrap="true" HorizontalGap="8" VerticalGap="8" role="list" aria-label="Ingestion stages">
+            @foreach (var (stage, index) in Stages.Select((s, i) => (s, i)))
+            {
+                <FluentBadge Appearance="@(index == CurrentIndex && !Finished ? BadgeAppearance.Filled : BadgeAppearance.Tint)" Color="@StepColor(index)"
+                             Class="@($"step {StepClass(index)}")" role="listitem" aria-current="@(index == CurrentIndex && !_failed && !Finished ? "step" : null)">
+                    @Formatting.StageLabel(stage)
+                </FluentBadge>
+            }
+        </FluentStack>
+
+        <div class="ingestion-message" aria-live="polite">
+            @if (_failed)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false">
+                    Ingestion failed@(_stage is { } s ? $" at {Formatting.StageLabel(s).ToLowerInvariant()}" : ""): @(_message ?? "No details available.")
+                    @if (_attempt > 1)
+                    {
+                        <span> (attempt @_attempt)</span>
+                    }
+                </FluentMessageBar>
+            }
+            else
+            {
+                <FluentText>
+                    @(Finished ? "Ingestion completed." : _message ?? Formatting.StageLabel(_stage ?? "queued"))
+                    @if (_attempt > 1)
+                    {
+                        <span> (attempt @_attempt)</span>
+                    }
+                </FluentText>
+            }
+        </div>
+
+        @if (_live == LiveState.Lost)
+        {
+            <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">
+                <ChildContent>Live updates lost.</ChildContent>
+                <ActionsTemplate>
+                    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="RefreshAsync">Refresh</FluentButton>
+                </ActionsTemplate>
+            </FluentMessageBar>
+        }
+        else if (!Live && !Finished && !_failed)
+        {
+            <FluentMessageBar Intent="MessageBarIntent.Info" AllowDismiss="false" role="status">
+                <ChildContent>Progress is shown as of page load.</ChildContent>
+                <ActionsTemplate>
+                    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="RefreshAsync">Refresh</FluentButton>
+                </ActionsTemplate>
+            </FluentMessageBar>
+        }
+
+        @if (_failed && CanRetry)
+        {
+            <div>
+                <FluentButton Appearance="ButtonAppearance.Primary" OnClick="@(() => OnRetry.InvokeAsync())">Retry</FluentButton>
+            </div>
+        }
+    </FluentStack>
+</FluentCard>
+
+@code {
+    private static readonly string[] Stages = ["queued", "extracting", "chunking", "embedding", "storing", "completed"];
+
+    private enum LiveState { Idle, Watching, Lost }
+
+    private CancellationTokenSource? _cts;
+    private Task? _watching;
+    private RunInfo? _lastRun;
+    private Guid? _runId;
+    private string? _stage;
+    private string? _message;
+    private int _attempt;
+    private bool _failed;
+    private bool _completed;
+    private LiveState _live;
+
+    [Parameter, EditorRequired] public RunInfo? Run { get; set; }
+
+    /// <summary>Only owners may open the SSE stream (spec 007); everyone else sees the status at load time.</summary>
+    [Parameter] public bool Live { get; set; }
+
+    [Parameter] public bool CanRetry { get; set; }
+
+    [Parameter] public Guid DocumentId { get; set; }
+
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    /// <summary>A terminal event arrived: the page reloads the document, versions and passages.</summary>
+    [Parameter] public EventCallback OnFinished { get; set; }
+
+    [Parameter] public EventCallback OnSessionExpired { get; set; }
+
+    private bool Finished => _completed;
+
+    private int CurrentIndex => Math.Max(0, Array.IndexOf(Stages, _stage ?? "queued"));
+
+    private BadgeColor StepColor(int index) =>
+        _failed && index == CurrentIndex ? BadgeColor.Danger
+        : Finished || index < CurrentIndex ? BadgeColor.Success
+        : index == CurrentIndex ? BadgeColor.Brand : BadgeColor.Subtle;
+
+    private string StepClass(int index) =>
+        _failed && index == CurrentIndex ? "step-failed"
+        : Finished || index < CurrentIndex ? "step-done"
+        : index == CurrentIndex ? "step-current" : "step-pending";
+
+    protected override void OnParametersSet()
+    {
+        if (Run is null)
+        {
+            return;
+        }
+
+        if (Run != _lastRun)
+        {
+            // New data from the page (initial load, refresh, retry): adopt it and, after a lost stream, try again.
+            var newRun = _runId != Run.Id;
+            _lastRun = Run;
+            if (newRun)
+            {
+                StopWatching();
+            }
+
+            _runId = Run.Id;
+            _attempt = Run.Attempt;
+            _stage = Run.Stage;
+            _message = Run.ErrorMessage;
+            _failed = Run.Status == "failed";
+            _completed = Run.Status == "succeeded";
+            _live = LiveState.Idle;
+        }
+
+        if (Live && !_failed && !_completed && _live == LiveState.Idle && _watching is not { IsCompleted: false })
+        {
+            StartWatching();
+        }
+    }
+
+    private void StartWatching()
+    {
+        _cts = new CancellationTokenSource();
+        _live = LiveState.Watching;
+        _watching = WatchAsync(_cts.Token);
+    }
+
+    private async Task WatchAsync(CancellationToken token)
+    {
+        var watcher = new IngestionWatcher(Source, Clock);
+        try
+        {
+            var outcome = await watcher.WatchAsync(DocumentId, e => InvokeAsync(() =>
+            {
+                _stage = e.Stage;
+                _message = e.Message;
+                _attempt = e.Attempt;
+                _failed = e.Status == "failed";
+                _completed = e.IsTerminal && !_failed;
+                StateHasChanged();
+            }), token);
+
+            switch (outcome)
+            {
+                case WatchOutcome.Finished:
+                    _live = LiveState.Idle;
+                    await InvokeAsync(() => OnFinished.InvokeAsync());
+                    break;
+                case WatchOutcome.SessionExpired:
+                    await InvokeAsync(() => OnSessionExpired.InvokeAsync());
+                    break;
+                default:
+                    _live = LiveState.Lost;
+                    await InvokeAsync(StateHasChanged);
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The component was disposed or the run changed; nothing left to report.
+        }
+    }
+
+    private Task RefreshAsync() => OnRefresh.InvokeAsync();
+
+    private void StopWatching()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+        _watching = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        var watching = _watching;
+        StopWatching();
+        if (watching is not null)
+        {
+            try
+            {
+                await watching;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected: the stream was closed on dispose.
+            }
+        }
+    }
+}

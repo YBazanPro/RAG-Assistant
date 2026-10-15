@@ -1,0 +1,75 @@
+<FluentDataGrid @key="Sort" TGridItem="DocumentSummary" Items="@Result.Items.AsQueryable()" ItemKey="@(d => d.Id)"
+                OnSortChanged="OnGridSortAsync" ShowHover="true" MultiLine="true" aria-label="@($"Documents, {Result.TotalCount} results")"
+                GridTemplateColumns="2fr 1fr 0.6fr 1fr 1.4fr 1fr 1.2fr 0.7fr">
+    <TemplateColumn ColumnId="title" Title="Title" Sortable="true" SortBy="KeepOrder" IsDefaultSortColumn="@IsSorted("title")"
+                    InitialSortDirection="@InitialDirection("title")">
+        <FluentLink Href="@($"documents/{context.Id}")" title="@context.Title">@context.Title</FluentLink>
+    </TemplateColumn>
+    <TemplateColumn Title="Status">
+        <DocumentStatusBadge Status="@context.Status" />
+    </TemplateColumn>
+    <TemplateColumn Title="Language">@context.Language</TemplateColumn>
+    <TemplateColumn Title="Owner"><span title="@context.OwnerName">@context.OwnerName</span></TemplateColumn>
+    <TemplateColumn Title="Tags">
+        @foreach (var tag in context.Tags)
+        {
+            <FluentBadge Appearance="BadgeAppearance.Outline" Class="tag-chip" title="@tag">@tag</FluentBadge>
+        }
+    </TemplateColumn>
+    <TemplateColumn ColumnId="effectiveDate" Title="Effective" Sortable="true" SortBy="KeepOrder" IsDefaultSortColumn="@IsSorted("effectiveDate")"
+                    InitialSortDirection="@InitialDirection("effectiveDate")">
+        @(context.EffectiveDate is { } date ? Formatting.Date(date) : "—")
+    </TemplateColumn>
+    <TemplateColumn ColumnId="updated" Title="Updated" Sortable="true" SortBy="KeepOrder" IsDefaultSortColumn="@IsSorted("updated")"
+                    InitialSortDirection="@InitialDirection("updated")">
+        <time datetime="@context.LastActivityAt.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(context.LastActivityAt)">@Formatting.Local(context.LastActivityAt)</time>
+    </TemplateColumn>
+    <TemplateColumn Title="Passages" Align="DataGridCellAlignment.End">@(context.PassageCount?.ToString() ?? "—")</TemplateColumn>
+</FluentDataGrid>
+
+<FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />
+
+@code {
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 25 };
+
+    // The API already returned the page in the requested order; sorting by a constant keeps the grid from re-ordering it.
+    private static readonly GridSort<DocumentSummary> KeepOrder = GridSort<DocumentSummary>.ByAscending(_ => 0);
+
+    [Parameter, EditorRequired] public PagedResult<DocumentSummary> Result { get; set; } = new([], 1, 25, 0);
+
+    [Parameter, EditorRequired] public string Sort { get; set; } = DocumentQuery.DefaultSort;
+
+    [Parameter] public EventCallback<string> OnSort { get; set; }
+
+    [Parameter] public EventCallback<int> OnPage { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _pagination.ItemsPerPage = Math.Max(1, Result.PageSize);
+        await _pagination.SetTotalItemCountAsync(Result.TotalCount);
+        if (_pagination.CurrentPageIndex != Result.Page - 1)
+        {
+            await _pagination.SetCurrentPageIndexAsync(Result.Page - 1);
+        }
+    }
+
+    private bool IsSorted(string column) => Sort == column || Sort == "-" + column;
+
+    private DataGridSortDirection InitialDirection(string column) =>
+        Sort == "-" + column ? DataGridSortDirection.Descending : DataGridSortDirection.Ascending;
+
+    private Task OnGridSortAsync(DataGridSortEventArgs<DocumentSummary> args)
+    {
+        if (args.SortColumns.Count == 0)
+        {
+            return OnSort.InvokeAsync(DocumentQuery.DefaultSort);
+        }
+
+        var primary = args.SortColumns[0];
+        var id = primary.Column.ColumnId ?? "updated";
+        return OnSort.InvokeAsync(primary.Ascending ? id : "-" + id);
+    }
+
+    private Task OnPageIndexChangedAsync(int index) =>
+        index == Result.Page - 1 ? Task.CompletedTask : OnPage.InvokeAsync(index + 1);
+}

@@ -1,7 +1,236 @@
 @page "/documents"
 @attribute [Authorize(Policy = PolicyNames.KnowledgeSeeker)]
+@implements IDisposable
+@inject IDocumentsApi Api
+@inject NavigationManager Navigation
+@inject IAuthorizationService Authorization
+@inject AuthenticationStateProvider AuthenticationState
+@inject TimeProvider Clock
 
 <PageTitle>Documents · RagAssistant</PageTitle>
 
-<PageHeader Title="Documents" />
-<EmptyState Title="No documents yet" Description="Imported documents and their passages will be listed here." />
+<PageHeader Title="Documents">
+    <Actions>
+        @if (_canImport)
+        {
+            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="@(() => _importOpen = true)">Import</FluentButton>
+        }
+    </Actions>
+</PageHeader>
+
+@* Prerendering stops here: the data is fetched once, after the first interactive render. *@
+@if (_state == LoadState.Loading)
+{
+    <LoadingState Label="Loading documents" />
+}
+else if (_state == LoadState.SessionExpired)
+{
+    <SignInRequired />
+}
+else if (_state == LoadState.Failed)
+{
+    <ErrorState Title="Documents could not be loaded" Message="@_errorMessage" Retry="ReloadAsync" />
+}
+else
+{
+    <DocumentFilterBar Query="_query" Facets="_facets" OnChange="OnFilterChangedAsync" />
+
+    @if (_result is { TotalCount: 0 } && !_query.HasFilters)
+    {
+        <EmptyState Title="No documents yet"
+                    Description="@(_canImport ? "Import a Markdown or text file to start the corpus." : "Documents imported by content owners will be listed here.")">
+            <Action>
+                @if (_canImport)
+                {
+                    <FluentButton Appearance="ButtonAppearance.Primary" OnClick="@(() => _importOpen = true)">Import a document</FluentButton>
+                }
+            </Action>
+        </EmptyState>
+    }
+    else if (_result is { TotalCount: 0 })
+    {
+        <EmptyState Title="No document matches" Description="Try other filters or clear them.">
+            <Action>
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="ClearFiltersAsync">Clear filters</FluentButton>
+            </Action>
+        </EmptyState>
+    }
+    else if (_result is not null)
+    {
+        <DocumentTable Result="_result" Sort="@_query.Sort" OnSort="OnSortAsync" OnPage="OnPageAsync" />
+    }
+}
+
+@if (_canImport)
+{
+    <DocumentUpload Open="_importOpen" OnClose="CloseImport" OnImported="OnImportedAsync" />
+}
+
+@code {
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+
+    private enum LoadState { Loading, Loaded, Failed, SessionExpired }
+
+    private LoadState _state = LoadState.Loading;
+    private DocumentQuery _query = new();
+    private string? _loadedKey;
+    private PagedResult<DocumentSummary>? _result;
+    private Facets? _facets;
+    private string _errorMessage = "";
+    private bool _canImport;
+    private bool _importOpen;
+    private bool _started;
+    private ITimer? _timer;
+    private CancellationTokenSource _lifetime = new();
+
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+
+    [SupplyParameterFromQuery(Name = "status")] public string? Status { get; set; }
+
+    [SupplyParameterFromQuery(Name = "language")] public string? Language { get; set; }
+
+    [SupplyParameterFromQuery(Name = "owner")] public string? Owner { get; set; }
+
+    [SupplyParameterFromQuery(Name = "tags")] public string[]? Tags { get; set; }
+
+    [SupplyParameterFromQuery(Name = "effectiveFrom")] public string? EffectiveFrom { get; set; }
+
+    [SupplyParameterFromQuery(Name = "effectiveTo")] public string? EffectiveTo { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sort")] public string? Sort { get; set; }
+
+    [SupplyParameterFromQuery(Name = "page")] public string? PageNumber { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _query = DocumentQuery.FromRaw(Q, Status, Language, Owner, Tags, EffectiveFrom, EffectiveTo, Sort, PageNumber);
+        if (_started && _query.ToQueryString() != _loadedKey)
+        {
+            await LoadListAsync(showLoading: false);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _started = true;
+        var user = (await AuthenticationState.GetAuthenticationStateAsync()).User;
+        _canImport = (await Authorization.AuthorizeAsync(user, PolicyNames.ContentOwner)).Succeeded;
+
+        var facets = await Api.GetFacetsAsync(_lifetime.Token);
+        _facets = facets.IsSuccess ? facets.Value : null;
+        await LoadListAsync(showLoading: true);
+        StateHasChanged();
+    }
+
+    private async Task ReloadAsync() => await LoadListAsync(showLoading: true);
+
+    private async Task LoadListAsync(bool showLoading)
+    {
+        StopPolling();
+        if (showLoading)
+        {
+            _state = LoadState.Loading;
+        }
+
+        var key = _query.ToQueryString();
+        var result = await Api.ListAsync(_query, _lifetime.Token);
+        if (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        if (!result.IsSuccess)
+        {
+            _state = result.Error!.IsUnauthenticated ? LoadState.SessionExpired : LoadState.Failed;
+            _errorMessage = result.Error.Status == 0 || result.Error.Status >= 500
+                ? "The server could not be reached. Try again in a moment."
+                : result.Error.Message;
+            return;
+        }
+
+        var page = result.Value;
+        if (page.Items.Count == 0 && page.TotalCount > 0 && _query.Page > 1)
+        {
+            // The corpus shrank under the user: go to the last page that exists.
+            var last = Math.Max(1, (int)Math.Ceiling(page.TotalCount / (double)page.PageSize));
+            NavigateTo(_query with { Page = last }, replace: true);
+            return;
+        }
+
+        _result = page;
+        _state = LoadState.Loaded;
+        if (page.Items.Any(d => d.Status is "queued" or "processing"))
+        {
+            _timer = Clock.CreateTimer(_ => _ = InvokeAsync(PollAsync), null, PollInterval, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        if (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        await LoadListAsync(showLoading: false);
+        StateHasChanged();
+    }
+
+    private void StopPolling()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    private void NavigateTo(DocumentQuery query, bool replace)
+    {
+        var qs = query.ToQueryString();
+        Navigation.NavigateTo(qs.Length == 0 ? "documents" : $"documents?{qs}", new NavigationOptions { ReplaceHistoryEntry = replace });
+    }
+
+    private Task OnFilterChangedAsync(FilterChange change)
+    {
+        NavigateTo(change.Query, change.Replace);
+        return Task.CompletedTask;
+    }
+
+    private Task OnSortAsync(string sort)
+    {
+        NavigateTo((_query with { Sort = sort }).WithFirstPage(), replace: false);
+        return Task.CompletedTask;
+    }
+
+    private Task OnPageAsync(int page)
+    {
+        NavigateTo(_query with { Page = page }, replace: false);
+        return Task.CompletedTask;
+    }
+
+    private Task ClearFiltersAsync()
+    {
+        NavigateTo(new DocumentQuery { Sort = _query.Sort }, replace: false);
+        return Task.CompletedTask;
+    }
+
+    private void CloseImport() => _importOpen = false;
+
+    private Task OnImportedAsync(ImportAccepted accepted)
+    {
+        _importOpen = false;
+        Navigation.NavigateTo($"documents/{accepted.DocumentId}");
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _lifetime.Cancel();
+        StopPolling();
+        _lifetime.Dispose();
+    }
+}

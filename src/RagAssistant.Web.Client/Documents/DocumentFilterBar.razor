@@ -1,0 +1,145 @@
+@implements IDisposable
+@inject TimeProvider Clock
+
+<FluentStack Class="filter-bar" Wrap="true" VerticalAlignment="VerticalAlignment.Bottom" HorizontalGap="12" VerticalGap="12"
+             role="search" aria-label="Filter documents">
+    <FluentTextInput Id="doc-search" Label="Search titles" Value="@_search" ValueChanged="OnSearchChangedAsync"
+                     Immediate="true" ImmediateDelay="0" MaxLength="@DocumentQuery.MaxSearchLength" />
+
+    <FluentSelect Id="doc-status" Label="Status" TOption="FilterChoice" TValue="string" Items="StatusChoices"
+                  OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
+                  Value="@(Query.Status ?? "")" ValueChanged="@(v => ChangeAsync(Query with { Status = Blank(v) }))" />
+
+    <FluentSelect Id="doc-language" Label="Language" TOption="FilterChoice" TValue="string" Items="LanguageChoices"
+                  OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
+                  Value="@(Query.Language ?? "")" ValueChanged="@(v => ChangeAsync(Query with { Language = Blank(v) }))" />
+
+    <FluentSelect Id="doc-owner" Label="Owner" TOption="FilterChoice" TValue="string" Items="OwnerChoices"
+                  OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
+                  Value="@(Query.Owner ?? "")" ValueChanged="@(v => ChangeAsync(Query with { Owner = Blank(v) }))" />
+
+    <FluentSelect Id="doc-tags" Label="Tags (all of)" TOption="FilterChoice" TValue="string" Multiple="true" Items="TagChoices"
+                  OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
+                  SelectedItems="@SelectedTags" SelectedItemsChanged="OnTagsChangedAsync" />
+
+    <FluentDatePicker TValue="DateTime?" Id="doc-from" Label="Effective from" Value="@ToDate(Query.EffectiveFrom)"
+                      ValueChanged="@(d => ChangeAsync(Query with { EffectiveFrom = ToText(d) }))" />
+
+    <FluentDatePicker TValue="DateTime?" Id="doc-to" Label="Effective to" Value="@ToDate(Query.EffectiveTo)"
+                      ValueChanged="@(d => ChangeAsync(Query with { EffectiveTo = ToText(d) }))" />
+
+    @if (Query.HasFilters)
+    {
+        <FluentButton Appearance="ButtonAppearance.Outline" OnClick="ClearAsync">Clear filters</FluentButton>
+    }
+</FluentStack>
+
+@code {
+    private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(300);
+
+    private static readonly FilterChoice[] StatusChoices =
+    [
+        new("", "All except archived"),
+        new("active", "Active"),
+        new("queued", "Queued"),
+        new("processing", "Processing"),
+        new("failed", "Failed"),
+        new("archived", "Archived"),
+    ];
+
+    private string? _search;
+    private CancellationTokenSource? _debounce;
+
+    [Parameter, EditorRequired] public DocumentQuery Query { get; set; } = new();
+
+    [Parameter] public Facets? Facets { get; set; }
+
+    [Parameter] public EventCallback<FilterChange> OnChange { get; set; }
+
+    private IEnumerable<FilterChoice> LanguageChoices => [new("", "All languages"), .. Options(Facets?.Languages, Query.Language)];
+
+    private IEnumerable<FilterChoice> OwnerChoices => [new("", "All owners"), .. Options(Facets?.Owners, Query.Owner)];
+
+    private IEnumerable<FilterChoice> TagChoices
+    {
+        get
+        {
+            var values = (Facets?.Tags ?? []).Select(f => f.Value).ToList();
+            values.AddRange(Query.Tags.Where(t => !values.Contains(t)));
+            return values.Select(v => new FilterChoice(v, v));
+        }
+    }
+
+    private IEnumerable<FilterChoice> SelectedTags => Query.Tags.Select(t => new FilterChoice(t, t));
+
+    protected override void OnParametersSet()
+    {
+        if (_debounce is null)
+        {
+            _search = Query.Q;
+        }
+    }
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static IEnumerable<FilterChoice> Options(FacetValue[]? facet, string? selected)
+    {
+        var values = (facet ?? []).Select(f => f.Value).ToList();
+        if (selected is not null && !values.Contains(selected))
+        {
+            values.Add(selected);
+        }
+
+        return values.Select(v => new FilterChoice(v, v));
+    }
+
+    private static DateTime? ToDate(string? text) =>
+        DateOnly.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)
+            ? date.ToDateTime(TimeOnly.MinValue)
+            : null;
+
+    private static string? ToText(DateTime? date) =>
+        date?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    private Task ChangeAsync(DocumentQuery next) => OnChange.InvokeAsync(new FilterChange(next.WithFirstPage(), Replace: false));
+
+    private Task ClearAsync()
+    {
+        _debounce?.Cancel();
+        _debounce = null;
+        return ChangeAsync(new DocumentQuery { Sort = Query.Sort });
+    }
+
+    private Task OnTagsChangedAsync(IEnumerable<FilterChoice>? selected) =>
+        ChangeAsync(Query with { Tags = [.. (selected ?? []).Select(c => c.Value)] });
+
+    // Debounced, and replacing the history entry so typing does not fill the back button.
+    private async Task OnSearchChangedAsync(string? text)
+    {
+        _search = text;
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(SearchDebounce, Clock, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_debounce, cts))
+        {
+            _debounce = null;
+            var q = string.IsNullOrWhiteSpace(_search) ? null : _search.Trim();
+            await OnChange.InvokeAsync(new FilterChange((Query with { Q = q }).WithFirstPage(), Replace: true));
+        }
+    }
+
+    public void Dispose()
+    {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+    }
+
+}

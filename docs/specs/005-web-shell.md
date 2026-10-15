@@ -65,7 +65,7 @@ Layout, pages and shared components live in `Web.Client` so they run identically
 | Documents | `/documents` | `knowledge-seeker` and above | `KnowledgeSeeker` |
 | Admin | `/admin` | `maintainer` | `Maintainer` |
 
-Every test user holds `knowledge-seeker` through the composite roles, so seeker, owner and maintainer see Home, Chat, Documents; only the maintainer also sees Admin. A signed-in user with no known role sees Home only. The `/documents/{documentId}` detail route arrives with Phase 1.
+Every test user holds `knowledge-seeker` through the composite roles, so seeker, owner and maintainer see Home, Chat, Documents; only the maintainer also sees Admin. A signed-in user with no known role sees Home only. The `/documents/{documentId}` detail route exists since [spec 008](008-browse-corpus-and-documents-ui.md).
 
 **Theme.** Three modes: System (default, follows `prefers-color-scheme`), Light, Dark. The choice is persisted in the browser. Colors come from Fluent design tokens; the visual direction of `product.md` applies (sober, high-contrast light theme, a carefully designed dark theme, one primary and one accent color).
 
@@ -206,7 +206,7 @@ The fallback policy requires an authenticated user on every Web endpoint; `/bff/
 | Where the `roles` claim comes from (ID token vs access token) | The plan picks one; the realm file is edited if needed | — |
 | Role badge in the header, `CorpusSelector`, `Toast`, `Tag`, `/knowledge` | Not built | The first slice that needs each one |
 | Browser end-to-end tests with real Keycloak | Manual check (AC-20) | The shell regresses in ways the integration tests miss |
-| `fluentui-blazor-conventions` project skill | Created after merge, outside this spec | After this step ships |
+| `fluentui-blazor-conventions` project skill | Created with spec 008 (`.claude/skills/fluentui-blazor-conventions`) | Done |
 
 ## Open Questions
 

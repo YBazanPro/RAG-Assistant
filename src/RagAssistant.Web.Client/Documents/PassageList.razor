@@ -1,0 +1,127 @@
+@implements IDisposable
+@inject IDocumentsApi Api
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Class="passage-list">
+    <FluentSelect Id="passage-version" Label="Version" TOption="VersionItem" TValue="string" Items="Versions"
+                  OptionValue="@(v => v.Number.ToString())" OptionText="@(v => $"Version {v.Number}{(v.IsActive ? " (active)" : "")} · {v.Status}")"
+                  Value="@VersionNumber.ToString()" ValueChanged="OnVersionChangedAsync" />
+
+    @if (_notice is not null)
+    {
+        <FluentMessageBar Intent="MessageBarIntent.Info" AllowDismiss="false">@_notice</FluentMessageBar>
+    }
+
+    @if (_loading)
+    {
+        <LoadingState Label="Loading passages" />
+    }
+    else if (_error is not null)
+    {
+        <ErrorState Title="Passages could not be loaded" Message="@_error" Retry="LoadAsync" />
+    }
+    else if (_page is { Items.Count: 0 })
+    {
+        <EmptyState Title="No passages" Description="Ingestion has not finished or failed." />
+    }
+    else if (_page is not null)
+    {
+        @foreach (var passage in _page.Items)
+        {
+            <PassageCard @key="passage.Id" Passage="passage" Selected="@(passage.Id == _selected)" />
+        }
+
+        <FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />
+    }
+</FluentStack>
+
+@code {
+    private readonly CancellationTokenSource _lifetime = new();
+
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 50 };
+    private PassagePage? _page;
+    private bool _loading = true;
+    private string? _error;
+    private string? _notice;
+    private Guid? _selected;
+    private (Guid DocumentId, int Version, Guid? Focus, int Reload)? _loadedFor;
+
+    [Parameter, EditorRequired] public Guid DocumentId { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<VersionItem> Versions { get; set; } = [];
+
+    [Parameter, EditorRequired] public int VersionNumber { get; set; }
+
+    /// <summary>The passage to open on (deep link); loaded through the API's <c>focus</c> parameter.</summary>
+    [Parameter] public Guid? Focus { get; set; }
+
+    /// <summary>Changes when the document was reloaded (for example ingestion finished) so the page is fetched again.</summary>
+    [Parameter] public int ReloadToken { get; set; }
+
+    [Parameter] public EventCallback<int> OnVersionChanged { get; set; }
+
+    [Parameter] public EventCallback OnSessionExpired { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = (DocumentId, VersionNumber, Focus, ReloadToken);
+        if (_loadedFor == key)
+        {
+            return;
+        }
+
+        _loadedFor = key;
+        await LoadAsync(page: 1, Focus);
+    }
+
+    private Task LoadAsync() => LoadAsync(_page?.Page ?? 1, null);
+
+    private Task OnPageIndexChangedAsync(int index) =>
+        _page is null || index == _page.Page - 1 ? Task.CompletedTask : LoadAsync(index + 1, null);
+
+    private async Task LoadAsync(int page, Guid? focus)
+    {
+        _loading = true;
+        _error = null;
+        _notice = null;
+        var result = await Api.GetPassagesAsync(DocumentId, VersionNumber, page, focus, _lifetime.Token);
+
+        if (!result.IsSuccess && focus is not null && result.Error is { Code: "documents.passage_not_found" })
+        {
+            _notice = "That passage is not in this version.";
+            focus = null;
+            result = await Api.GetPassagesAsync(DocumentId, VersionNumber, 1, null, _lifetime.Token);
+        }
+
+        if (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _loading = false;
+        if (result.IsSuccess)
+        {
+            _page = result.Value;
+            _selected = focus;
+            _pagination.ItemsPerPage = Math.Max(1, _page.PageSize);
+            await _pagination.SetTotalItemCountAsync(_page.TotalCount);
+            await _pagination.SetCurrentPageIndexAsync(_page.Page - 1);
+        }
+        else if (result.Error!.IsUnauthenticated)
+        {
+            await OnSessionExpired.InvokeAsync();
+        }
+        else
+        {
+            _error = result.Error.Message;
+        }
+    }
+
+    private Task OnVersionChangedAsync(string? value) =>
+        int.TryParse(value, out var number) && number != VersionNumber ? OnVersionChanged.InvokeAsync(number) : Task.CompletedTask;
+
+    public void Dispose()
+    {
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}

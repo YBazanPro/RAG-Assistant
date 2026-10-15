@@ -32,7 +32,7 @@ This step builds that backbone once, small, and proves it with a test-only sampl
 - Authentication and authorization (step 0.5). The sample group is anonymous.
 - API versioning (Asp.Versioning), CORS (the BFF is same-origin), rate limiting, response compression, idempotency keys. Revisit each only when a concrete need appears.
 - Request-logging middleware, log enrichers, any logging library beyond built-in `ILogger` + the existing OpenTelemetry export.
-- Pagination conventions (decided in the first slice that lists data, Phase 1).
+- Pagination conventions (decided in the first slice that lists data: [spec 008](008-browse-corpus-and-documents-ui.md)).
 - Any module, DbContext or real endpoint.
 - A `Shared.Tests` unit-test project.
 - Pipeline behaviors other than validation (no request logging, no exception-to-Result conversion).
@@ -147,7 +147,7 @@ None in this step. All endpoints, including the test-only group, are anonymous. 
 | Decision | Chosen fallback | Revisit trigger |
 |---|---|---|
 | ~~Does per-module Mediator work?~~ **Resolved 2026-10-13:** yes, with the rule that modules inject their concrete generated `Mediator`, not `IMediator`/`ISender`. A single Host-level Mediator was rejected (sees all modules, needs public handlers). | n/a | n/a |
-| Pagination convention | Defined by the first listing slice (Phase 1.5) | Step 1.5 spec |
+| Pagination convention | Decided in [spec 008](008-browse-corpus-and-documents-ui.md): offset paging, `page`/`pageSize`, `Page<T>` envelope in `RagAssistant.Shared/Common` | Done |
 | Error `Code` uniqueness / catalog | No enforcement; codes are `<area>.<reason>` by convention | A duplicate code causes confusion |
 | Auth challenge/forbidden ProblemDetails bodies | Added in [spec 004](004-identity.md) (`auth.unauthenticated`, `auth.forbidden`) | Done |
 
