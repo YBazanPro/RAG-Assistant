@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -17,7 +18,14 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
     private readonly System.Collections.Concurrent.ConcurrentQueue<string> _paths = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _authorizations = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, TaskCompletionSource> _ingestionReleases = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, TaskCompletionSource> _firstUploadBytes = new();
     private TaskCompletionSource _streamCancelled = NewSignal();
+
+    /// <summary>The bytes of the file served for version 1 of any document (range requests work on it).</summary>
+    public static readonly byte[] SampleFile = Enumerable.Range(0, 4096).Select(i => (byte)(i % 251)).ToArray();
+
+    /// <summary>Completes when the stub has read the first bytes of an upload that carried this <c>X-Test-Id</c>.</summary>
+    public Task FirstUploadBytes(string testId) => _firstUploadBytes.GetOrAdd(testId, _ => NewSignal()).Task;
 
     public string Url { get; private set; } = "";
 
@@ -38,6 +46,8 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
+        // The real API accepts uploads up to 100 MiB; the BFF's limits are what the upload tests exercise.
+        builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = null);
         builder.Logging.ClearProviders();
         var app = builder.Build();
 
@@ -74,7 +84,11 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
         app.MapPost("/api/documents/{id:guid}/archive", () => Results.Json(new { status = "archived" }));
         app.MapPost("/api/documents/{id:guid}/restore", () => Results.Json(new { status = "active" }));
         app.MapPost("/api/documents/{id:guid}/reprocess", () => Results.Accepted());
-        app.MapPost("/api/documents/{id:guid}/versions", () => Results.Accepted());
+        // Uploads are read as a stream and answered with the length and SHA-256 seen, so a test can prove the body arrived intact.
+        app.MapPost("/api/documents", (HttpRequest request) => ReadUploadAsync(request));
+        app.MapPost("/api/documents/{id:guid}/versions", (Guid id, HttpRequest request) => ReadUploadAsync(request));
+        // Version 1 is a plain file with range support; version 2 streams a first chunk and then waits for the test.
+        app.MapGet("/api/documents/{id:guid}/versions/{number:int}/file", FileAsync);
         app.MapGet("/api/problem", () => Results.Problem(statusCode: 404, title: "Not found", extensions: new Dictionary<string, object?> { ["code"] = "stub.not_found" }));
         app.MapGet("/api/hang", async (CancellationToken ct) =>
         {
@@ -93,6 +107,53 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
         {
             await _app.DisposeAsync();
         }
+    }
+
+    private async Task<IResult> ReadUploadAsync(HttpRequest request)
+    {
+        var testId = request.Headers["X-Test-Id"].ToString();
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[64 * 1024];
+        long length = 0;
+        int read;
+        while ((read = await request.Body.ReadAsync(buffer, request.HttpContext.RequestAborted)) > 0)
+        {
+            if (length == 0 && testId.Length > 0)
+            {
+                _firstUploadBytes.GetOrAdd(testId, _ => NewSignal()).TrySetResult();
+            }
+
+            length += read;
+            hash.AppendData(buffer, 0, read);
+        }
+
+        return Results.Json(
+            new { length, sha256 = Convert.ToHexStringLower(hash.GetHashAndReset()), contentType = request.ContentType },
+            statusCode: StatusCodes.Status202Accepted);
+    }
+
+    private async Task<IResult> FileAsync(Guid id, int number, HttpContext context)
+    {
+        if (number == 1)
+        {
+            return Results.File(new MemoryStream(SampleFile), "application/pdf", enableRangeProcessing: true);
+        }
+
+        context.Response.ContentType = "application/pdf";
+        var release = _ingestionReleases.GetOrAdd(id, _ => NewSignal());
+        try
+        {
+            await context.Response.Body.WriteAsync(SampleFile.AsMemory(0, 1024), context.RequestAborted);
+            await context.Response.Body.FlushAsync(context.RequestAborted);
+            await release.Task.WaitAsync(context.RequestAborted);
+            await context.Response.Body.WriteAsync(SampleFile.AsMemory(1024), context.RequestAborted);
+        }
+        catch (OperationCanceledException)
+        {
+            // The client went away.
+        }
+
+        return Results.Empty;
     }
 
     private async Task StreamAsync(HttpContext context)
