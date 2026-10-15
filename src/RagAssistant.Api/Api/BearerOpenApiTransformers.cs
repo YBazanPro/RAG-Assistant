@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
-namespace RagAssistant.Host.Api;
+namespace RagAssistant.Api.Api;
 
 internal static class BearerOpenApiTransformers
 {

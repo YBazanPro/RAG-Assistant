@@ -3,7 +3,7 @@ using RagAssistant.Integration.Tests.Fixtures;
 
 namespace RagAssistant.Integration.Tests.Documents;
 
-// Spec 007: crash recovery, shutdown behavior and startup validation (AC-19, AC-28 and the "Host stops during a run" edge case).
+// Spec 007: crash recovery, shutdown behavior and startup validation (AC-19, AC-28 and the "API stops during a run" edge case).
 [ClassDataSource<PostgresFixture>(Shared = SharedType.PerTestSession)]
 [ParallelLimiter<IngestionParallelLimit>]
 public sealed class IngestionResilienceTests(PostgresFixture postgres)

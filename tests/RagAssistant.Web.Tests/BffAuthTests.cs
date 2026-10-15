@@ -123,13 +123,13 @@ public partial class BffAuthTests(WebAppFactory factory)
     public async Task Proxy_unreachable_upstream_returns_502_problem()
     {
         var closedPort = ClosedPort();
-        using var deadHost = factory.WithWebHostBuilder(builder =>
+        using var deadApi = factory.WithWebHostBuilder(builder =>
         {
-            builder.UseSetting("services:host:http:0", $"http://127.0.0.1:{closedPort}");
+            builder.UseSetting("services:api:http:0", $"http://127.0.0.1:{closedPort}");
             // Windows takes about 2 s to refuse a loopback connection; keep the timeout well above that.
             builder.UseSetting("Bff:ProxyActivityTimeout", "00:00:30");
         });
-        var client = deadHost.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        var client = deadApi.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
         (await client.GetAsync(new Uri("/test/sign-in?persona=KnowledgeSeeker&lifetime=3600", UriKind.Relative))).EnsureSuccessStatusCode();
 
         var response = await client.GetAsync(new Uri("/api/echo/x", UriKind.Relative));

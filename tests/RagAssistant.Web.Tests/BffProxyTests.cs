@@ -35,7 +35,7 @@ public class BffProxyTests(WebAppFactory factory)
         var problem = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         await Assert.That(problem.GetProperty("code").GetString()).IsEqualTo("auth.unauthenticated");
         await Assert.That(problem.TryGetProperty("traceId", out _)).IsTrue();
-        await Assert.That(factory.Host.Received("/api/echo/never-reached-anonymous")).IsFalse();
+        await Assert.That(factory.Api.Received("/api/echo/never-reached-anonymous")).IsFalse();
     }
 
     [Test]
@@ -69,7 +69,7 @@ public class BffProxyTests(WebAppFactory factory)
     [Test]
     public async Task Proxy_streams_events_without_buffering_and_cancels_upstream_on_disconnect()
     {
-        factory.Host.ResetStreamSignal();
+        factory.Api.ResetStreamSignal();
         var client = await factory.CreateSignedInAsync(Persona.KnowledgeSeeker);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 
@@ -83,8 +83,8 @@ public class BffProxyTests(WebAppFactory factory)
         await Assert.That(firstLine).IsEqualTo("data: 0");
 
         response.Dispose();
-        var completed = await Task.WhenAny(factory.Host.StreamCancelled, Task.Delay(TimeSpan.FromSeconds(5)));
-        await Assert.That(completed).IsEqualTo(factory.Host.StreamCancelled);
+        var completed = await Task.WhenAny(factory.Api.StreamCancelled, Task.Delay(TimeSpan.FromSeconds(5)));
+        await Assert.That(completed).IsEqualTo(factory.Api.StreamCancelled);
     }
 
     [Test]

@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\RagAssistant.Host\RagAssistant.Host.csproj" />
+    <ProjectReference Include="..\..\src\RagAssistant.Api\RagAssistant.Api.csproj" />
   </ItemGroup>
 
 </Project>

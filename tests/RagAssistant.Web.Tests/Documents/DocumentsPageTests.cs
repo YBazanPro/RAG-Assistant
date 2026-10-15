@@ -173,15 +173,22 @@ public class DocumentsPageTests
         var (ctx, _, clock) = NewContext();
         using var _c = ctx;
         var cut = Render(ctx);
-        cut.WaitForState(() => (cut.FindAll("#doc-search").Count) == 1, TimeSpan.FromSeconds(5));
+        cut.WaitForState(() => cut.FindComponents<Microsoft.FluentUI.AspNetCore.Components.FluentTextInput>().Count > 0, TimeSpan.FromSeconds(5));
         var nav = ctx.Services.GetRequiredService<NavigationManager>();
 
-        await cut.SetTextAsync("Search titles", "bud");
+        // The handler awaits the debounce delay, so the call completes only once the clock has moved: do not await it yet.
+        var typing = cut.SetTextAsync("Search titles", "bud");
+        for (var i = 0; i < 250 && clock.ActiveTimers == 0; i++)
+        {
+            await Task.Delay(20);
+        }
+
         clock.Advance(TimeSpan.FromMilliseconds(299));
         await Assert.That(nav.Uri).IsEqualTo("http://localhost/documents");
         clock.Advance(TimeSpan.FromMilliseconds(1));
+        await typing;
 
-        cut.WaitForState(() => (nav.Uri) == "http://localhost/documents?q=bud", TimeSpan.FromSeconds(5));
+        await Assert.That(nav.Uri).IsEqualTo("http://localhost/documents?q=bud");
     }
 
     [Test]

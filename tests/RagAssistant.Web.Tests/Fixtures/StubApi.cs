@@ -10,8 +10,8 @@ namespace RagAssistant.Web.Tests.Fixtures;
 
 public sealed record EchoedRequest(string Method, string Path, string? Authorization, string? Cookie, string? RequestedWith);
 
-/// <summary>A real Kestrel server standing in for the Host, so streaming, cancellation and outages behave as on the wire.</summary>
-public sealed class StubHost : IAsyncInitializer, IAsyncDisposable
+/// <summary>A real Kestrel server standing in for the API, so streaming, cancellation and outages behave as on the wire.</summary>
+public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
 {
     private WebApplication? _app;
     private readonly System.Collections.Concurrent.ConcurrentQueue<string> _paths = new();

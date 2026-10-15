@@ -1,5 +1,7 @@
 # Spec 006: Documents module — data model and import
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Approved (2026-10-14)
 **Date:** 2026-10-14
 **Roadmap:** steps 1.1 + 1.2 ([roadmap](../roadmap.md)) · **Decision records:** [ADR 0003](../adr/0003-model-provider.md), [ADR 0004](../adr/0004-document-versioning.md)

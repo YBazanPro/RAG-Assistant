@@ -2,7 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Modules/Documents/RagAssistant.Modules.Documents/RagAssistant.Modules.Documents.csproj" />
     <Project Path="src/RagAssistant.AppHost/RagAssistant.AppHost.csproj" />
-    <Project Path="src/RagAssistant.Host/RagAssistant.Host.csproj" />
+    <Project Path="src/RagAssistant.Api/RagAssistant.Api.csproj" />
     <Project Path="src/RagAssistant.MigrationService/RagAssistant.MigrationService.csproj" />
     <Project Path="src/RagAssistant.ServiceDefaults/RagAssistant.ServiceDefaults.csproj" />
     <Project Path="src/RagAssistant.Web.Client/RagAssistant.Web.Client.csproj" />

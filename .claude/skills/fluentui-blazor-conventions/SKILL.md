@@ -31,9 +31,9 @@ Spec 005 (shell) and spec 008 (Documents UI) are the references. Package: `Micro
 - State lives in the URL: `[SupplyParameterFromQuery(Name = "...")]` string properties, parsed by `DocumentQuery.FromRaw`, which drops invalid values. Filter, search and sort changes reset `page`; typing replaces the history entry (`NavigationOptions.ReplaceHistoryEntry`).
 - **Prerender-safe loading:** the server prerender renders only the shell (`PageHeader` + `LoadingState`) and calls no API. Fetch in `OnAfterRenderAsync(firstRender)`; react to later URL changes in `OnParametersSetAsync` once `_started` is true. Services a page injects must resolve on the server too: `IDocumentsApi` and `IIngestionEventSource` are registered in `AddUiServices` with a lazily resolved `HttpClient` (it only exists in the browser).
 - All calls go through `IDocumentsApi` (`ApiResult<T>`, never exceptions for HTTP failures; status 0 = network). 401 shows `SignInRequired`, 404 a not-found `ErrorState`, everything else an `ErrorState` with retry.
-- Role checks use `IAuthorizationService` with the policy names (composite roles included) and only hide controls; the Host decides.
+- Role checks use `IAuthorizationService` with the policy names (composite roles included) and only hide controls; the API decides.
 - Timers and delays go through the injected `TimeProvider` (`Clock.CreateTimer`, `Task.Delay(ts, Clock, ct)`); components cancel and dispose them in `Dispose`.
-- Text from the Host (titles, passage text) is always rendered encoded; never `MarkupString`. Passage text is shown in `<pre>`.
+- Text from the API (titles, passage text) is always rendered encoded; never `MarkupString`. Passage text is shown in `<pre>`.
 
 ## Tests (`tests/RagAssistant.Web.Tests`)
 
@@ -41,4 +41,4 @@ Spec 005 (shell) and spec 008 (Documents UI) are the references. Package: `Micro
 - bUnit under TUnit: `new BunitContext()`, `JSInterop.Mode = Loose`, `AddFluentUIComponents()`, `AddAuthorization().SetAuthorized(..).SetPolicies(..)`, then register fakes (`FakeDocumentsApi`, `FakeEventSource`, `ManualTimeProvider` in `Documents/TestDoubles.cs`). `[SupplyParameterFromQuery]` works after `NavigationManager.NavigateTo(url)` before rendering.
 - `WaitForState`/`WaitForAssertion` re-check only when the component renders. Timers, stream connections and clock-driven work do not render, so poll for those (`PollAsync`). TUnit assertions cannot be awaited inside `WaitFor*`: use plain boolean predicates there.
 - Use the fakes' gates (`ListGate`, `ImportGate`) to observe loading states; never block a dispatcher thread with `.Wait()`.
-- Prerender and BFF behaviour is tested with `WebAppFactory` against the stub Host (`DocumentsBffTests`); the WebAssembly runtime itself is not started in tests.
+- Prerender and BFF behaviour is tested with `WebAppFactory` against the stub API (`DocumentsBffTests`); the WebAssembly runtime itself is not started in tests.

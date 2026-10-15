@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Routing;
 using Scalar.AspNetCore;
 
-namespace RagAssistant.Host.Api;
+namespace RagAssistant.Api.Api;
 
 internal static class ApiConventionsExtensions
 {

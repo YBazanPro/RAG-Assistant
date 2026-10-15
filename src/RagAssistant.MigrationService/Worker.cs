@@ -14,7 +14,7 @@ internal sealed partial class Worker(
             await migrator.MigrateAsync(stoppingToken);
         }
         // Process boundary: any failure must surface as a non-zero exit code so the AppHost
-        // keeps the Host from starting (WaitForCompletion).
+        // keeps the API from starting (WaitForCompletion).
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogMigrationFailed(logger, ex);

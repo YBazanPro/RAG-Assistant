@@ -31,7 +31,7 @@ internal sealed partial class IngestionWorker(
         }
     }
 
-    // The Host starts after the MigrationService, but a database that is briefly unreachable must not take the whole host down.
+    // The API starts after the MigrationService, but a database that is briefly unreachable must not take the whole host down.
     private async Task RequeueWhenDatabaseIsReadyAsync(CancellationToken cancellationToken)
     {
         while (true)

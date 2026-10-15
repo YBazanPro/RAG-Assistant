@@ -119,7 +119,7 @@ public sealed class ManualTimeProvider : TimeProvider
     }
 }
 
-/// <summary>A scriptable Host for component tests; every call is recorded.</summary>
+/// <summary>A scriptable API for component tests; every call is recorded.</summary>
 public sealed class FakeDocumentsApi : IDocumentsApi
 {
     public Func<DocumentQuery, ApiResult<PagedResult<DocumentSummary>>> OnList { get; set; } =

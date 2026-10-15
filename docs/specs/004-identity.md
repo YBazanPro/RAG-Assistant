@@ -1,5 +1,7 @@
 # Spec 004: Identity (Keycloak, JWT bearer, policies)
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Approved (2026-10-13; amended 2026-10-13: anonymous callers get 401 on unmatched routes)
 **Date:** 2026-10-13
 **Roadmap:** step 0.5 ([roadmap](../roadmap.md)) · **Decision record:** [ADR 0002](../adr/0002-identity-and-authentication.md)

@@ -21,8 +21,8 @@ public class DocumentsBffTests(WebAppFactory factory)
             await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
         }
 
-        await Assert.That(factory.Host.AuthorizationFor($"/api/documents/{id}/versions")).IsEqualTo("Bearer access-token-KnowledgeSeeker");
-        await Assert.That(factory.Host.AuthorizationFor($"/api/documents/{id}/versions/2/passages")).IsEqualTo("Bearer access-token-KnowledgeSeeker");
+        await Assert.That(factory.Api.AuthorizationFor($"/api/documents/{id}/versions")).IsEqualTo("Bearer access-token-KnowledgeSeeker");
+        await Assert.That(factory.Api.AuthorizationFor($"/api/documents/{id}/versions/2/passages")).IsEqualTo("Bearer access-token-KnowledgeSeeker");
     }
 
     [Test]
@@ -45,7 +45,7 @@ public class DocumentsBffTests(WebAppFactory factory)
         using var data = JsonDocument.Parse(first[2]!["data: ".Length..]);
         await Assert.That(data.RootElement.GetProperty("stage").GetString()).IsEqualTo("extracting");
 
-        factory.Host.ReleaseIngestion(id);
+        factory.Api.ReleaseIngestion(id);
         await reader.ReadLineAsync(cts.Token);
         await Assert.That(await reader.ReadLineAsync(cts.Token)).IsEqualTo("id: 2");
     }
@@ -60,8 +60,8 @@ public class DocumentsBffTests(WebAppFactory factory)
 
         await Assert.That(html).Contains("Loading document");
         await Assert.That(html).Contains("<title>Document · RagAssistant</title>");
-        await Assert.That(factory.Host.Received($"/api/documents/{id}")).IsFalse();
-        await Assert.That(factory.Host.Received($"/api/documents/{id}/versions")).IsFalse();
+        await Assert.That(factory.Api.Received($"/api/documents/{id}")).IsFalse();
+        await Assert.That(factory.Api.Received($"/api/documents/{id}/versions")).IsFalse();
     }
 
     [Test]

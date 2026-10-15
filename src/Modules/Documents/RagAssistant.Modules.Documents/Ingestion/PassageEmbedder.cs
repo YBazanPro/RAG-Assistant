@@ -30,7 +30,7 @@ internal sealed partial class PassageEmbedder(
 
     /// <summary>
     /// The model that actually produces the vectors, as the provider reports it; the configured name is only the fallback.
-    /// Recorded on the version, so it cannot drift from what the Host is wired to.
+    /// Recorded on the version, so it cannot drift from what the API is wired to.
     /// </summary>
     public string ModelId => generator.GetService<EmbeddingGeneratorMetadata>()?.DefaultModelId ?? embeddings.Value.Model;
 

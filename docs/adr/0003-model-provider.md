@@ -1,5 +1,7 @@
 # ADR 0003: Model Provider
 
+> **Naming note (2026-10-15):** the backend project `RagAssistant.Host` has since been renamed `RagAssistant.Api` (Aspire resource `api`, configuration keys `services:api:*`, test stub `StubApi`). "The Host" in this document means that project.
+
 **Status:** Accepted
 **Date:** 2026-10-13
 **Relates to:** [ADR 0001](0001-ui-ai-streaming-stack.md) (AI layer), [roadmap](../roadmap.md) decision D1

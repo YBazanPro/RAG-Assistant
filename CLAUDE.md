@@ -4,7 +4,7 @@
 
 RagAssistant is a .NET 10 demo of a Retrieval-Augmented Generation (RAG) assistant: users ingest documents, the system chunks and embeds them into PostgreSQL + pgvector, and a chat endpoint answers questions grounded in the retrieved chunks.
 
-It is a **modular monolith**: one backend deployable (the Host) composed of independent modules with strict boundaries. Each module owns its features, data (own DbContext + schema), and logic. Modules use **Vertical Slice Architecture** internally (moderate domain complexity, solo developer — keep ceremony low). The UI is a separate Blazor project (`RagAssistant.Web`) acting as a backend for frontend (BFF): it holds the session cookie and forwards `/api/**` (REST + SSE) to the Host through YARP with the user's access token.
+It is a **modular monolith**: one backend deployable (the API) composed of independent modules with strict boundaries. Each module owns its features, data (own DbContext + schema), and logic. Modules use **Vertical Slice Architecture** internally (moderate domain complexity, solo developer — keep ceremony low). The UI is a separate Blazor project (`RagAssistant.Web`) acting as a backend for frontend (BFF): it holds the session cookie and forwards `/api/**` (REST + SSE) to the API through YARP with the user's access token.
 
 Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.md) (framework, UI suite, AI layer, streaming, testing) [ADR 0002](docs/adr/0002-identity-and-authentication.md) (identity and authentication), [ADR 0003](docs/adr/0003-model-provider.md) (model provider) and [ADR 0004](docs/adr/0004-document-versioning.md) (document versioning, citation snapshots, targets, retention) and [ADR 0005](docs/adr/0005-api-kernel-libraries.md) (API kernel libraries, Mediator topology, no Serilog).
 
@@ -15,7 +15,7 @@ Stack decisions are recorded in [ADR 0001](docs/adr/0001-ui-ai-streaming-stack.m
 | `Documents` | Upload/ingest documents, text extraction, chunking, embedding generation, vector storage, similarity search. Exists: data model, `POST /api/documents`, `GET /api/documents/{id}` ([spec 006](docs/specs/006-documents-data-model-and-import.md)); background ingestion (`IngestionWorker`, chunker, batched embedding), `POST /api/documents/{id}/ingestion/retry` and the `GET …/ingestion/events` SSE stream ([spec 007](docs/specs/007-background-ingestion-and-progress.md)); listing with filters and paging, facets, versions and passages of a version (`GET /api/documents`, `/facets`, `/{id}/versions`, `/{id}/versions/{n}/passages`) and the Documents UI ([spec 008](docs/specs/008-browse-corpus-and-documents-ui.md)); search is still to come | `documents` |
 | `Chat` | Conversations and messages, prompt building, retrieval orchestration, LLM answer generation with citations. Not started | `chat` |
 
-Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `GenerateTypesAsInternal = true` and `Assemblies = [typeof(<Module>Module)]`: the default scans every referenced assembly and generates public helper types, which collide with other modules and with the test projects' own Mediator (ADR 0005). A module reads its connection string itself (`UseNpgsql(connectionString, o => o.UseVector())`) and ships an `IDesignTimeDbContextFactory` so `dotnet ef` does not need to start the Host.
+Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `GenerateTypesAsInternal = true` and `Assemblies = [typeof(<Module>Module)]`: the default scans every referenced assembly and generates public helper types, which collide with other modules and with the test projects' own Mediator (ADR 0005). A module reads its connection string itself (`UseNpgsql(connectionString, o => o.UseVector())`) and ships an `IDesignTimeDbContextFactory` so `dotnet ef` does not need to start the API.
 
 ## Tech Stack
 
@@ -24,9 +24,9 @@ Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `Gen
 - **ASP.NET Core Minimal APIs** — `IEndpointGroup` per feature with `app.MapEndpoints()` auto-discovery
 - **Entity Framework Core** + **Npgsql** — one DbContext per module, PostgreSQL
 - **pgvector** (`Pgvector.EntityFrameworkCore`) — embedding storage and similarity search (`vector` columns, HNSW index, cosine distance)
-- **Microsoft.Extensions.AI** — `IChatClient` and `IEmbeddingGenerator<string, Embedding<float>>` abstractions; the concrete provider is wired only in the Host: local Ollama in the AppHost by default (multilingual embeddings, `bge-m3` / 1024 dims initially) plus a deterministic fake-chat demo mode (ADR 0003). The answer flow is a fixed pipeline in handler code — **Microsoft Agent Framework and AG-UI are deferred** (ADR 0001)
+- **Microsoft.Extensions.AI** — `IChatClient` and `IEmbeddingGenerator<string, Embedding<float>>` abstractions; the concrete provider is wired only in the API: local Ollama in the AppHost by default (multilingual embeddings, `bge-m3` / 1024 dims initially) plus a deterministic fake-chat demo mode (ADR 0003). The answer flow is a fixed pipeline in handler code — **Microsoft Agent Framework and AG-UI are deferred** (ADR 0001)
 - **Server-Sent Events** — native .NET 10 `TypedResults.ServerSentEvents` with typed event DTOs for answer streaming and ingestion progress; clients parse with `SseParser`
-- **Blazor Web App** (`RagAssistant.Web` server/BFF + `RagAssistant.Web.Client` WebAssembly; layout, pages and shared components live in the client) — `InteractiveWebAssembly`, prerendering on. English only: plain English text, no localization ([spec 005](docs/specs/005-web-shell.md)). The BFF forwards `/api/**` to the Host through YARP as a pass-through (no path rewriting), attaches the session's access token, requires `X-Requested-With: ragassistant` on POST/PUT/PATCH/DELETE (CSRF), and returns ProblemDetails for 401/403/502/504. No token refresh: an expired session re-challenges and the Keycloak SSO session signs the user back in
+- **Blazor Web App** (`RagAssistant.Web` server/BFF + `RagAssistant.Web.Client` WebAssembly; layout, pages and shared components live in the client) — `InteractiveWebAssembly`, prerendering on. English only: plain English text, no localization ([spec 005](docs/specs/005-web-shell.md)). The BFF forwards `/api/**` to the API through YARP as a pass-through (no path rewriting), attaches the session's access token, requires `X-Requested-With: ragassistant` on POST/PUT/PATCH/DELETE (CSRF), and returns ProblemDetails for 401/403/502/504. No token refresh: an expired session re-challenges and the Keycloak SSO session signs the user back in
 - **Fluent UI Blazor** (`Microsoft.FluentUI.AspNetCore.Components`) — the only component suite; RAG domain components are app-owned. No Syncfusion or second design system
 - **Background ingestion** — `BackgroundService` + `Channel<T>`, stage state persisted in the `documents` schema
 - **HybridCache** — caching (e.g. query embeddings, retrieval results); no L2 backend yet
@@ -35,7 +35,7 @@ Modules are added with `/scaffold`. In each module's `AddMediator(...)` set `Gen
 - **Logging** — built-in `ILogger` + OpenTelemetry (logs, traces, metrics) via ServiceDefaults; no Serilog (ADR 0005)
 - **TUnit** + **WebApplicationFactory** + **Testcontainers (PostgreSQL)** — testing, on Microsoft.Testing.Platform; **bUnit** for Blazor components
 - **Microsoft.Extensions.AI.Evaluation** — answer-quality evaluation in a separate harness, never in `dotnet test`
-- **Auth** — Keycloak (dev-only container, `Aspire.Hosting.Keycloak`, preview) configured entirely by the committed realm file `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` (no data volume — re-imported every run). Host: JWT bearer (`AddKeycloakJwtBearer`, audience `ragassistant-api`, `RoleClaimType = "roles"`). Web: OIDC code + PKCE, cookie session, tokens never sent to the browser. Roles `knowledge-seeker` ⊂ `content-owner` ⊂ `maintainer`; policies `KnowledgeSeeker`, `ContentOwner`, `Maintainer` (names in `RagAssistant.Shared/Common/Security`); a fallback policy requires an authenticated user on every endpoint, so opt out explicitly with `AllowAnonymous`. Realm clients: `ragassistant-web` (BFF), `ragassistant-api` (audience), `ragassistant-dev` (public, password grant, dev tokens and the smoke test). Claims are not remapped (`sub`, `roles` as issued)
+- **Auth** — Keycloak (dev-only container, `Aspire.Hosting.Keycloak`, preview) configured entirely by the committed realm file `src/RagAssistant.AppHost/Realms/ragassistant-realm.json` (no data volume — re-imported every run). API: JWT bearer (`AddKeycloakJwtBearer`, audience `ragassistant-api`, `RoleClaimType = "roles"`). Web: OIDC code + PKCE, cookie session, tokens never sent to the browser. Roles `knowledge-seeker` ⊂ `content-owner` ⊂ `maintainer`; policies `KnowledgeSeeker`, `ContentOwner`, `Maintainer` (names in `RagAssistant.Shared/Common/Security`); a fallback policy requires an authenticated user on every endpoint, so opt out explicitly with `AllowAnonymous`. Realm clients: `ragassistant-web` (BFF), `ragassistant-api` (audience), `ragassistant-dev` (public, password grant, dev tokens and the smoke test). Claims are not remapped (`sub`, `roles` as issued)
 - **Messaging** — none; no message bus or messaging library (see Module Communication)
 
 Package versions are managed centrally in `Directory.Packages.props` — never put a `Version` on a `PackageReference`.
@@ -55,10 +55,10 @@ src/
     Realms/ragassistant-realm.json       # Dev-only clients, roles, test users — the source of truth for identity
   RagAssistant.ServiceDefaults/          # AddServiceDefaults(): OpenTelemetry, health checks, resilience
   RagAssistant.MigrationService/         # Worker: applies all module migrations, then exits
-  RagAssistant.Host/                     # Startup host — wires modules, AI providers, middleware
+  RagAssistant.Api/                      # HTTP API — wires modules, AI providers, middleware
     Program.cs
     appsettings.json
-  RagAssistant.Web/                      # Blazor Web App server + BFF: OIDC sign-in, cookie session, YARP to the Host
+  RagAssistant.Web/                      # Blazor Web App server + BFF: OIDC sign-in, cookie session, YARP to the API
   RagAssistant.Web.Client/               # WebAssembly client: layout, pages, shared components (Fluent UI Blazor 5)
 
   RagAssistant.Shared/                   # Shared kernel (thin!)
@@ -83,7 +83,7 @@ src/
 
 tests/
   RagAssistant.Integration.Tests/        # Full-app tests (WebApplicationFactory + Testcontainers)
-  RagAssistant.Web.Tests/                # bUnit component tests + BFF tests against an in-process stub Host (no Docker)
+  RagAssistant.Web.Tests/                # bUnit component tests + BFF tests against an in-process stub API (no Docker)
   Modules/
     RagAssistant.Modules.[Module].Tests/
 ```
@@ -117,9 +117,9 @@ One PostgreSQL database (`ragassistant`, connection string name `ragassistant`),
 
 ### Migrations & Aspire
 
-- Never call `Database.MigrateAsync()` from the Host. Each module exposes a public `AddXxxPersistence(IServiceCollection, IConfiguration)` that registers its DbContext and calls `services.AddMigrationTarget<XxxDbContext>()`; `AddXxxModule` calls it too.
-- Register every module's `AddXxxPersistence` in `src/RagAssistant.MigrationService/Program.cs`. The AppHost runs the MigrationService before the Host (`WaitForCompletion`); a failed migration keeps the Host from starting.
-- The integration-test fixture runs the same `DatabaseMigrator`, so register persistence in the Host via `AddXxxModule` and tests pick it up.
+- Never call `Database.MigrateAsync()` from the API. Each module exposes a public `AddXxxPersistence(IServiceCollection, IConfiguration)` that registers its DbContext and calls `services.AddMigrationTarget<XxxDbContext>()`; `AddXxxModule` calls it too.
+- Register every module's `AddXxxPersistence` in `src/RagAssistant.MigrationService/Program.cs`. The AppHost runs the MigrationService before the API (`WaitForCompletion`); a failed migration keeps the API from starting.
+- The integration-test fixture runs the same `DatabaseMigrator`, so register persistence in the API via `AddXxxModule` and tests pick it up.
 - Dev Postgres: image `pgvector/pgvector:0.8.7-pg18-trixie`, `localhost:5433`, persistent container + volume `ragassistant-postgres-data` mounted at `/var/lib/postgresql` (PG18 layout — don't switch to `WithDataVolume`). The password is generated by Aspire into the AppHost user secrets (`Parameters:postgres-password`).
 
 ### RAG Conventions
@@ -152,7 +152,7 @@ One PostgreSQL database (`ragassistant`, connection string name `ragassistant`),
 - Use `RagAssistantAppFactory` (`tests/RagAssistant.Integration.Tests/Fixtures/`) via `[ClassDataSource<RagAssistantAppFactory>(Shared = SharedType.PerTestSession)]`; it starts `PostgresFixture` (image `pgvector/pgvector:0.8.7-pg18-trixie`, same as the AppHost — keep both in sync) and runs `DatabaseMigrator`.
 - Integration tests require Docker.
 - Authorization tests do **not** start Keycloak: `RagAssistantAppFactory` validates tokens signed with a test key (same issuer, audience and `roles` claim as Keycloak); use the persona helper `factory.CreateClientAs(Persona.ContentOwner)` (`tests/RagAssistant.Integration.Tests/Fixtures/TestTokens.cs`) and cover 401 / 403 / success per policy. A single smoke test runs Keycloak via Testcontainers with the same realm file and the same pinned image tag as the AppHost.
-- Web tests (`tests/RagAssistant.Web.Tests`) need no Docker or Keycloak: `WebAppFactory` signs a persona in through the real cookie handler (`/test/sign-in`), points YARP at a real Kestrel `StubHost` through the same `services:host` configuration keys Aspire uses, and uses a static OIDC configuration. bUnit runs under TUnit.
+- Web tests (`tests/RagAssistant.Web.Tests`) need no Docker or Keycloak: `WebAppFactory` signs a persona in through the real cookie handler (`/test/sign-in`), points YARP at a real Kestrel `StubApi` through the same `services:api` configuration keys Aspire uses, and uses a static OIDC configuration. bUnit runs under TUnit.
 - Test names: `Method_scenario_expected`.
 
 ## Skills
@@ -191,7 +191,7 @@ Use `cwm-roslyn-navigator` tools to minimize token consumption:
 # Build
 dotnet build RagAssistant.slnx
 
-# Run everything (Postgres, pgweb, migrations, host + dashboard) — requires Docker
+# Run everything (Postgres, pgweb, migrations, api + dashboard) — requires Docker
 dotnet run --project src/RagAssistant.AppHost
 
 # Run all tests (Microsoft.Testing.Platform)
@@ -201,7 +201,7 @@ dotnet test --solution RagAssistant.slnx
 dotnet test --project tests/RagAssistant.Integration.Tests
 
 # Add EF migration for a module
-dotnet ef migrations add [Name] --project src/Modules/[Module]/RagAssistant.Modules.[Module] --startup-project src/RagAssistant.Host --context [Module]DbContext
+dotnet ef migrations add [Name] --project src/Modules/[Module]/RagAssistant.Modules.[Module] --startup-project src/RagAssistant.Api --context [Module]DbContext
 
 # Format check
 dotnet format --verify-no-changes
@@ -227,7 +227,7 @@ Do NOT generate code that:
 - Wraps EF Core in repository abstractions — use the module's DbContext directly
 - Uses the EF in-memory provider or SQLite for tests — use Testcontainers PostgreSQL (pgvector image)
 - Calls a real LLM/embedding API from tests
-- References a provider SDK (OpenAI, Azure, Ollama…) from a module — only the Host knows the provider
+- References a provider SDK (OpenAI, Azure, Ollama…) from a module — only the API knows the provider
 - Loads all embeddings into memory to compute similarity — query pgvector with `CosineDistance` + `OrderBy` + `Take`
 - Catches `Exception` without a filter or a stated reason (a catch-all that must survive any failure, such as the ingestion processor, is filtered on cancellation and commented with the spec rule it implements)
 - Uses string interpolation in log messages, or logs full prompts/documents at Information level
