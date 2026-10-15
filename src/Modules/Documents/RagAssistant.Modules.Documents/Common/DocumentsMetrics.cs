@@ -27,6 +27,8 @@ internal sealed class DocumentsMetrics
     public const string IngestionDurationName = "documents.ingestion.duration";
     public const string PdfPagesExtractedName = "documents.pdf.pages.extracted";
     public const string PdfExtractionDurationName = "documents.pdf.extraction.duration";
+    public const string SearchDurationName = "documents.search.duration";
+    public const string SearchOutcomesName = "documents.search.outcomes";
 
     private readonly Counter<long> _imported;
     private readonly Counter<long> _rejected;
@@ -41,6 +43,8 @@ internal sealed class DocumentsMetrics
     private readonly Histogram<double> _ingestionDuration;
     private readonly Counter<long> _pdfPagesExtracted;
     private readonly Histogram<double> _pdfExtractionDuration;
+    private readonly Histogram<double> _searchDuration;
+    private readonly Counter<long> _searchOutcomes;
 
     public DocumentsMetrics(IMeterFactory meterFactory)
     {
@@ -58,6 +62,8 @@ internal sealed class DocumentsMetrics
         _ingestionDuration = meter.CreateHistogram<double>(IngestionDurationName, unit: "s", description: "Run start to finish.");
         _pdfPagesExtracted = meter.CreateCounter<long>(PdfPagesExtractedName, description: "Pages read from PDFs by successful extractions.");
         _pdfExtractionDuration = meter.CreateHistogram<double>(PdfExtractionDurationName, unit: "s", description: "PDF text extraction, by outcome.");
+        _searchDuration = meter.CreateHistogram<double>(SearchDurationName, unit: "s", description: "Passage searches, query embedding included, by outcome.");
+        _searchOutcomes = meter.CreateCounter<long>(SearchOutcomesName, description: "Passage searches by evidence outcome, or 'failed' with the error code.");
     }
 
     public void Imported(SourceFormat format) =>
@@ -98,5 +104,17 @@ internal sealed class DocumentsMetrics
     {
         _ingestionFailed.Add(1, new KeyValuePair<string, object?>("reason", reason));
         _ingestionDuration.Record(duration.TotalSeconds, new KeyValuePair<string, object?>("outcome", "failed"));
+    }
+
+    public void SearchCompleted(string outcome, TimeSpan duration)
+    {
+        _searchOutcomes.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
+        _searchDuration.Record(duration.TotalSeconds, new KeyValuePair<string, object?>("outcome", outcome));
+    }
+
+    public void SearchFailed(string reason, TimeSpan duration)
+    {
+        _searchOutcomes.Add(1, new KeyValuePair<string, object?>("outcome", "failed"), new KeyValuePair<string, object?>("reason", reason));
+        _searchDuration.Record(duration.TotalSeconds, new KeyValuePair<string, object?>("outcome", "failed"));
     }
 }

@@ -8,9 +8,11 @@ using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
+using RagAssistant.Modules.Documents.Retrieval;
 using RagAssistant.Modules.Documents.Storage;
 using RagAssistant.SharedKernel.Common.Behaviors;
 using RagAssistant.SharedKernel.Common.Extensions;
+using RagAssistant.SharedKernel.Contracts.Documents;
 using RagAssistant.SharedKernel.Persistence;
 
 namespace RagAssistant.Modules.Documents;
@@ -75,6 +77,15 @@ public static class DocumentsModule
             .Validate(o => o.HasPositiveDurations, "Documents:Ingestion: every interval, delay and timeout must be greater than zero.")
             .ValidateOnStart();
 
+        services.AddOptions<RetrievalOptions>()
+            .Bind(configuration.GetSection(RetrievalOptions.Section))
+            .ValidateDataAnnotations()
+            .Validate(
+                o => o.IsConsistent,
+                "Documents:Retrieval: DefaultTopK must not exceed MaxTopK, MaxCandidates must be at least MaxTopK, "
+                + "ConfidentScore must be at least MinScore, and both durations must be greater than zero.")
+            .ValidateOnStart();
+
         services.AddMediator(options =>
         {
             options.Namespace = "RagAssistant.Modules.Documents.Generated";
@@ -91,6 +102,11 @@ public static class DocumentsModule
         services.AddScoped<PassageEmbedder>();
         services.AddScoped<IngestionRunProcessor>();
         services.AddHostedService<IngestionWorker>();
+
+        // Retrieval (spec 011); HybridCache itself is registered by the host (ADR 0008).
+        services.AddScoped<QueryEmbedder>();
+        services.AddScoped<PassageCandidates>();
+        services.AddScoped<IDocumentSearch, DocumentSearch>();
         return services;
     }
 }
