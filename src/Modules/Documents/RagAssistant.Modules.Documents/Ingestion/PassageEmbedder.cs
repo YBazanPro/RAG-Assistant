@@ -15,7 +15,9 @@ internal sealed partial class PassageEmbedder(
     ILogger<PassageEmbedder> logger)
 {
     /// <summary>Returns one vector per input, in order. Throws <see cref="IngestionException"/> on exhausted retries or a bad response.</summary>
-    public async Task<IReadOnlyList<float[]>> EmbedAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken)
+    /// <param name="onBatchDone">Called after each batch with the number of inputs embedded so far.</param>
+    public async Task<IReadOnlyList<float[]>> EmbedAsync(
+        IReadOnlyList<string> inputs, CancellationToken cancellationToken, Func<int, Task>? onBatchDone = null)
     {
         var batchSize = ingestion.Value.EmbeddingBatchSize;
         var vectors = new List<float[]>(inputs.Count);
@@ -23,6 +25,10 @@ internal sealed partial class PassageEmbedder(
         {
             var batch = inputs.Skip(offset).Take(batchSize).ToArray();
             vectors.AddRange(await EmbedBatchAsync(batch, cancellationToken));
+            if (onBatchDone is not null)
+            {
+                await onBatchDone(vectors.Count);
+            }
         }
 
         return vectors;

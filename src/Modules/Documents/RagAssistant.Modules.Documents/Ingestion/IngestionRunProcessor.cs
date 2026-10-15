@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -63,7 +64,7 @@ internal sealed partial class IngestionRunProcessor(
                 .Select(v => new VersionInput(v.DocumentId, v.Number, v.Content, v.StorageKey, v.SourceFormat))
                 .SingleAsync(cancellationToken);
 
-            var extracted = await RunStageAsync(runId, stage, () => ExtractAsync(version, run.VersionId, cancellationToken), cancellationToken);
+            var extracted = await RunStageAsync(runId, stage, () => ExtractAsync(version, runId, run.VersionId, cancellationToken), cancellationToken);
 
             stage = IngestionStage.Chunking;
             var passages = await RunStageAsync(
@@ -88,7 +89,17 @@ internal sealed partial class IngestionRunProcessor(
                 {
                     var batchSize = ingestion.Value.EmbeddingBatchSize;
                     var inputs = passages.Select(p => EmbeddingInput.Build(p.SectionPath, p.Text)).ToArray();
-                    var result = await embedder.EmbedAsync(inputs, cancellationToken);
+                    var tracker = new ProgressTracker(inputs.Length);
+                    var result = await embedder.EmbedAsync(
+                        inputs,
+                        cancellationToken,
+                        async done =>
+                        {
+                            if (tracker.ShouldReport(done))
+                            {
+                                await RecordProgressAsync(runId, IngestionStage.Embedding, done, inputs.Length, cancellationToken);
+                            }
+                        });
                     return (result, $"{(inputs.Length + batchSize - 1) / batchSize} batches");
                 },
                 cancellationToken);
@@ -120,7 +131,7 @@ internal sealed partial class IngestionRunProcessor(
         }
     }
 
-    private async Task<(Extracted Result, string Summary)> ExtractAsync(VersionInput version, Guid versionId, CancellationToken cancellationToken)
+    private async Task<(Extracted Result, string Summary)> ExtractAsync(VersionInput version, Guid runId, Guid versionId, CancellationToken cancellationToken)
     {
         if (version.Format != SourceFormat.Pdf)
         {
@@ -134,8 +145,12 @@ internal sealed partial class IngestionRunProcessor(
 
         using var timeout = new CancellationTokenSource(pdfOptions.Value.ExtractionTimeout, clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        // The extractor runs on another thread; its page counts go through a channel so only this flow touches the DbContext.
+        var pages = Channel.CreateUnbounded<(int Done, int Total)>();
+        var writer = WriteExtractionProgressAsync(pages.Reader, runId, cancellationToken);
+        var started = clock.GetTimestamp();
         PdfExtraction pdf;
-        var work = Task.Run(() => pdfExtractor.Extract(stream, onPageDone: null, linked.Token), linked.Token);
+        var work = Task.Run(() => pdfExtractor.Extract(stream, (done, total) => pages.Writer.TryWrite((done, total)), linked.Token), linked.Token);
         try
         {
             // The parser checks the token between pages only; waiting on the token as well frees the run even inside one slow call.
@@ -144,13 +159,48 @@ internal sealed partial class IngestionRunProcessor(
         catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             _ = work.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            metrics.PdfExtractionFailed(clock.GetElapsedTime(started));
             throw new IngestionException(IngestionErrorCodes.ExtractionTimeout, "Extracting the text took too long.");
         }
+        catch (IngestionException)
+        {
+            metrics.PdfExtractionFailed(clock.GetElapsedTime(started));
+            throw;
+        }
+        finally
+        {
+            pages.Writer.TryComplete();
+            await writer;
+        }
+
+        metrics.PdfExtracted(pdf.PageCount, clock.GetElapsedTime(started));
 
         int[]? withoutText = pdf.PagesWithoutText.Length == 0 ? null : pdf.PagesWithoutText;
         await db.Versions.Where(v => v.Id == versionId)
             .ExecuteUpdateAsync(s => s.SetProperty(v => v.PagesWithoutText, withoutText), cancellationToken);
         return (new Extracted(null, pdf), $"{pdf.PageCount} pages, {pdf.PagesWithoutText.Length} without text, {pdf.MarginLinesRemoved} margin lines removed");
+    }
+
+    private async Task WriteExtractionProgressAsync(ChannelReader<(int Done, int Total)> reader, Guid runId, CancellationToken cancellationToken)
+    {
+        ProgressTracker? tracker = null;
+        await foreach (var (done, total) in reader.ReadAllAsync(CancellationToken.None))
+        {
+            tracker ??= new ProgressTracker(total);
+            if (tracker.ShouldReport(done))
+            {
+                await RecordProgressAsync(runId, IngestionStage.Extracting, done, total, cancellationToken);
+            }
+        }
+    }
+
+    private async Task RecordProgressAsync(Guid runId, IngestionStage stage, int current, int total, CancellationToken cancellationToken)
+    {
+        var progress = NewEvent(runId, stage, EventStatus.Progress, null);
+        progress.Current = current;
+        progress.Total = total;
+        db.IngestionEvents.Add(progress);
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<bool> ClaimAsync(Guid runId, Guid versionId, CancellationToken cancellationToken)

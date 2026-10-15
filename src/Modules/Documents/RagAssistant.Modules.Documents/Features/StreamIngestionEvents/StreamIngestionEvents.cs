@@ -29,7 +29,9 @@ internal static class StreamIngestionEvents
         string Stage,
         string Status,
         string? Message,
-        DateTimeOffset OccurredAt);
+        DateTimeOffset OccurredAt,
+        int? Current,
+        int? Total);
 
     /// <summary>The latest run of the latest version; the 404 has to be decided before the response becomes a stream.</summary>
     public static async Task<Result<Target>> ResolveAsync(DocumentsDbContext db, Guid documentId, CancellationToken cancellationToken)
@@ -83,7 +85,7 @@ internal static class StreamIngestionEvents
                 lastSent = clock.GetTimestamp();
                 var data = new StageEvent(
                     target.RunId, target.VersionId, target.VersionNumber, target.Attempt,
-                    e.Stage.ToApi(), e.Status.ToApi(), e.Message, e.OccurredAt);
+                    e.Stage.ToApi(), e.Status.ToApi(), e.Message, e.OccurredAt, e.Current, e.Total);
                 yield return new SseItem<string>(JsonSerializer.Serialize(data, Json), StageEventType)
                 {
                     EventId = e.Id.ToString(CultureInfo.InvariantCulture),
