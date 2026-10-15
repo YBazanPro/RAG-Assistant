@@ -23,7 +23,9 @@ internal static class ListPassages
         int SectionOrdinal,
         string Text,
         int CharCount,
-        int TokenEstimate);
+        int TokenEstimate,
+        int? PageStart,
+        int? PageEnd);
 
     public sealed record Response(
         int VersionNumber,
@@ -98,7 +100,7 @@ internal static class ListPassages
                 .OrderBy(p => p.Position)
                 .Skip(PagingRules.Skip(page, pageSize))
                 .Take(pageSize)
-                .Select(p => new PassageItem(p.Id, p.Position, p.SectionPath, p.SectionOrdinal, p.Text, p.CharCount, p.TokenEstimate))
+                .Select(p => new PassageItem(p.Id, p.Position, p.SectionPath, p.SectionOrdinal, p.Text, p.CharCount, p.TokenEstimate, p.PageStart, p.PageEnd))
                 .ToListAsync(cancellationToken);
 
             return new Response(

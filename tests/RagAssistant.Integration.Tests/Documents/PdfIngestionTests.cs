@@ -61,6 +61,29 @@ public sealed class PdfIngestionTests(PostgresFixture postgres)
     }
 
     [Test]
+    public async Task ListPassages_pdfAndTextVersions_exposePagesOnlyForThePdf()
+    {
+        await using var app = await IngestionHarness.StartAsync(postgres);
+        var pdf = await ImportPdfAsync(app, Create(TextPage("Alpha", 6), TextPage("Beta", 6)));
+        var text = await app.ImportAsync();
+        await app.WaitForRunAsync(pdf.RunId, "Succeeded");
+        await app.WaitForRunAsync(text.RunId, "Succeeded");
+        using var client = app.CreateClientAs(Persona.KnowledgeSeeker);
+
+        var pdfPassages = await JsonAsync(await client.GetAsync($"/api/documents/{pdf.DocumentId}/versions/1/passages"));
+        var textPassages = await JsonAsync(await client.GetAsync($"/api/documents/{text.DocumentId}/versions/1/passages"));
+
+        var first = pdfPassages.GetProperty("items")[0];
+        await Assert.That(first.GetProperty("pageStart").GetInt32()).IsEqualTo(1);
+        await Assert.That(first.GetProperty("pageEnd").GetInt32()).IsEqualTo(2);
+        foreach (var item in textPassages.GetProperty("items").EnumerateArray())
+        {
+            await Assert.That(item.GetProperty("pageStart").ValueKind).IsEqualTo(JsonValueKind.Null);
+            await Assert.That(item.GetProperty("pageEnd").ValueKind).IsEqualTo(JsonValueKind.Null);
+        }
+    }
+
+    [Test]
     public async Task Ingest_pdfPassagesAreEmbeddedFromTheSectionPathAndText()
     {
         await using var app = await IngestionHarness.StartAsync(postgres);
