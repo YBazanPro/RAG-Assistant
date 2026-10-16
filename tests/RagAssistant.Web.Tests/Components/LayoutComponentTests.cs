@@ -79,51 +79,62 @@ public class LayoutComponentTests
         await Assert.That(links.Contains("Admin")).IsEqualTo(seesAdmin);
     }
 
+    private static IRenderedComponent<ThemeMenu> RenderMenu(BunitContext ctx) =>
+        ctx.Render<ThemeMenu>(p => p.Add(m => m.UserName, "Owner Dev"));
+
+    private static string Label(AngleSharp.Dom.IElement item) => item.TextContent.Trim();
+
+    // The items raise a custom web-component event bUnit cannot click, so drive the item through its component instance.
+    private static Task ChooseAsync(IRenderedComponent<ThemeMenu> cut, string label) =>
+        cut.InvokeAsync(() => cut.FindComponents<FluentMenuItem>()
+            .Single(i => i.Markup.Contains(label, StringComparison.Ordinal))
+            .Instance.CheckedChanged.InvokeAsync(true));
+
+    private static AngleSharp.Dom.IElement Checked(IRenderedComponent<ThemeMenu> cut) =>
+        cut.FindAll("fluent-menu-item").Single(i => i.HasAttribute("checked"));
+
     [Test]
-    public async Task ThemeToggle_defaults_to_system_and_offers_the_three_modes_as_a_group()
+    public async Task ThemeMenu_shows_the_user_name_and_offers_the_three_modes_with_system_checked()
     {
         using var ctx = NewContext();
 
-        var cut = ctx.Render<ThemeToggle>();
+        var cut = RenderMenu(ctx);
 
-        await Assert.That(cut.Find("div").GetAttribute("role")).IsEqualTo("group");
-        var buttons = cut.FindAll("fluent-button");
-        await Assert.That(buttons.Select(b => b.TextContent.Trim())).IsEquivalentTo(["System", "Light", "Dark"]);
-        await Assert.That(buttons.Single(b => b.GetAttribute("aria-pressed") == "true").TextContent.Trim()).IsEqualTo("System");
+        await Assert.That(cut.Find("#user-menu-button").TextContent).Contains("Owner Dev");
+        await Assert.That(cut.FindAll("fluent-menu-item").Select(Label)).IsEquivalentTo(["System theme", "Light theme", "Dark theme"]);
+        await Assert.That(Label(Checked(cut))).IsEqualTo("System theme");
     }
 
     [Test]
-    public async Task ThemeToggle_choosing_dark_marks_it_pressed_and_applies_the_theme()
+    public async Task ThemeMenu_choosing_dark_checks_it_and_applies_the_theme()
     {
         using var ctx = NewContext();
-        var cut = ctx.Render<ThemeToggle>();
+        var cut = RenderMenu(ctx);
 
-        cut.FindAll("fluent-button").Single(b => b.TextContent.Trim() == "Dark").Click();
+        await ChooseAsync(cut, "Dark theme");
 
-        var pressed = cut.FindAll("fluent-button").Single(b => b.GetAttribute("aria-pressed") == "true");
-        await Assert.That(pressed.TextContent.Trim()).IsEqualTo("Dark");
+        await Assert.That(Label(Checked(cut))).IsEqualTo("Dark theme");
         await Assert.That(ctx.JSInterop.Invocations.Any(i => i.Identifier.Contains("heme", StringComparison.OrdinalIgnoreCase))).IsTrue();
     }
 
     [Test]
-    public async Task ThemeToggle_restores_the_saved_choice_on_load()
+    public async Task ThemeMenu_restores_the_saved_choice_on_load()
     {
         using var ctx = NewContext();
         ctx.JSInterop.Setup<string?>("localStorage.getItem", "ragassistant.theme").SetResult("Dark");
 
-        var cut = ctx.Render<ThemeToggle>();
+        var cut = RenderMenu(ctx);
 
-        var pressed = cut.FindAll("fluent-button").Single(b => b.GetAttribute("aria-pressed") == "true");
-        await Assert.That(pressed.TextContent.Trim()).IsEqualTo("Dark");
+        await Assert.That(Label(Checked(cut))).IsEqualTo("Dark theme");
     }
 
     [Test]
-    public async Task ThemeToggle_remembers_the_choice_in_local_storage()
+    public async Task ThemeMenu_remembers_the_choice_in_local_storage()
     {
         using var ctx = NewContext();
-        var cut = ctx.Render<ThemeToggle>();
+        var cut = RenderMenu(ctx);
 
-        cut.FindAll("fluent-button").Single(b => b.TextContent.Trim() == "Light").Click();
+        await ChooseAsync(cut, "Light theme");
 
         var call = ctx.JSInterop.Invocations.Single(i => i.Identifier == "localStorage.setItem");
         await Assert.That(call.Arguments[0]).IsEqualTo("ragassistant.theme");
@@ -131,17 +142,16 @@ public class LayoutComponentTests
     }
 
     [Test]
-    public async Task ThemeToggle_still_works_when_browser_storage_is_blocked()
+    public async Task ThemeMenu_still_works_when_browser_storage_is_blocked()
     {
         using var ctx = NewContext();
         ctx.JSInterop.Setup<string?>("localStorage.getItem", "ragassistant.theme").SetException(new Microsoft.JSInterop.JSException("blocked"));
         ctx.JSInterop.SetupVoid("localStorage.setItem", _ => true).SetException(new Microsoft.JSInterop.JSException("blocked"));
 
-        var cut = ctx.Render<ThemeToggle>();
-        cut.FindAll("fluent-button").Single(b => b.TextContent.Trim() == "Dark").Click();
+        var cut = RenderMenu(ctx);
+        await ChooseAsync(cut, "Dark theme");
 
-        var pressed = cut.FindAll("fluent-button").Single(b => b.GetAttribute("aria-pressed") == "true");
-        await Assert.That(pressed.TextContent.Trim()).IsEqualTo("Dark");
+        await Assert.That(Label(Checked(cut))).IsEqualTo("Dark theme");
     }
 
     [Test]
