@@ -1,0 +1,52 @@
+@inject TimeProvider Clock
+
+<nav class="conversation-list" aria-label="Conversations">
+    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="OnNew" Class="new-conversation">New conversation</FluentButton>
+    @if (Items.Count == 0 && !Loading)
+    {
+        <FluentText Block="true" Class="conversation-list-empty">No conversations yet.</FluentText>
+    }
+    else
+    {
+        <ul>
+            @foreach (var conversation in Items)
+            {
+                <li @key="conversation.Id">
+                    <a href="@($"chat/{conversation.Id}")" class="conversation-link" aria-current="@(conversation.Id == CurrentId ? "page" : null)">
+                        <span class="conversation-title">@(conversation.Title ?? "New conversation")</span>
+                        <time class="conversation-time" datetime="@conversation.LastActivityAt.ToString("O")" title="@Formatting.Local(conversation.LastActivityAt)">@Relative(conversation.LastActivityAt)</time>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+    @if (Items.Count < Total)
+    {
+        <FluentButton Appearance="ButtonAppearance.Transparent" Disabled="@Loading" OnClick="OnLoadMore">Load more</FluentButton>
+    }
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ConversationSummary> Items { get; set; } = [];
+
+    /// <summary>All conversations the user has, so "Load more" knows whether there are more.</summary>
+    [Parameter] public int Total { get; set; }
+
+    [Parameter] public Guid? CurrentId { get; set; }
+
+    [Parameter] public bool Loading { get; set; }
+
+    [Parameter] public EventCallback OnNew { get; set; }
+
+    [Parameter] public EventCallback OnLoadMore { get; set; }
+
+    private string Relative(DateTimeOffset value)
+    {
+        var age = Clock.GetUtcNow() - value;
+        return age.TotalMinutes < 1 ? "just now"
+            : age.TotalHours < 1 ? $"{(int)age.TotalMinutes} min ago"
+            : age.TotalDays < 1 ? $"{(int)age.TotalHours} h ago"
+            : age.TotalDays < 7 ? $"{(int)age.TotalDays} d ago"
+            : Formatting.Local(value)[..10];
+    }
+}

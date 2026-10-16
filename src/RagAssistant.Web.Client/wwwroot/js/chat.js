@@ -83,3 +83,53 @@ export function writeDraft(key, text) {
 export function clearDraft(key) {
     sessionStorage.removeItem(key);
 }
+
+// The layout switches at 1024 px: below it the list collapses and the preview becomes an overlay drawer.
+let narrowQuery = null;
+let narrowListener = null;
+
+export function watchNarrow(callback) {
+    narrowQuery?.removeEventListener('change', narrowListener);
+    narrowQuery = window.matchMedia('(max-width: 1023px)');
+    narrowListener = event => callback.invokeMethodAsync('OnChanged', event.matches);
+    narrowQuery.addEventListener('change', narrowListener);
+    callback.invokeMethodAsync('OnChanged', narrowQuery.matches);
+}
+
+// A modal drawer keeps Tab inside itself. Fluent buttons are focusable hosts, so they are listed like native controls.
+const FOCUSABLE = 'a[href], button:not([disabled]), fluent-button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const traps = new WeakMap();
+
+export function trapFocus(container) {
+    releaseFocus(container);
+    const handler = event => {
+        if (event.key !== 'Tab') {
+            return;
+        }
+        const items = [...container.querySelectorAll(FOCUSABLE)];
+        if (items.length === 0) {
+            event.preventDefault();
+            return;
+        }
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || active === container)) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && active === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
+    container.addEventListener('keydown', handler);
+    traps.set(container, handler);
+}
+
+export function releaseFocus(container) {
+    const handler = traps.get(container);
+    if (handler) {
+        container.removeEventListener('keydown', handler);
+        traps.delete(container);
+    }
+}

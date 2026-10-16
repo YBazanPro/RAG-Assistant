@@ -27,6 +27,8 @@ public static class UiServiceExtensions
         services.AddScoped<IThreadScroller>(sp => sp.GetRequiredService<BrowserChatInterop>());
         services.AddScoped<IEnterKeyHandler>(sp => sp.GetRequiredService<BrowserChatInterop>());
         services.AddScoped<IDraftStore>(sp => sp.GetRequiredService<BrowserChatInterop>());
+        services.AddScoped<IViewport>(sp => sp.GetRequiredService<BrowserChatInterop>());
+        services.AddScoped<IFocusTrap>(sp => sp.GetRequiredService<BrowserChatInterop>());
         services.AddScoped<IAnswerEventSource>(sp => new AnswerEventSource(sp.GetRequiredService<HttpClient>));
         return services;
     }

@@ -16,22 +16,22 @@
             <FluentText Block="true" Class="stage-line">@View.StageLine</FluentText>
             @if (View.Text.Length > 0)
             {
-                <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectAsync" />
+                <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectFromTextAsync" />
             }
             break;
         case "lost":
             <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">Connection lost.</FluentMessageBar>
             break;
         case "complete":
-            <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectAsync" />
-            <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectAsync" />
+            <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectFromTextAsync" />
+            <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectFromListAsync" />
             break;
         case "partial":
             @if (View.Cited.Count > 0)
             {
                 <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">Based on limited evidence. Check the sources.</FluentMessageBar>
-                <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectAsync" />
-                <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectAsync" />
+                <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectFromTextAsync" />
+                <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectFromListAsync" />
             }
             else
             {
@@ -144,8 +144,12 @@
 
     private void OnLiveChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private Task SelectAsync(int marker) =>
-        OnCitationSelected.InvokeAsync(new CitationSelection((Live?.AssistantMessageId ?? Message?.Id)!.Value, marker));
+    private Task SelectFromTextAsync(int marker) => SelectAsync(marker, $"{IdPrefix}marker-{marker}");
+
+    private Task SelectFromListAsync(int marker) => SelectAsync(marker, $"{IdPrefix}citation-{marker}");
+
+    private Task SelectAsync(int marker, string openerId) =>
+        OnCitationSelected.InvokeAsync(new CitationSelection((Live?.AssistantMessageId ?? Message?.Id)!.Value, marker, openerId));
 
     public void Dispose()
     {

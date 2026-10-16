@@ -69,5 +69,5 @@ public sealed record AnswerCompleted(string Status, string? RefusalReason, IRead
 
 public sealed record AnswerError(string Code, string Message, bool Retryable) : AnswerEvent;
 
-/// <summary>A citation chosen in the thread: which answer, and which of its markers.</summary>
-public readonly record struct CitationSelection(Guid MessageId, int Marker);
+/// <summary>A citation chosen in the thread: which answer, which of its markers, and the element that opened it (it gets focus back).</summary>
+public readonly record struct CitationSelection(Guid MessageId, int Marker, string OpenerId);

@@ -1,7 +1,705 @@
 @page "/chat"
+@page "/chat/{ConversationId:guid}"
 @attribute [Authorize(Policy = PolicyNames.KnowledgeSeeker)]
+@implements IDisposable
+@using Microsoft.Extensions.Configuration
+@inject IChatApi Api
+@inject IAnswerEventSource Answers
+@inject IDocumentsApi DocumentsApi
+@inject IDraftStore Drafts
+@inject IViewport Viewport
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject TimeProvider Clock
 
 <PageTitle>Chat · RagAssistant</PageTitle>
 
 <PageHeader Title="Chat" />
-<EmptyState Title="Chat is coming soon" Description="You will be able to ask questions about your documents here." />
+
+@* Prerendering stops here: everything is fetched after the first interactive render (spec 013). *@
+@if (!_started || _state == PageState.Loading)
+{
+    <LoadingState Label="Loading chat" />
+}
+else if (_state == PageState.SessionExpired)
+{
+    <SignInRequired />
+}
+else if (_state == PageState.NotFound)
+{
+    <ErrorState Title="Conversation not found" Message="This conversation does not exist or is not yours.">
+        <Action>
+            <FluentAnchorButton Href="chat" Appearance="ButtonAppearance.Primary">Start a new conversation</FluentAnchorButton>
+        </Action>
+    </ErrorState>
+}
+else if (_state == PageState.Failed)
+{
+    <ErrorState Title="The conversation could not be loaded" Message="@_errorMessage" Retry="ReloadConversationAsync" />
+}
+else
+{
+    <div class="@(_selected is not null ? "chat-layout chat-layout-preview" : "chat-layout")">
+        @if (_narrow)
+        {
+            <div class="chat-toolbar">
+                <FluentButton Appearance="ButtonAppearance.Outline" aria-expanded="@(_listOpen ? "true" : "false")" OnClick="@(() => _listOpen = !_listOpen)">Conversations</FluentButton>
+            </div>
+        }
+        @if (!_narrow || _listOpen)
+        {
+            <div class="chat-list-pane">
+                @if (_listFailed)
+                {
+                    <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">
+                        <ChildContent>Conversations could not be loaded.</ChildContent>
+                        <ActionsTemplate>
+                            <FluentButton Appearance="ButtonAppearance.Outline" OnClick="ReloadListAsync">Retry</FluentButton>
+                        </ActionsTemplate>
+                    </FluentMessageBar>
+                }
+                <ConversationList Items="_conversations" Total="_conversationTotal" CurrentId="ConversationId" Loading="_loadingList"
+                                  OnNew="StartNewAsync" OnLoadMore="LoadMoreAsync" />
+            </div>
+        }
+
+        <div class="chat-main">
+            @if (HasThread)
+            {
+                <ConversationThread Messages="VisibleMessages" PendingQuestion="@_pendingQuestion" Live="_live" ConversationId="_currentId"
+                                    Selected="_selected" Announcement="@_announcement" OnCitationSelected="SelectAsync"
+                                    OnRetry="RetryAsync" OnAskAgain="AskAgainAsync" OnRefresh="ReloadConversationAsync" />
+            }
+            else
+            {
+                <section class="chat-empty">
+                    @if (_corpusCount is 0)
+                    {
+                        <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold">No documents are indexed yet.</FluentText>
+                        <FluentText Block="true">Questions are answered from the documents. <a href="documents">Go to Documents</a>.</FluentText>
+                    }
+                    else
+                    {
+                        <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold">
+                            @(_corpusCount is { } count ? $"Ask about {count} active {(count == 1 ? "document" : "documents")}." : "Ask about your documents.")
+                        </FluentText>
+                        <FluentText Block="true">Answers cite the passages they come from.</FluentText>
+                    }
+                    @if (_suggestions.Length > 0)
+                    {
+                        <ul class="suggested-questions" aria-label="Suggested questions">
+                            @foreach (var suggestion in _suggestions)
+                            {
+                                <li>
+                                    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="@(() => UseSuggestionAsync(suggestion))">@suggestion</FluentButton>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
+
+            @if (_signInNeeded)
+            {
+                <SignInRequired />
+            }
+
+            @if (_conversationFull)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="alert">
+                    <ChildContent>This conversation is full.</ChildContent>
+                    <ActionsTemplate>
+                        <FluentButton Appearance="ButtonAppearance.Outline" OnClick="StartNewWithDraftAsync">Start a new conversation</FluentButton>
+                    </ActionsTemplate>
+                </FluentMessageBar>
+            }
+
+            @if (_sendError is not null)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">
+                    <ChildContent>@_sendError</ChildContent>
+                    <ActionsTemplate>
+                        @if (_retryQuestion is not null)
+                        {
+                            <FluentButton Appearance="ButtonAppearance.Outline" OnClick="@(() => SendAsync(_retryQuestion))">Retry</FluentButton>
+                        }
+                    </ActionsTemplate>
+                </FluentMessageBar>
+            }
+
+            <QuestionInput @ref="_input" Text="@_text" TextChanged="OnTextChangedAsync" Streaming="_busy" Disabled="InputDisabled"
+                           ServerMessage="@_serverMessage" OnSend="SendAsync" OnCancel="CancelAsync" />
+        </div>
+
+        @if (_selected is { } selected && FindCitation(selected) is { } citation)
+        {
+            <div class="@(_narrow ? "chat-preview-drawer" : "chat-preview-pane")">
+                <SourcePreview @key="@("preview")" Citation="citation" CitedAt="CitedAt(selected)" ReturnFocusId="@selected.OpenerId" Modal="_narrow"
+                               OnClose="ClosePreview" />
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private const int ListPageSize = 20;
+
+    private enum PageState { Loading, Ready, NotFound, Failed, SessionExpired }
+
+    private PageState _state = PageState.Loading;
+    private string _errorMessage = "";
+    private bool _started;
+    private bool _narrow;
+    private bool _listOpen;
+
+    private Guid? _currentId;
+    private ConversationDetail? _detail;
+    private readonly List<ConversationSummary> _conversations = [];
+    private int _conversationTotal;
+    private int _loadedPages;
+    private bool _listFailed;
+    private bool _loadingList;
+    private int? _corpusCount;
+    private string[] _suggestions = [];
+
+    private string _text = "";
+    private QuestionInput? _input;
+    private string? _serverMessage;
+    private string? _sendError;
+    private string? _retryQuestion;
+    private bool _signInNeeded;
+    private bool _conversationFull;
+
+    // From the moment Send is pressed until the answer is final: the button shows Cancel and a second send is ignored.
+    private bool _busy;
+    private LiveAnswer? _live;
+    private string? _pendingQuestion;
+    private Guid? _retryingId;
+    private CancellationTokenSource? _streamCts;
+    private int _generation;
+
+    private CitationSelection? _selected;
+    private string? _announcement;
+    private readonly CancellationTokenSource _lifetime = new();
+
+    [Parameter] public Guid? ConversationId { get; set; }
+
+    private IReadOnlyList<ChatMessage> VisibleMessages =>
+        _detail is null ? [] : _retryingId is null ? _detail.Messages : [.. _detail.Messages.Where(m => m.Id != _retryingId)];
+
+    private bool HasThread => VisibleMessages.Count > 0 || _pendingQuestion is not null || _live is not null;
+
+    // Another tab is writing the answer: this one cannot ask until it is final.
+    private bool InputDisabled => _live is null && _detail?.Messages is [.., { Role: "assistant", Status: "pending" }];
+
+    private static string DraftKey(Guid? conversationId) => $"ragassistant.chat.draft.{conversationId?.ToString() ?? "new"}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_started && ConversationId != _currentId)
+        {
+            await SwitchConversationAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _started = true;
+        _suggestions = [.. Configuration.GetSection("Chat:SuggestedQuestions").GetChildren().Select(c => c.Value).OfType<string>()];
+        await Viewport.WatchNarrowAsync(OnNarrowChangedAsync);
+        await LoadListPageAsync(first: true);
+        if (_state != PageState.SessionExpired)
+        {
+            await SwitchConversationAsync();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SwitchConversationAsync()
+    {
+        _generation++;
+        CancelStream();
+        DisposeLive();
+        _currentId = ConversationId;
+        _detail = null;
+        _selected = null;
+        _pendingQuestion = null;
+        _retryingId = null;
+        _busy = false;
+        _sendError = null;
+        _retryQuestion = null;
+        _serverMessage = null;
+        _signInNeeded = false;
+        _conversationFull = false;
+        _announcement = null;
+        _listOpen = false;
+        _text = await Drafts.LoadAsync(DraftKey(ConversationId)) ?? "";
+
+        if (ConversationId is null)
+        {
+            _state = PageState.Ready;
+        }
+        else
+        {
+            _state = PageState.Loading;
+            await LoadConversationAsync();
+        }
+
+        if (!HasThread && _state == PageState.Ready && _corpusCount is null)
+        {
+            await LoadCorpusCountAsync();
+        }
+    }
+
+    private async Task LoadCorpusCountAsync()
+    {
+        var result = await DocumentsApi.ListAsync(new DocumentQuery(), _lifetime.Token);
+        _corpusCount = result.IsSuccess ? result.Value.TotalCount : null;
+    }
+
+    // Returns false when the conversation could not be fetched; the page state then says why (unless keepOnFailure).
+    private async Task<bool> LoadConversationAsync(bool keepOnFailure = false)
+    {
+        var id = _currentId!.Value;
+        var generation = _generation;
+        var result = await Api.GetConversationAsync(id, _lifetime.Token);
+        if (generation != _generation || _lifetime.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        if (result.IsSuccess)
+        {
+            _detail = result.Value;
+            _state = PageState.Ready;
+            return true;
+        }
+
+        if (result.Error!.IsUnauthenticated)
+        {
+            _state = PageState.SessionExpired;
+        }
+        else if (!keepOnFailure)
+        {
+            _state = result.Error.IsNotFound ? PageState.NotFound : PageState.Failed;
+            _errorMessage = result.Error.Status is 0 or >= 500
+                ? "The server could not be reached. Try again in a moment."
+                : result.Error.Message;
+        }
+
+        return false;
+    }
+
+    private async Task ReloadConversationAsync()
+    {
+        if (_currentId is null)
+        {
+            return;
+        }
+
+        _state = PageState.Loading;
+        await LoadConversationAsync();
+    }
+
+    private async Task LoadListPageAsync(bool first)
+    {
+        _loadingList = true;
+        var page = first ? 1 : _loadedPages + 1;
+        var result = await Api.ListConversationsAsync(page, ListPageSize, _lifetime.Token);
+        _loadingList = false;
+        if (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (!result.IsSuccess)
+        {
+            if (result.Error!.IsUnauthenticated)
+            {
+                _state = PageState.SessionExpired;
+            }
+
+            _listFailed = true;
+            return;
+        }
+
+        _listFailed = false;
+        if (first)
+        {
+            _conversations.Clear();
+        }
+
+        _conversations.AddRange(result.Value.Items);
+        _conversationTotal = result.Value.TotalCount;
+        _loadedPages = page;
+    }
+
+    private async Task ReloadListAsync()
+    {
+        await LoadListPageAsync(first: true);
+    }
+
+    private Task LoadMoreAsync() => LoadListPageAsync(first: false);
+
+    private Task StartNewAsync()
+    {
+        Navigation.NavigateTo("chat");
+        return Task.CompletedTask;
+    }
+
+    private async Task StartNewWithDraftAsync()
+    {
+        await Drafts.SaveAsync(DraftKey(null), _text);
+        Navigation.NavigateTo("chat");
+    }
+
+    private Task OnNarrowChangedAsync(bool narrow)
+    {
+        _narrow = narrow;
+        _listOpen = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task OnTextChangedAsync(string text)
+    {
+        _text = text;
+        return Drafts.SaveAsync(DraftKey(_currentId), text);
+    }
+
+    private async Task UseSuggestionAsync(string suggestion)
+    {
+        _text = suggestion;
+        await Drafts.SaveAsync(DraftKey(_currentId), suggestion);
+        if (_input is not null)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
+    private async Task AskAgainAsync(string question)
+    {
+        _text = question;
+        await Drafts.SaveAsync(DraftKey(_currentId), question);
+        if (_input is not null)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
+    private async Task SendAsync(string question)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _sendError = null;
+        _retryQuestion = null;
+        _serverMessage = null;
+        _signInNeeded = false;
+        _conversationFull = false;
+        _pendingQuestion = question;
+        _text = "";
+        var generation = _generation;
+        var cts = BeginStream();
+        try
+        {
+            if (_currentId is null && !await CreateConversationAsync(question, cts.Token, generation))
+            {
+                return;
+            }
+
+            if (generation != _generation)
+            {
+                return;
+            }
+
+            var opened = await Answers.AskAsync(_currentId!.Value, question, cts.Token);
+            await RunAnswerAsync(opened, question, retrying: null, cts, generation);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Cancelled before the stream was open: nothing was accepted, so the question goes back into the input.
+            if (generation == _generation)
+            {
+                await FinishWithoutStreamAsync(question);
+            }
+        }
+    }
+
+    // Creating the conversation is the first Send of /chat; false when it failed (the failure is already shown).
+    private async Task<bool> CreateConversationAsync(string question, CancellationToken cancellationToken, int generation)
+    {
+        var created = await Api.CreateConversationAsync(cancellationToken);
+        if (generation != _generation)
+        {
+            return false;
+        }
+
+        if (!created.IsSuccess)
+        {
+            await HandleFailureAsync(created.Error!, question, retrying: null);
+            return false;
+        }
+
+        var id = created.Value.Id;
+        _currentId = id;
+        _detail = new ConversationDetail(id, null, created.Value.CreatedAt, created.Value.LastActivityAt, []);
+        await Drafts.ClearAsync(DraftKey(null));
+        await Drafts.SaveAsync(DraftKey(id), question);
+        Navigation.NavigateTo($"chat/{id}", new NavigationOptions { ReplaceHistoryEntry = true });
+        return true;
+    }
+
+    private async Task RetryAsync(Guid assistantMessageId)
+    {
+        if (_busy || _currentId is not { } conversationId)
+        {
+            return;
+        }
+
+        _busy = true;
+        _sendError = null;
+        _retryQuestion = null;
+        _signInNeeded = false;
+        var generation = _generation;
+        var cts = BeginStream();
+        try
+        {
+            var opened = await Answers.RetryAsync(conversationId, assistantMessageId, cts.Token);
+            await RunAnswerAsync(opened, question: null, retrying: assistantMessageId, cts, generation);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            if (generation == _generation)
+            {
+                await FinishWithoutStreamAsync(question: null);
+            }
+        }
+    }
+
+    private async Task RunAnswerAsync(
+        ApiResult<IAsyncEnumerable<AnswerEvent>> opened, string? question, Guid? retrying, CancellationTokenSource cts, int generation)
+    {
+        if (generation != _generation)
+        {
+            return;
+        }
+
+        if (!opened.IsSuccess)
+        {
+            await HandleFailureAsync(opened.Error!, question, retrying);
+            return;
+        }
+
+        DisposeLive();
+        var live = new LiveAnswer(Clock);
+        live.Announced += OnAnnounced;
+        live.Accepted += () => _ = InvokeAsync(ClearAcceptedDraftAsync);
+        _live = live;
+        _retryingId = retrying;
+        StateHasChanged();
+
+        var outcome = await live.ConsumeAsync(opened.Value, cts.Token);
+        if (generation != _generation)
+        {
+            live.Dispose();
+            return;
+        }
+
+        await FinishAsync(live, outcome, question);
+    }
+
+    // After the stream: show what the server stored instead of what the client assembled.
+    private async Task FinishAsync(LiveAnswer live, LiveOutcome outcome, string? question)
+    {
+        var accepted = live.UserMessageId is not null;
+        var reloaded = await ReloadAfterStreamAsync(outcome);
+        if (reloaded)
+        {
+            DisposeLive();
+            _pendingQuestion = null;
+            _retryingId = null;
+            if (!accepted && question is not null && _text.Length == 0)
+            {
+                _text = question;
+            }
+
+            await LoadListPageAsync(first: true);
+        }
+        else if (outcome == LiveOutcome.Cancelled)
+        {
+            DisposeLive();
+            _pendingQuestion = null;
+            _retryingId = null;
+            _sendError = "The conversation could not be refreshed. Reload the page to see its current state.";
+        }
+
+        _busy = false;
+        StateHasChanged();
+        if (_input is not null)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
+    // A cancelled or dropped answer may still be pending on the server for a moment: look again a few times.
+    private async Task<bool> ReloadAfterStreamAsync(LiveOutcome outcome)
+    {
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            if (!await LoadConversationAsync(keepOnFailure: true))
+            {
+                return false;
+            }
+
+            var pending = _detail?.Messages is [.., { Role: "assistant", Status: "pending" }];
+            if (!pending || outcome == LiveOutcome.Finished)
+            {
+                return true;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(300), Clock, _lifetime.Token);
+        }
+
+        return true;
+    }
+
+    private async Task FinishWithoutStreamAsync(string? question)
+    {
+        _pendingQuestion = null;
+        _retryingId = null;
+        if (question is not null && _text.Length == 0)
+        {
+            _text = question;
+        }
+
+        _busy = false;
+        if (_currentId is not null)
+        {
+            await LoadConversationAsync(keepOnFailure: true);
+        }
+    }
+
+    private async Task HandleFailureAsync(ApiError error, string? question, Guid? retrying)
+    {
+        _pendingQuestion = null;
+        _retryingId = null;
+        _busy = false;
+        if (question is not null && _text.Length == 0)
+        {
+            _text = question;
+        }
+
+        switch (error)
+        {
+            case { Status: 401 }:
+                _signInNeeded = true;
+                if (question is not null)
+                {
+                    await Drafts.SaveAsync(DraftKey(_currentId), question);
+                }
+
+                break;
+            case { Status: 400 }:
+                _serverMessage = error.Fields.Values.SelectMany(v => v).FirstOrDefault() ?? error.Message;
+                break;
+            case { Status: 404 }:
+                _state = PageState.NotFound;
+                break;
+            case { Code: "chat.conversation_full" }:
+                _conversationFull = true;
+                break;
+            case { Code: "chat.answer_in_progress" or "chat.retry_not_allowed" }:
+                await LoadConversationAsync(keepOnFailure: true);
+                break;
+            default:
+                _sendError = error.Status is 0 or >= 500
+                    ? "The question could not be sent. The server could not be reached or had a problem."
+                    : error.Message;
+                _retryQuestion = question;
+                break;
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        CancelStream();
+        await Task.CompletedTask;
+    }
+
+    private CancellationTokenSource BeginStream()
+    {
+        CancelStream();
+        _streamCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        return _streamCts;
+    }
+
+    private void CancelStream()
+    {
+        _streamCts?.Cancel();
+    }
+
+    private async Task ClearAcceptedDraftAsync()
+    {
+        // The input is cleared on Send; anything in it now is a new draft that must stay.
+        if (_text.Length == 0)
+        {
+            await Drafts.ClearAsync(DraftKey(_currentId));
+        }
+    }
+
+    private void OnAnnounced(string sentence) => _ = InvokeAsync(() =>
+    {
+        _announcement = sentence;
+        StateHasChanged();
+    });
+
+    private void DisposeLive()
+    {
+        if (_live is not null)
+        {
+            _live.Announced -= OnAnnounced;
+            _live.Dispose();
+            _live = null;
+        }
+    }
+
+    private Task SelectAsync(CitationSelection selection)
+    {
+        _selected = selection;
+        return Task.CompletedTask;
+    }
+
+    private void ClosePreview() => _selected = null;
+
+    private Citation? FindCitation(CitationSelection selection)
+    {
+        if (_live is { } live && live.AssistantMessageId == selection.MessageId)
+        {
+            var view = live.ToView();
+            return view.Cited.Concat(view.Sources).FirstOrDefault(c => c.Marker == selection.Marker);
+        }
+
+        return _detail?.Messages.FirstOrDefault(m => m.Id == selection.MessageId)?.Citations?.FirstOrDefault(c => c.Marker == selection.Marker);
+    }
+
+    private DateTimeOffset? CitedAt(CitationSelection selection) =>
+        _detail?.Messages.FirstOrDefault(m => m.Id == selection.MessageId)?.CompletedAt;
+
+    public void Dispose()
+    {
+        _generation++;
+        _lifetime.Cancel();
+        _streamCts?.Cancel();
+        DisposeLive();
+        _lifetime.Dispose();
+    }
+}

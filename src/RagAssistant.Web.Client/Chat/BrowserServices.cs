@@ -49,14 +49,30 @@ public interface IDraftStore
     Task ClearAsync(string key);
 }
 
+/// <summary>Reports whether the viewport is narrower than 1024 px (the list collapses and the preview becomes a drawer).</summary>
+public interface IViewport
+{
+    /// <summary>Calls back at once with the current state, and again whenever it changes.</summary>
+    Task WatchNarrowAsync(Func<bool, Task> onChanged);
+}
+
+/// <summary>Keeps Tab inside a modal drawer.</summary>
+public interface IFocusTrap
+{
+    Task AttachAsync(ElementReference container);
+
+    Task DetachAsync(ElementReference container);
+}
+
 /// <summary>The browser implementation of all of them: one lazily imported ES module, <c>wwwroot/js/chat.js</c>.</summary>
-public sealed class BrowserChatInterop(IJSRuntime js) : IClipboard, IThreadScroller, IEnterKeyHandler, IDraftStore, IAsyncDisposable
+public sealed class BrowserChatInterop(IJSRuntime js) : IClipboard, IThreadScroller, IEnterKeyHandler, IDraftStore, IViewport, IFocusTrap, IAsyncDisposable
 {
     // Relative to the document base ("/"); the module is a static web asset of this project.
     private const string ModulePath = "./js/chat.js";
 
     private IJSObjectReference? _module;
     private readonly Dictionary<ElementReference, IDisposable> _callbacks = [];
+    private DotNetObjectReference<ViewportCallback>? _viewport;
 
     public async Task CopyAsync(string text, CancellationToken cancellationToken)
     {
@@ -102,6 +118,19 @@ public sealed class BrowserChatInterop(IJSRuntime js) : IClipboard, IThreadScrol
         await SafeAsync(m => m.InvokeVoidAsync("detachEnter", container));
         Forget(container);
     }
+
+    public async Task WatchNarrowAsync(Func<bool, Task> onChanged)
+    {
+        _viewport?.Dispose();
+        _viewport = DotNetObjectReference.Create(new ViewportCallback(onChanged));
+        await (await ModuleAsync()).InvokeVoidAsync("watchNarrow", _viewport);
+    }
+
+    async Task IFocusTrap.AttachAsync(ElementReference container) =>
+        await SafeAsync(m => m.InvokeVoidAsync("trapFocus", container));
+
+    async Task IFocusTrap.DetachAsync(ElementReference container) =>
+        await SafeAsync(m => m.InvokeVoidAsync("releaseFocus", container));
 
     public async Task<string?> LoadAsync(string key) =>
         await SafeAsync(async m => await m.InvokeAsync<string?>("readDraft", key));
@@ -161,6 +190,7 @@ public sealed class BrowserChatInterop(IJSRuntime js) : IClipboard, IThreadScrol
         }
 
         _callbacks.Clear();
+        _viewport?.Dispose();
         if (_module is not null)
         {
             try
@@ -178,6 +208,12 @@ public sealed class BrowserChatInterop(IJSRuntime js) : IClipboard, IThreadScrol
     {
         [JSInvokable]
         public Task OnFollowingChanged(bool following) => handler(following);
+    }
+
+    private sealed class ViewportCallback(Func<bool, Task> handler)
+    {
+        [JSInvokable]
+        public Task OnChanged(bool narrow) => handler(narrow);
     }
 
     private sealed class EnterCallback(Func<Task> handler)

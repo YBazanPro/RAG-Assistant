@@ -42,6 +42,9 @@ public sealed class LiveAnswer : IDisposable
     /// <summary>Raised when the view should render; may come from a timer thread.</summary>
     public event Action? Changed;
 
+    /// <summary>Raised once the server has stored the question (<c>question.accepted</c>).</summary>
+    public event Action? Accepted;
+
     /// <summary>Raised with each stage sentence for the screen-reader region.</summary>
     public event Action<string>? Announced;
 
@@ -143,6 +146,7 @@ public sealed class LiveAnswer : IDisposable
             case QuestionAccepted accepted:
                 UserMessageId = accepted.UserMessageId;
                 AssistantMessageId = accepted.AssistantMessageId;
+                Accepted?.Invoke();
                 RenderNow();
                 return false;
             case RetrievalCompleted retrieval:

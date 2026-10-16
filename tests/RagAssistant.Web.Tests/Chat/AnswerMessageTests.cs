@@ -331,6 +331,6 @@ public class AnswerMessageTests
             .Add(c => c.OnCitationSelected, EventCallback.Factory.Create<CitationSelection>(this, s => chosen = s)));
         cut.Find("button.citation-item-main").Click();
 
-        await Assert.That(chosen).IsEqualTo(new CitationSelection(message.Id, 1));
+        await Assert.That(chosen).IsEqualTo(new CitationSelection(message.Id, 1, $"m{message.Id:N}-citation-1"));
     }
 }

@@ -1,7 +1,10 @@
+@implements IAsyncDisposable
 @inject IThreadScroller Scroller
+@inject IFocusTrap FocusTrap
 
 @* Renders from the citation snapshot alone, so it cannot fail to load (spec 013). Esc and Close return focus to the opener. *@
-<aside @ref="_element" class="source-preview" tabindex="-1" aria-label="Source preview" @onkeydown="OnKeyDown">
+<aside @ref="_element" class="source-preview" tabindex="-1" aria-label="Source preview" @onkeydown="OnKeyDown"
+       role="@(Modal ? "dialog" : null)" aria-modal="@(Modal ? "true" : null)">
     <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
         <FluentStack HorizontalAlignment="HorizontalAlignment.SpaceBetween" VerticalAlignment="VerticalAlignment.Center">
             <FluentText Weight="TextWeight.Bold">Source @Citation.Marker</FluentText>
@@ -50,6 +53,7 @@
 
 @code {
     private ElementReference _element;
+    private bool _trapped;
 
     [Parameter, EditorRequired] public Citation Citation { get; set; } = default!;
 
@@ -61,11 +65,20 @@
 
     [Parameter] public EventCallback OnClose { get; set; }
 
+    /// <summary>Shown as an overlay drawer (narrow screens): a dialog that keeps Tab inside it.</summary>
+    [Parameter] public bool Modal { get; set; }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Focus enters the preview when it opens so Esc works at once; replacing the citation keeps the focus where it is.
         if (firstRender)
         {
+            if (Modal)
+            {
+                await FocusTrap.AttachAsync(_element);
+                _trapped = true;
+            }
+
             await _element.FocusAsync();
         }
     }
@@ -75,6 +88,14 @@
         if (e.Key == "Escape")
         {
             await CloseAsync();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_trapped)
+        {
+            await FocusTrap.DetachAsync(_element);
         }
     }
 

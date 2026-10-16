@@ -100,6 +100,34 @@ public sealed class FakeDraftStore : IDraftStore
     }
 }
 
+public sealed class FakeFocusTrap : IFocusTrap
+{
+    public int Attached { get; private set; }
+
+    public Task AttachAsync(ElementReference container)
+    {
+        Attached++;
+        return Task.CompletedTask;
+    }
+
+    public Task DetachAsync(ElementReference container) => Task.CompletedTask;
+}
+
+public sealed class FakeViewport : IViewport
+{
+    private Func<bool, Task>? _onChanged;
+
+    public bool Narrow { get; set; }
+
+    public Task WatchNarrowAsync(Func<bool, Task> onChanged)
+    {
+        _onChanged = onChanged;
+        return onChanged(Narrow);
+    }
+
+    public Task ChangeAsync(bool narrow) => _onChanged!(narrow);
+}
+
 internal static class ChatTestData
 {
     public static Citation Citation(int marker = 1, string title = "Budget Exception Policy", string? text = "Exceptions above 5000 need approval.") =>
@@ -116,6 +144,7 @@ internal static class ChatTestData
         ctx.Services.AddSingleton<IClipboard>(clipboard);
         ctx.Services.AddSingleton<IThreadScroller>(scroller);
         ctx.Services.AddSingleton<IEnterKeyHandler>(new FakeEnterKey());
+        ctx.Services.AddSingleton<IFocusTrap>(new FakeFocusTrap());
         return ctx;
     }
 }
