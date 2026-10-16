@@ -1,0 +1,42 @@
+@* What the next question searches (spec 015): the chosen documents and tags, or the whole corpus. *@
+<div class="scope-bar" role="group" aria-label="Search scope">
+    <FluentText Class="scope-summary">@Summary</FluentText>
+    @foreach (var document in Scope.Documents)
+    {
+        <FluentBadge Class="scope-chip" data-available="@(document.Available ? "true" : "false")">
+            @(document.Title ?? "Document")@(document.Available ? "" : " (unavailable)")
+        </FluentBadge>
+    }
+    @foreach (var tag in Scope.Tags)
+    {
+        <FluentBadge Class="scope-chip">tag: @tag</FluentBadge>
+    }
+    <FluentButton Appearance="ButtonAppearance.Outline" Class="scope-choose" Disabled="Disabled" OnClick="OnChoose">
+        @(Scope.IsEmpty ? "Choose documents" : "Change")
+    </FluentButton>
+    @if (!Scope.IsEmpty)
+    {
+        <FluentButton Appearance="ButtonAppearance.Transparent" Class="scope-clear" Disabled="Disabled" OnClick="OnClear">Search all documents</FluentButton>
+    }
+    @if (Error is not null)
+    {
+        <FluentText Class="scope-error" role="alert">@Error</FluentText>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConversationScope Scope { get; set; } = ConversationScope.Empty;
+
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public string? Error { get; set; }
+
+    [Parameter] public EventCallback OnChoose { get; set; }
+
+    [Parameter] public EventCallback OnClear { get; set; }
+
+    private string Summary => Scope.IsEmpty
+        ? "Searching all documents."
+        : $"Searching {(Scope.Documents.Count > 0 ? $"{Scope.Documents.Count} {(Scope.Documents.Count == 1 ? "document" : "documents")}" : "all documents")}"
+            + (Scope.Tags.Count > 0 ? $" with {(Scope.Tags.Count == 1 ? "the tag" : "all the tags")}:" : ":");
+}

@@ -64,10 +64,7 @@ internal static class GetConversation
                 .ToDictionaryAsync(g => g.Key, g => g.Count, cancellationToken);
 
             var availability = await catalog.CheckAsync(conversation.ScopeDocumentIds, cancellationToken);
-            var scope = new ConversationScope(
-                conversation.ScopeDocumentIds,
-                conversation.ScopeTags,
-                [.. conversation.ScopeDocumentIds.Where(id => !availability.Searchable.Contains(id))]);
+            var scope = ConversationScope.From(conversation.ScopeDocumentIds, conversation.ScopeTags, availability);
 
             return new ConversationDetail(
                 conversation.Id,

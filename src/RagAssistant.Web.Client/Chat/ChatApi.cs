@@ -23,6 +23,12 @@ public sealed class ChatApi(Func<HttpClient> httpClient) : IChatApi
     public Task<ApiResult<ConversationDetail>> GetConversationAsync(Guid conversationId, CancellationToken cancellationToken) =>
         DocumentsApi.SendAsync<ConversationDetail>(() => httpClient().GetAsync($"api/chat/conversations/{conversationId}", cancellationToken), cancellationToken);
 
+    public Task<ApiResult<ConversationScope>> SetScopeAsync(
+        Guid conversationId, IReadOnlyList<Guid> documentIds, IReadOnlyList<string> tags, CancellationToken cancellationToken) =>
+        DocumentsApi.SendAsync<ConversationScope>(
+            () => httpClient().PutAsJsonAsync($"api/chat/conversations/{conversationId}/scope", new { documentIds, tags }, Json, cancellationToken),
+            cancellationToken);
+
     public Task<ApiResult<ActivityView>> GetActivityAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken) =>
         DocumentsApi.SendAsync<ActivityView>(
             () => httpClient().GetAsync($"api/chat/conversations/{conversationId}/messages/{messageId}/activity", cancellationToken), cancellationToken);
