@@ -99,6 +99,11 @@ html, body {
     outline: none;
 }
 
+/* The chat page uses the width (spec 015); other pages keep the readable cap. */
+.app-main:has(.chat-layout) {
+    max-width: var(--chat-max-width, 1600px);
+}
+
 .page-header {
     display: flex;
     align-items: flex-start;
@@ -404,6 +409,34 @@ html, body {
     margin: 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+}
+
+/* Spec 015: a readable column, user bubbles on the right, assistant answers on the left. */
+.thread-question,
+.thread-answer {
+    width: 100%;
+    max-width: var(--chat-message-max-width, 52rem);
+    margin-inline: auto;
+    box-sizing: border-box;
+}
+
+.thread-question {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.thread-bubble {
+    max-width: 85%;
+    padding: 8px 14px;
+    border-radius: var(--borderRadiusXLarge, 12px);
+    background: var(--colorBrandBackground2, var(--colorNeutralBackground3));
+    color: var(--colorNeutralForeground1);
+}
+
+.assistant-label {
+    color: var(--colorNeutralForeground3);
+    font-size: 0.85em;
+    margin-bottom: 4px;
 }
 
 .answer-message p,

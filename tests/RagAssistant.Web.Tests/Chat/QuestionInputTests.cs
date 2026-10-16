@@ -134,6 +134,22 @@ public class QuestionInputTests
         await Assert.That(cut.Find(".thread-question-text").TextContent).IsEqualTo("What is the limit?");
     }
 
+    // AC-16
+    [Test]
+    public async Task Thread_labelsEachRoleForScreenReadersAndStylesThemApart()
+    {
+        await using var ctx = ChatTestData.NewContext(out _, out _);
+        var question = new ChatMessage(Guid.NewGuid(), "user", 1, "What is the limit?", DateTimeOffset.UnixEpoch, null, null, null, null, null, null, null);
+        var answer = AnswerData.Assistant("refused", text: "", refusal: "no_evidence") with { Sequence = 2, ReplyToMessageId = question.Id };
+
+        var cut = ctx.Render<ConversationThread>(p => p.Add(c => c.Messages, [question, answer]));
+
+        await Assert.That(cut.Find(".thread-question .visually-hidden").TextContent.Trim()).IsEqualTo("You said");
+        await Assert.That(cut.Find(".thread-answer .visually-hidden").TextContent.Trim()).IsEqualTo("Assistant said");
+        await Assert.That(cut.FindAll(".thread-question .thread-bubble").Count).IsEqualTo(1);
+        await Assert.That(cut.FindAll(".thread-answer .assistant-label").Count).IsEqualTo(1);
+    }
+
     [Test]
     public async Task Thread_showsThePendingQuestionBeforeAnyEvent()
     {
