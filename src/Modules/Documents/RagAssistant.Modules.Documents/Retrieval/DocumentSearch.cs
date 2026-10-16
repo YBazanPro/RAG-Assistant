@@ -27,6 +27,6 @@ internal sealed class DocumentSearch(ModuleMediator mediator) : IDocumentSearch
         }
 
         var value = run.Value;
-        return new SearchResult(value.Outcome, value.Kept, value.Thresholds, value.EmbeddingModel);
+        return new SearchResult(value.Outcome, value.Kept, value.Thresholds, value.EmbeddingModel, value.BestScore);
     }
 }

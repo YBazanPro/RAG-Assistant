@@ -1,5 +1,6 @@
 @* What the next question searches (spec 015): the chosen documents and tags, or the whole corpus. *@
 <div class="scope-bar" role="group" aria-label="Search scope">
+    <FluentText Class="panel-title">Search scope</FluentText>
     <FluentText Class="scope-summary">@Summary</FluentText>
     @foreach (var document in Scope.Documents)
     {
@@ -11,12 +12,12 @@
     {
         <FluentBadge Class="scope-chip">tag: @tag</FluentBadge>
     }
-    <FluentButton Appearance="ButtonAppearance.Outline" Class="scope-choose" Disabled="Disabled" OnClick="OnChoose">
+    <FluentButton Appearance="ButtonAppearance.Outline" Size="ButtonSize.Small" Class="scope-choose" Disabled="Disabled" OnClick="OnChoose">
         @(Scope.IsEmpty ? "Choose documents" : "Change")
     </FluentButton>
     @if (!Scope.IsEmpty)
     {
-        <FluentButton Appearance="ButtonAppearance.Transparent" Class="scope-clear" Disabled="Disabled" OnClick="OnClear">Search all documents</FluentButton>
+        <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Class="scope-clear" Disabled="Disabled" OnClick="OnClear">Search all documents</FluentButton>
     }
     @if (Error is not null)
     {

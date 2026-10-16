@@ -67,7 +67,7 @@ else
             @if (_currentId is not null)
             {
                 <div class="chat-header">
-                    <FluentButton Appearance="ButtonAppearance.Transparent" Class="delete-conversation" OnClick="@(() => AskDelete(_currentId.Value))">Delete conversation</FluentButton>
+                    <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Class="delete-conversation" OnClick="@(() => AskDelete(_currentId.Value))"><TrashIcon /> Delete conversation</FluentButton>
                 </div>
             }
             @if (_deleteNotice is not null)

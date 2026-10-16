@@ -28,7 +28,9 @@ internal static class GetActivity
 
     public sealed record ScopeDocument(Guid Id, string? Title, bool Available);
 
-    public sealed record RetrievalStep(string? Outcome, double? MinScore, double? ConfidentScore, int? Ms, IReadOnlyList<PassageStep> Passages);
+    /// <param name="BestScore">The best candidate before the evidence rules; explains a refusal (null when nothing matched, or on older traces).</param>
+    public sealed record RetrievalStep(
+        string? Outcome, double? MinScore, double? ConfidentScore, int? Ms, IReadOnlyList<PassageStep> Passages, double? BestScore = null);
 
     public sealed record PassageStep(
         int Rank,
@@ -87,7 +89,7 @@ internal static class GetActivity
                 trace.QuestionText,
                 new RewriteStep(trace.RewriteUsed, trace.RetrievalQuery, trace.RewriteFallbackReason?.ToApi(), trace.RewriteMs),
                 new ScopeStep(trace.FilterLanguage, trace.FilterTags, documents),
-                new RetrievalStep(trace.EvidenceOutcome is { } outcome ? JsonNamingPolicy.CamelCase.ConvertName(outcome) : null, trace.MinScore, trace.ConfidentScore, trace.RetrievalMs, passages),
+                new RetrievalStep(trace.EvidenceOutcome is { } outcome ? JsonNamingPolicy.CamelCase.ConvertName(outcome) : null, trace.MinScore, trace.ConfidentScore, trace.RetrievalMs, passages, trace.BestScore),
                 new AnswerStep(
                     trace.ChatModel is not null,
                     trace.FinalStatus.ToApi(),

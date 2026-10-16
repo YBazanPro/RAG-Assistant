@@ -93,6 +93,20 @@ public class ActivityPanelTests
     }
 
     [Test]
+    public async Task Stored_refusal_saysHowCloseTheBestPassageCame()
+    {
+        var (ctx, api) = NewContext();
+        await using var disposeContext = ctx;
+        var refused = Stored(modelCalled: false, status: "refused", refusal: "no_evidence");
+        api.OnActivity = _ => ApiResult.Ok(refused with { Retrieval = new RetrievalStep("noEvidence", 0.55, 0.6, 8190, [], 0.48) });
+
+        var cut = RenderStored(ctx, open: true);
+
+        await Assert.That(cut.Find(".activity-body").TextContent)
+            .Contains("No evidence: nothing reached the minimum score of 0.55; the closest passage scored 0.48 (8190 ms).");
+    }
+
+    [Test]
     public async Task Stored_failure_showsRetry_thatLoadsAgain()
     {
         var (ctx, api) = NewContext();

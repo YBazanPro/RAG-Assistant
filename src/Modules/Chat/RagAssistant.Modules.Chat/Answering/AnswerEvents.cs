@@ -45,7 +45,8 @@ internal static class AnswerEvents
         IReadOnlyList<Guid> LeftOut,
         double MinScore,
         double ConfidentScore,
-        int? RetrievalMs);
+        int? RetrievalMs,
+        double? BestScore = null);
 
     public sealed record AnswerDelta(string Text);
 

@@ -299,6 +299,10 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("attempt");
 
+                    b.Property<double?>("BestScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("best_score");
+
                     b.Property<string>("ChatModel")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")

@@ -84,7 +84,8 @@ public sealed record RetrievalCompleted(
     IReadOnlyList<Guid>? LeftOut = null,
     double? MinScore = null,
     double? ConfidentScore = null,
-    int? RetrievalMs = null) : AnswerEvent;
+    int? RetrievalMs = null,
+    double? BestScore = null) : AnswerEvent;
 
 /// <summary>What retrieval searches for; differs from the question for a follow-up (spec 014).</summary>
 public sealed record RetrievalStarted(string Query) : AnswerEvent;
@@ -123,7 +124,8 @@ public sealed record ScopeStep(string? Language, IReadOnlyList<string> Tags, IRe
 
 public sealed record ScopeDocument(Guid Id, string? Title, bool Available);
 
-public sealed record RetrievalStep(string? Outcome, double? MinScore, double? ConfidentScore, int? Ms, IReadOnlyList<PassageStep> Passages);
+public sealed record RetrievalStep(
+    string? Outcome, double? MinScore, double? ConfidentScore, int? Ms, IReadOnlyList<PassageStep> Passages, double? BestScore = null);
 
 public sealed record PassageStep(
     int Rank,

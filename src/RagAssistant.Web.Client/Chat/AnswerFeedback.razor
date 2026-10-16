@@ -4,11 +4,11 @@
 @if (Eligible)
 {
     <div class="answer-feedback" role="group" aria-label="Feedback on this answer">
-        <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" aria-pressed="@(_rating == "helpful" ? "true" : "false")"
+        <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Disabled="_busy" aria-pressed="@(_rating == "helpful" ? "true" : "false")"
                       Class="@(_rating == "helpful" ? "feedback-active" : null)" OnClick="@(() => RateAsync("helpful"))">Helpful</FluentButton>
-        <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" aria-pressed="@(_rating == "not_helpful" ? "true" : "false")"
+        <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Disabled="_busy" aria-pressed="@(_rating == "not_helpful" ? "true" : "false")"
                       Class="@(_rating == "not_helpful" ? "feedback-active" : null)" OnClick="@(() => RateAsync("not_helpful"))">Not helpful</FluentButton>
-        <FluentButton Appearance="ButtonAppearance.Transparent" Disabled="@(_limitReached)" OnClick="OpenReport">Report issue</FluentButton>
+        <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Disabled="@(_limitReached)" OnClick="OpenReport">Report issue</FluentButton>
         @if (_reported)
         {
             <span class="feedback-thanks" role="status">Thanks, reported.</span>

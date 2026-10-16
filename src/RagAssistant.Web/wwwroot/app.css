@@ -706,3 +706,67 @@ html, body {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Chat panels (spec 015 follow-up): each region is a bordered card with a small title, so the page reads as parts. */
+.chat-list-pane,
+.scope-bar,
+.question-input {
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: var(--borderRadiusLarge, 8px);
+    background: var(--colorNeutralBackground2);
+    padding: 8px 12px;
+}
+
+.thread-wrap {
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: var(--borderRadiusLarge, 8px);
+    background: var(--colorNeutralBackground1);
+}
+
+.panel-title {
+    display: block;
+    width: 100%;
+    color: var(--colorNeutralForeground3);
+    font-size: 0.75em;
+    font-weight: var(--fontWeightSemibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.question-input {
+    margin-top: 0;
+}
+
+/* Discreet secondary controls: small, muted, no heavy outlines. */
+.answer-feedback {
+    gap: 2px;
+    margin-top: 4px;
+    font-size: 0.85em;
+    color: var(--colorNeutralForeground3);
+}
+
+.answer-feedback fluent-button,
+.activity-toggle,
+.delete-conversation,
+.conversation-delete {
+    font-size: 0.85em;
+    color: var(--colorNeutralForeground3);
+}
+
+.answer-feedback .feedback-active {
+    color: var(--colorBrandForegroundLink);
+    font-weight: var(--fontWeightSemibold);
+}
+
+.icon-trash {
+    vertical-align: -2px;
+}
+
+.conversation-delete {
+    min-width: 0;
+    padding-inline: 4px;
+}
+
+.activity-panel {
+    margin-top: 4px;
+}

@@ -55,6 +55,9 @@ internal sealed class RequestTrace
 
     public double? DuplicateOverlap { get; set; }
 
+    /// <summary>The best score among the candidates before the evidence rules; shows how close a refused question came (null when nothing matched).</summary>
+    public double? BestScore { get; set; }
+
     public string? EmbeddingModel { get; set; }
 
     /// <summary>JSON array of <see cref="RetrievedPassageTrace"/>, stored as <c>jsonb</c>.</summary>
