@@ -19,7 +19,6 @@ internal static class TestAuthentication
             options.TokenValidationParameters.IssuerSigningKey = TestTokens.SigningKey;
             options.TokenValidationParameters.ValidIssuer = TestTokens.Issuer;
             options.TokenValidationParameters.ValidAudience = TestTokens.Audience;
-            options.TokenValidationParameters.ClockSkew = TimeSpan.Zero;
         });
     }
 }

@@ -72,6 +72,7 @@ public sealed class AuthTests(RagAssistantAppFactory factory)
 
     [Test]
     [Arguments(TokenFlaw.Expired)]
+    [Arguments(TokenFlaw.JustExpired)]
     [Arguments(TokenFlaw.WrongKey)]
     [Arguments(TokenFlaw.WrongIssuer)]
     [Arguments(TokenFlaw.WrongAudience)]

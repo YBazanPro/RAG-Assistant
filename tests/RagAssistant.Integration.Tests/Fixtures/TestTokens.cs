@@ -44,8 +44,19 @@ public static class TestTokens
             Issuer = flaw == TokenFlaw.WrongIssuer ? "http://localhost:8180/realms/other" : Issuer,
             Audience = flaw == TokenFlaw.WrongAudience ? "another-api" : Audience,
             Claims = claims,
-            NotBefore = flaw == TokenFlaw.Expired ? now.AddHours(-2) : now.AddMinutes(-1),
-            Expires = flaw == TokenFlaw.Expired ? now.AddHours(-1) : now.AddHours(1),
+            NotBefore = flaw switch
+            {
+                TokenFlaw.Expired => now.AddHours(-2),
+                TokenFlaw.JustExpired => now.AddMinutes(-10),
+                _ => now.AddMinutes(-1),
+            },
+            Expires = flaw switch
+            {
+                TokenFlaw.Expired => now.AddHours(-1),
+                // Past the 1-minute clock skew but inside the framework's 5-minute default.
+                TokenFlaw.JustExpired => now.AddMinutes(-2),
+                _ => now.AddHours(1),
+            },
             SigningCredentials = new SigningCredentials(
                 flaw == TokenFlaw.WrongKey ? _otherKey : _signingKey, SecurityAlgorithms.RsaSha256),
         };

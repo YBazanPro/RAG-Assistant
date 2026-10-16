@@ -12,6 +12,7 @@ public enum TokenFlaw
 {
     None,
     Expired,
+    JustExpired,
     WrongKey,
     WrongIssuer,
     WrongAudience,

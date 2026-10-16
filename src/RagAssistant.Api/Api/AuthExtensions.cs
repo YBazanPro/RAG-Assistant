@@ -26,6 +26,8 @@ internal static class AuthExtensions
             // Keep claim names exactly as issued ("sub", "roles"); the default inbound mapping renames both.
             options.MapInboundClaims = false;
             options.TokenValidationParameters.RoleClaimType = RolesClaim;
+            // The 5-minute default would keep an expired token usable for minutes after the realm's 1-hour lifetime.
+            options.TokenValidationParameters.ClockSkew = TimeSpan.FromMinutes(1);
             options.Events = new JwtBearerEvents
             {
                 OnChallenge = WriteUnauthorizedAsync,
