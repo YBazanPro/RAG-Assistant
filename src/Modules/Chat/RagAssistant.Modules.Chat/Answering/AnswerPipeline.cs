@@ -157,15 +157,23 @@ internal sealed partial class AnswerPipeline(
         var answer = attempt.Answer;
         attempt.RetrievalQuery = answer.Question;
 
-        var earlier = await db.Messages.AsNoTracking()
-            .Where(m => m.ConversationId == answer.ConversationId && m.Sequence < answer.UserSequence)
-            .ToListAsync(aborted);
-        if (!FollowUpHistory.HasUsableAnswer(earlier))
+        // A rewrite is only worth a model call once some earlier answer is complete or partial, however old it is.
+        var hasUsableAnswer = await db.Messages.AnyAsync(
+            m => m.ConversationId == answer.ConversationId && m.Sequence < answer.UserSequence && m.Role == MessageRole.Assistant
+                && (m.Status == AnswerStatus.Complete || m.Status == AnswerStatus.Partial),
+            aborted);
+        if (!hasUsableAnswer)
         {
             return answer.Question;
         }
 
+        // Only the window is read: an exchange is a question plus its answer, so the last 2N messages cover N exchanges.
         var options = followUpOptions.Value;
+        var earlier = await db.Messages.AsNoTracking()
+            .Where(m => m.ConversationId == answer.ConversationId && m.Sequence < answer.UserSequence)
+            .OrderByDescending(m => m.Sequence)
+            .Take(options.HistoryExchanges * 2)
+            .ToListAsync(aborted);
         var history = FollowUpHistory.Build(earlier, options.HistoryExchanges, options.MaxAnswerChars);
         var messages = PromptBuilder.BuildRewrite(history, answer.Question);
         attempt.RewritePromptVersion = PromptBuilder.RewritePromptVersion;
@@ -191,11 +199,13 @@ internal sealed partial class AnswerPipeline(
             attempt.RetrievalQuery = standalone;
             return standalone;
         }
-        catch (OperationCanceledException) when (deadline.IsCancellationRequested && !aborted.IsCancellationRequested)
+        catch (OperationCanceledException) when (!aborted.IsCancellationRequested)
         {
+            // Our deadline, or a timeout inside the client stack (which also surfaces as a cancellation): neither is the caller leaving.
+            var reason = deadline.IsCancellationRequested ? RewriteFallback.Timeout : RewriteFallback.ModelError;
             attempt.RewriteMs = Milliseconds(started);
-            attempt.RewriteFallback = RewriteFallback.Timeout;
-            LogRewriteFallback(logger, answer.AssistantMessageId, RewriteFallback.Timeout);
+            attempt.RewriteFallback = reason;
+            LogRewriteFallback(logger, answer.AssistantMessageId, reason);
             return answer.Question;
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException && !aborted.IsCancellationRequested)

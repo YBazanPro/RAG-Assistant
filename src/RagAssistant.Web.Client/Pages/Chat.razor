@@ -447,6 +447,26 @@ else
                 await FinishWithoutStreamAsync(question);
             }
         }
+        finally
+        {
+            ReleaseIfStuck(generation);
+        }
+    }
+
+    // Whatever escaped the flow above, the page must not stay on "Cancel" for good.
+    private void ReleaseIfStuck(int generation)
+    {
+        if (generation != _generation)
+        {
+            return;
+        }
+
+        _busy = false;
+        if (_live is null)
+        {
+            _pendingQuestion = null;
+            _retryingId = null;
+        }
     }
 
     // Creating the conversation is the first Send of /chat; false when it failed (the failure is already shown).
@@ -498,6 +518,10 @@ else
                 await FinishWithoutStreamAsync(question: null);
             }
         }
+        finally
+        {
+            ReleaseIfStuck(generation);
+        }
     }
 
     private async Task RunAnswerAsync(
@@ -547,7 +571,6 @@ else
                 _text = question;
             }
 
-            await LoadListPageAsync(first: true);
         }
         else if (outcome == LiveOutcome.Cancelled)
         {
@@ -557,11 +580,18 @@ else
             _sendError = "The conversation could not be refreshed. Reload the page to see its current state.";
         }
 
+        // The answer is final: give the input back before the list (which only reorders) is refreshed.
         _busy = false;
         StateHasChanged();
         if (_input is not null)
         {
             await _input.FocusAsync();
+        }
+
+        if (reloaded)
+        {
+            await LoadListPageAsync(first: true);
+            StateHasChanged();
         }
     }
 
@@ -750,7 +780,14 @@ else
                 break;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(300), Clock, _lifetime.Token);
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(300), Clock, _lifetime.Token);
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+            {
+                return; // the page is gone
+            }
         }
 
         if (result.IsSuccess || result.Error!.IsNotFound)

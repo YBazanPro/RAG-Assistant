@@ -33,7 +33,7 @@ public sealed class FollowUpTests(PostgresFixture postgres)
 
         var rewritePrompt = UserText(bed.Chat.RewriteCalls.Single());
         await Assert.That(rewritePrompt).Contains(ChatBed.Question);
-        await Assert.That(rewritePrompt).Contains("Zebra protocol applies .");
+        await Assert.That(rewritePrompt).Contains("Zebra protocol applies.");
         await Assert.That(rewritePrompt).DoesNotContain("[1]");
         await Assert.That(rewritePrompt[..rewritePrompt.IndexOf("Current question:", StringComparison.Ordinal)]).DoesNotContain(FollowUp);
         await Assert.That(result.Data("retrieval.started").GetProperty("query").GetString()).IsEqualTo(Standalone);
@@ -69,6 +69,7 @@ public sealed class FollowUpTests(PostgresFixture postgres)
     // AC-4
     [Test]
     [Arguments("throw", "ModelError")]
+    [Arguments("client-timeout", "ModelError")]
     [Arguments("garbage", "Invalid")]
     [Arguments("empty", "Invalid")]
     [Arguments("long", "Invalid")]
@@ -83,6 +84,9 @@ public sealed class FollowUpTests(PostgresFixture postgres)
         {
             case "throw":
                 bed.Chat.ThrowOnRewrite();
+                break;
+            case "client-timeout":
+                bed.Chat.TimeOutInClientOnRewrite();
                 break;
             case "garbage":
                 bed.Chat.ScriptRewriteRaw("this is not json");

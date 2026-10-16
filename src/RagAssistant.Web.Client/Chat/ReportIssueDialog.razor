@@ -1,29 +1,18 @@
-@* The report form (spec 014): a required category and an optional comment. Closed by Cancel, Escape or a successful submit (the parent clears Open). *@
-<div @onkeydown="OnKeyDownAsync">
-    <FluentDialog @ref="_dialog" Modal="true" OnStateChange="OnStateChangeAsync" aria-label="Report an issue">
-        <FluentDialogBody>
-            <TitleTemplate>Report an issue</TitleTemplate>
-            <ChildContent>
-                <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
-                    @if (Error is not null)
-                    {
-                        <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@Error</FluentMessageBar>
-                    }
-                    <FluentSelect Id="report-category" Label="What is wrong?" Required="true" TOption="CategoryChoice" TValue="string" Items="Categories"
-                                  OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)" Value="@_category" ValueChanged="OnCategoryChanged"
-                                  Message="@_categoryError" MessageCondition="@(_ => _categoryError is not null)" MessageState="MessageState.Error" />
-                    <FluentTextArea Id="report-comment" Label="Comment (optional)" MaxLength="1000" Immediate="true" ImmediateDelay="0"
-                                    @bind-Value="_comment" />
-                    <FluentText Block="true" Class="field-hint">@(_comment?.Length ?? 0) / 1000</FluentText>
-                </FluentStack>
-            </ChildContent>
-            <ActionTemplate>
-                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="Busy" OnClick="SubmitAsync">Submit</FluentButton>
-                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="CancelAsync">Cancel</FluentButton>
-            </ActionTemplate>
-        </FluentDialogBody>
-    </FluentDialog>
-</div>
+@* The report form (spec 014): a required category and an optional comment, inside the shared confirm dialog. *@
+<ConfirmDialog Open="Open" Title="Report an issue" ConfirmLabel="Submit" ConfirmDisabled="Busy" OnConfirm="SubmitAsync" OnCancel="OnCancel">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+        @if (Error is not null)
+        {
+            <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@Error</FluentMessageBar>
+        }
+        <FluentSelect Id="@($"report-category-{IdSuffix}")" Label="What is wrong?" Required="true" TOption="CategoryChoice" TValue="string" Items="Categories"
+                      OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)" Value="@_category" ValueChanged="OnCategoryChanged"
+                      Message="@_categoryError" MessageCondition="@(_ => _categoryError is not null)" MessageState="MessageState.Error" />
+        <FluentTextArea Id="@($"report-comment-{IdSuffix}")" Label="Comment (optional)" MaxLength="1000" Immediate="true" ImmediateDelay="0"
+                        @bind-Value="_comment" />
+        <FluentText Block="true" Class="field-hint">@(_comment?.Length ?? 0) / 1000</FluentText>
+    </FluentStack>
+</ConfirmDialog>
 
 @code {
     private static readonly CategoryChoice[] Categories =
@@ -36,8 +25,7 @@
         new("other", "Something else"),
     ];
 
-    private FluentDialog? _dialog;
-    private bool _shown;
+    private bool _wasOpen;
     private string _category = "";
     private string? _comment;
     private string? _categoryError;
@@ -46,6 +34,9 @@
 
     [Parameter] public bool Busy { get; set; }
 
+    /// <summary>Makes the field ids unique when several answers have a dialog.</summary>
+    [Parameter, EditorRequired] public string IdSuffix { get; set; } = "";
+
     /// <summary>A failure of the last submit, shown inside the dialog.</summary>
     [Parameter] public string? Error { get; set; }
 
@@ -53,26 +44,17 @@
 
     [Parameter] public EventCallback OnCancel { get; set; }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnParametersSet()
     {
-        if (_dialog is null || Open == _shown)
-        {
-            return;
-        }
-
-        _shown = Open;
-        if (Open)
+        // Each opening starts from an empty form.
+        if (Open && !_wasOpen)
         {
             _category = "";
             _comment = null;
             _categoryError = null;
-            await _dialog.ShowAsync();
-            StateHasChanged();
         }
-        else
-        {
-            await _dialog.HideAsync();
-        }
+
+        _wasOpen = Open;
     }
 
     private void OnCategoryChanged(string value)
@@ -83,11 +65,6 @@
 
     private Task SubmitAsync()
     {
-        if (Busy)
-        {
-            return Task.CompletedTask;
-        }
-
         if (string.IsNullOrEmpty(_category))
         {
             _categoryError = "Choose a category.";
@@ -96,20 +73,4 @@
 
         return OnSubmit.InvokeAsync(new ReportRequest(_category, string.IsNullOrWhiteSpace(_comment) ? null : _comment.Trim()));
     }
-
-    private Task CancelAsync() => OnCancel.InvokeAsync();
-
-    private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
-
-    // The web component swallows Escape before Blazor sees a keydown, so a dismissal by the component is reported here.
-    private async Task OnStateChangeAsync(DialogEventArgs args)
-    {
-        if (args.State == DialogState.Closed && _shown)
-        {
-            _shown = false;
-            await CancelAsync();
-            StateHasChanged();
-        }
-    }
 }
-

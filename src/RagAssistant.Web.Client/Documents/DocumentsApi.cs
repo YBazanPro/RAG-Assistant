@@ -65,7 +65,7 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
     private Task<ApiResult<T>> GetAsync<T>(string url, CancellationToken cancellationToken) =>
         SendAsync<T>(() => Http.GetAsync(url, cancellationToken), cancellationToken);
 
-    private static async Task<ApiResult<T>> SendAsync<T>(Func<Task<HttpResponseMessage>> send, CancellationToken cancellationToken)
+    internal static async Task<ApiResult<T>> SendAsync<T>(Func<Task<HttpResponseMessage>> send, CancellationToken cancellationToken)
     {
         try
         {

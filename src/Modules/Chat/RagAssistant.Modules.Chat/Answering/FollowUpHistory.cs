@@ -12,10 +12,6 @@ internal sealed record Exchange(string Question, string? Answer);
 /// </summary>
 internal static partial class FollowUpHistory
 {
-    /// <summary>A rewrite is only worth a model call once there is an answer to refer back to.</summary>
-    public static bool HasUsableAnswer(IEnumerable<Message> earlier) =>
-        earlier.Any(m => m.Role == MessageRole.Assistant && m.Status is AnswerStatus.Complete or AnswerStatus.Partial);
-
     /// <param name="earlier">Messages of the conversation that come before the current question, in any order.</param>
     /// <returns>The last <paramref name="exchanges"/> exchanges, oldest first.</returns>
     public static IReadOnlyList<Exchange> Build(IEnumerable<Message> earlier, int exchanges, int maxAnswerChars)
@@ -43,7 +39,7 @@ internal static partial class FollowUpHistory
         return text.Length <= maxChars ? text : text[..maxChars].TrimEnd() + "…";
     }
 
-    [GeneratedRegex(@"\[\d+\]")]
+    [GeneratedRegex(@"[ \t]?\[\d+\]")]
     private static partial Regex Marker();
 
     [GeneratedRegex(@"[ \t]{2,}")]

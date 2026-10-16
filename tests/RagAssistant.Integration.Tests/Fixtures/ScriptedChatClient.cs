@@ -28,6 +28,7 @@ public sealed class ScriptedChatClient : IChatClient
     private readonly TaskCompletionSource _rewriteCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource? _rewriteGate;
     private bool _rewriteThrows;
+    private bool _rewriteTimesOutInTheClient;
 
     public IReadOnlyList<IReadOnlyList<ChatMessage>> Calls => [.. _calls];
 
@@ -53,6 +54,9 @@ public sealed class ScriptedChatClient : IChatClient
 
     /// <summary>Completes when a rewrite call observed its cancellation token.</summary>
     public Task RewriteCancellationObserved => _rewriteCancelled.Task;
+
+    /// <summary>Every following rewrite call fails like an HttpClient timeout: a TaskCanceledException that is not our token.</summary>
+    public void TimeOutInClientOnRewrite() => _rewriteTimesOutInTheClient = true;
 
     /// <summary>Every following rewrite call throws a transport failure.</summary>
     public void ThrowOnRewrite() => _rewriteThrows = true;
@@ -91,6 +95,11 @@ public sealed class ScriptedChatClient : IChatClient
                 _rewriteCancelled.TrySetResult();
                 throw;
             }
+        }
+
+        if (_rewriteTimesOutInTheClient)
+        {
+            throw new TaskCanceledException("Scripted client timeout.");
         }
 
         if (_rewriteThrows)

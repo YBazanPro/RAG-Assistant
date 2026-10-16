@@ -20,7 +20,7 @@
     </div>
     @if (_dialogUsed)
     {
-        <ReportIssueDialog Open="_reportOpen" Busy="_reporting" Error="@_reportError" OnSubmit="ReportAsync" OnCancel="CloseReport" />
+        <ReportIssueDialog IdSuffix="@Message.Id.ToString("N")" Open="_reportOpen" Busy="_reporting" Error="@_reportError" OnSubmit="ReportAsync" OnCancel="CloseReport" />
     }
 }
 

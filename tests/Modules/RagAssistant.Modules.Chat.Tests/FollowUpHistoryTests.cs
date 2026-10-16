@@ -32,7 +32,7 @@ public class FollowUpHistoryTests
         var history = FollowUpHistory.Build(messages, 3, 1000);
 
         await Assert.That(history.Select(e => e.Question)).IsEquivalentTo(["Question 3", "Question 4", "Question 5"]);
-        await Assert.That(history[0].Answer).IsEqualTo("Answer 3 .");
+        await Assert.That(history[0].Answer).IsEqualTo("Answer 3.");
     }
 
     [Test]
@@ -60,16 +60,5 @@ public class FollowUpHistoryTests
 
         await Assert.That(history.Single().Answer!.Length).IsEqualTo(101);
         await Assert.That(history.Single().Answer!).EndsWith("…");
-    }
-
-    [Test]
-    public async Task HasUsableAnswer_needsACompleteOrPartialAnswer()
-    {
-        var q = Question(1, "Q");
-
-        await Assert.That(FollowUpHistory.HasUsableAnswer([q])).IsFalse();
-        await Assert.That(FollowUpHistory.HasUsableAnswer([q, Answer(q, "", AnswerStatus.Refused)])).IsFalse();
-        await Assert.That(FollowUpHistory.HasUsableAnswer([q, Answer(q, "x", AnswerStatus.Partial)])).IsTrue();
-        await Assert.That(FollowUpHistory.HasUsableAnswer([q, Answer(q, "x", AnswerStatus.Complete)])).IsTrue();
     }
 }

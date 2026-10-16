@@ -108,7 +108,8 @@
 
     private string? SearchedForLine => Live is not null ? Live.SearchedFor : SearchedFor;
 
-    private AnswerView View => Live is not null ? Live.ToView() : _view ??= AnswerView.From(Message!);
+    // Built once per render: a live view copies the whole text, and the markup reads it many times.
+    private AnswerView View => _view ??= Live is not null ? Live.ToView() : AnswerView.From(Message!);
 
     private string IdPrefix => $"m{(Live?.AssistantMessageId ?? Message?.Id):N}-";
 
@@ -139,6 +140,7 @@
     {
         if (Live is not null)
         {
+            _view = null;
             return true;
         }
 

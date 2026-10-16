@@ -3,10 +3,14 @@
         <FluentDialogBody>
             <TitleTemplate>@Title</TitleTemplate>
             <ChildContent>
-                <FluentText Block="true">@Message</FluentText>
+                @if (!string.IsNullOrEmpty(Message))
+                {
+                    <FluentText Block="true">@Message</FluentText>
+                }
+                @ChildContent
             </ChildContent>
             <ActionTemplate>
-                <FluentButton Appearance="ButtonAppearance.Primary"
+                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="ConfirmDisabled"
                               Class="@(Destructive ? "confirm-destructive" : null)"
                               OnClick="ConfirmAsync">@ConfirmLabel</FluentButton>
                 <FluentButton Appearance="ButtonAppearance.Outline" OnClick="CancelAsync">@CancelLabel</FluentButton>
@@ -23,7 +27,12 @@
 
     [Parameter, EditorRequired] public string Title { get; set; } = "";
 
-    [Parameter, EditorRequired] public string Message { get; set; } = "";
+    [Parameter] public string Message { get; set; } = "";
+
+    /// <summary>Extra content under the message, for dialogs that ask for input.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public bool ConfirmDisabled { get; set; }
 
     [Parameter] public string ConfirmLabel { get; set; } = "Confirm";
 
