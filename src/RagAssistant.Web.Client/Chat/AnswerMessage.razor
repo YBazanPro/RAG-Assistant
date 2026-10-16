@@ -1,0 +1,146 @@
+@implements IDisposable
+
+@* One answer, in whichever state it is: streaming (Live), or stored (Message). A final message re-renders only when its inputs change. *@
+<div class="answer-message" data-status="@View.Status" aria-busy="@(View.IsStreaming ? "true" : "false")">
+    @switch (View.Status)
+    {
+        case "pending":
+            <FluentMessageBar Intent="MessageBarIntent.Info" AllowDismiss="false" role="status">
+                <ChildContent>An answer is being written in another tab or window.</ChildContent>
+                <ActionsTemplate>
+                    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="OnRefresh">Refresh</FluentButton>
+                </ActionsTemplate>
+            </FluentMessageBar>
+            break;
+        case "streaming":
+            <FluentText Block="true" Class="stage-line">@View.StageLine</FluentText>
+            @if (View.Text.Length > 0)
+            {
+                <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectAsync" />
+            }
+            break;
+        case "lost":
+            <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">Connection lost.</FluentMessageBar>
+            break;
+        case "complete":
+            <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectAsync" />
+            <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectAsync" />
+            break;
+        case "partial":
+            @if (View.Cited.Count > 0)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">Based on limited evidence. Check the sources.</FluentMessageBar>
+                <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectAsync" />
+                <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectAsync" />
+            }
+            else
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">This answer is not linked to any source.</FluentMessageBar>
+                <AnswerText Text="@View.Text" IdPrefix="@IdPrefix" />
+            }
+            break;
+        case "refused":
+            <RefusalNotice Reason="@View.RefusalReason" />
+            break;
+        case "failed":
+            <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">
+                <ChildContent>@View.ErrorMessage</ChildContent>
+                <ActionsTemplate>
+                    @if (View.Retryable)
+                    {
+                        <FluentButton Appearance="ButtonAppearance.Outline" OnClick="OnRetry">Retry</FluentButton>
+                    }
+                    else
+                    {
+                        <FluentButton Appearance="ButtonAppearance.Outline" OnClick="OnAskAgain">Ask again</FluentButton>
+                    }
+                </ActionsTemplate>
+            </FluentMessageBar>
+            break;
+        case "cancelled":
+            <div class="answer-cancelled" role="status">
+                <FluentText>Answer cancelled.</FluentText>
+                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="OnRetry">Retry</FluentButton>
+            </div>
+            break;
+    }
+</div>
+
+@code {
+    private LiveAnswer? _subscribed;
+    private object? _renderedInputs;
+    private AnswerView? _view;
+
+    /// <summary>The stored answer; used when <see cref="Live"/> is null.</summary>
+    [Parameter] public ChatMessage? Message { get; set; }
+
+    /// <summary>The answer being streamed; it re-renders this component as it changes.</summary>
+    [Parameter] public LiveAnswer? Live { get; set; }
+
+    [Parameter] public int? SelectedMarker { get; set; }
+
+    [Parameter] public EventCallback<CitationSelection> OnCitationSelected { get; set; }
+
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    [Parameter] public EventCallback OnAskAgain { get; set; }
+
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    private AnswerView View => Live is not null ? Live.ToView() : _view ??= AnswerView.From(Message!);
+
+    private string IdPrefix => $"m{(Live?.AssistantMessageId ?? Message?.Id):N}-";
+
+    // The first render is unconditional and shows these inputs, so the first parent re-render with the same ones is skipped too.
+    protected override void OnInitialized() => _renderedInputs = (Message, SelectedMarker);
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_subscribed, Live))
+        {
+            if (_subscribed is not null)
+            {
+                _subscribed.Changed -= OnLiveChanged;
+            }
+
+            _subscribed = Live;
+            if (Live is not null)
+            {
+                Live.Changed += OnLiveChanged;
+            }
+        }
+
+        _view = null;
+    }
+
+    // A stored answer renders again only when what it shows changes; a parent re-render must not repaint 200 messages.
+    protected override bool ShouldRender()
+    {
+        if (Live is not null)
+        {
+            return true;
+        }
+
+        var inputs = (Message, SelectedMarker);
+        if (Equals(_renderedInputs, inputs))
+        {
+            return false;
+        }
+
+        _renderedInputs = inputs;
+        return true;
+    }
+
+    private void OnLiveChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private Task SelectAsync(int marker) =>
+        OnCitationSelected.InvokeAsync(new CitationSelection((Live?.AssistantMessageId ?? Message?.Id)!.Value, marker));
+
+    public void Dispose()
+    {
+        if (_subscribed is not null)
+        {
+            _subscribed.Changed -= OnLiveChanged;
+        }
+    }
+}

@@ -68,3 +68,6 @@ public sealed record AnswerDelta(string Text) : AnswerEvent;
 public sealed record AnswerCompleted(string Status, string? RefusalReason, IReadOnlyList<Citation> Citations) : AnswerEvent;
 
 public sealed record AnswerError(string Code, string Message, bool Retryable) : AnswerEvent;
+
+/// <summary>A citation chosen in the thread: which answer, and which of its markers.</summary>
+public readonly record struct CitationSelection(Guid MessageId, int Marker);
