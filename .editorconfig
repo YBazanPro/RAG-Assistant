@@ -3,3 +3,7 @@ root = true
 [*.cs]
 # C#-only solution: VB keyword clashes (e.g. the RagAssistant.SharedKernel namespace) are irrelevant
 dotnet_diagnostic.CA1716.severity = none
+
+[**/Persistence/Migrations/*.cs]
+# EF Core scaffolds these files; analyzer rules such as CA1861 (constant array arguments) do not apply to generated code
+generated_code = true

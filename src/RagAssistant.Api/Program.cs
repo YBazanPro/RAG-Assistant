@@ -1,4 +1,5 @@
 using RagAssistant.Api.Api;
+using RagAssistant.Modules.Chat;
 using RagAssistant.Modules.Documents;
 using RagAssistant.SharedKernel.Common.Extensions;
 
@@ -16,6 +17,7 @@ builder.Services.AddApiConventions();
 builder.Services.AddApiAuthentication(builder.Environment);
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 builder.Services.AddDocumentsModule(builder.Configuration);
+builder.Services.AddChatModule(builder.Configuration);
 
 var app = builder.Build();
 

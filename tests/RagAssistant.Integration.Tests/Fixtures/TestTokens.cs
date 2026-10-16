@@ -25,12 +25,13 @@ public static class TestTokens
         _ => [],
     };
 
-    public static string Create(Persona persona, TokenFlaw flaw = TokenFlaw.None)
+    /// <param name="subject">Overrides the persona's fixed <c>sub</c>, for tests that need users of their own on the shared factory.</param>
+    public static string Create(Persona persona, TokenFlaw flaw = TokenFlaw.None, string? subject = null)
     {
         var now = DateTime.UtcNow;
         var claims = new Dictionary<string, object>
         {
-            ["sub"] = $"test-{persona}",
+            ["sub"] = subject ?? $"test-{persona}",
             ["preferred_username"] = persona.ToString(),
         };
         if (flaw != TokenFlaw.NoRoles)
@@ -52,12 +53,12 @@ public static class TestTokens
     }
 
     public static HttpClient CreateClientAs(
-        this WebApplicationFactory<Program> factory, Persona persona, TokenFlaw flaw = TokenFlaw.None)
+        this WebApplicationFactory<Program> factory, Persona persona, TokenFlaw flaw = TokenFlaw.None, string? subject = null)
     {
         var client = factory.CreateClient();
         if (persona != Persona.Anonymous)
         {
-            client.DefaultRequestHeaders.Authorization = new("Bearer", Create(persona, flaw));
+            client.DefaultRequestHeaders.Authorization = new("Bearer", Create(persona, flaw, subject));
         }
 
         return client;
