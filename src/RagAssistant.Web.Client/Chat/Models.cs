@@ -57,14 +57,25 @@ public sealed record AnswerSource(
     int VersionNumber,
     IReadOnlyList<string> SectionPath,
     int? PageStart,
-    int? PageEnd);
+    int? PageEnd,
+    double Score = 0);
+
+/// <summary>The filters a question was searched under (spec 015).</summary>
+public sealed record ScopeInfo(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid> DocumentIds);
 
 /// <summary>One event of the answer stream (spec 012). Heartbeats and unknown types never reach the consumer.</summary>
 public abstract record AnswerEvent;
 
 public sealed record QuestionAccepted(Guid ConversationId, Guid UserMessageId, Guid AssistantMessageId) : AnswerEvent;
 
-public sealed record RetrievalCompleted(string Outcome, IReadOnlyList<AnswerSource> Sources) : AnswerEvent;
+public sealed record RetrievalCompleted(
+    string Outcome,
+    IReadOnlyList<AnswerSource> Sources,
+    ScopeInfo? Scope = null,
+    IReadOnlyList<Guid>? LeftOut = null,
+    double? MinScore = null,
+    double? ConfidentScore = null,
+    int? RetrievalMs = null) : AnswerEvent;
 
 /// <summary>What retrieval searches for; differs from the question for a follow-up (spec 014).</summary>
 public sealed record RetrievalStarted(string Query) : AnswerEvent;
@@ -89,3 +100,37 @@ public sealed record CategoryChoice(string Value, string Text);
 
 /// <summary>What the report dialog hands back: a category and an optional comment.</summary>
 public sealed record ReportRequest(string Category, string? Comment);
+
+// What the pipeline did for one answer (spec 015); the same shape the activity endpoint returns. Live answers fill it in part.
+
+public sealed record ActivityView(string Question, RewriteStep Rewrite, ScopeStep Scope, RetrievalStep Retrieval, AnswerStep? Answer);
+
+public sealed record RewriteStep(bool Used, string? Query, string? FallbackReason, int? Ms);
+
+public sealed record ScopeStep(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<ScopeDocument> Documents);
+
+public sealed record ScopeDocument(Guid Id, string? Title, bool Available);
+
+public sealed record RetrievalStep(string? Outcome, double? MinScore, double? ConfidentScore, int? Ms, IReadOnlyList<PassageStep> Passages);
+
+public sealed record PassageStep(
+    int Rank,
+    int Marker,
+    double Score,
+    bool Cited,
+    Guid? DocumentId,
+    string? DocumentTitle,
+    int? VersionNumber,
+    IReadOnlyList<string> SectionPath,
+    int? PageStart,
+    int? PageEnd);
+
+public sealed record AnswerStep(
+    bool ModelCalled,
+    string Status,
+    string? RefusalReason,
+    string? ErrorCode,
+    int? FirstTokenMs,
+    int TotalMs,
+    int StrippedMarkerCount,
+    bool SentinelHit);

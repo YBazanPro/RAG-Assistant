@@ -138,10 +138,14 @@ internal sealed partial class AnswerPipeline(
         var found = result.Value;
         attempt.Search = found;
         var sources = found.Chunks
-            .Select((c, i) => new AnswerEvents.Source(i + 1, c.PassageId, c.DocumentId, c.DocumentTitle, c.VersionNumber, c.SectionPath, c.PageStart, c.PageEnd))
+            .Select((c, i) => new AnswerEvents.Source(i + 1, c.PassageId, c.DocumentId, c.DocumentTitle, c.VersionNumber, c.SectionPath, c.PageStart, c.PageEnd, c.Score))
             .ToList();
+        var scope = new AnswerEvents.ScopeInfo(answer.Language, answer.Tags, answer.DocumentIds);
         await events.WriteAsync(
-            AnswerEvents.Item(AnswerEvents.RetrievalCompletedType, new AnswerEvents.RetrievalCompleted(found.Outcome.ToApi(), sources)),
+            AnswerEvents.Item(
+                AnswerEvents.RetrievalCompletedType,
+                new AnswerEvents.RetrievalCompleted(
+                    found.Outcome.ToApi(), sources, scope, attempt.UnavailableDocumentIds, found.Thresholds.MinScore, found.Thresholds.ConfidentScore, attempt.RetrievalMs)),
             aborted);
 
         if (found.Outcome == EvidenceOutcome.NoEvidence)
@@ -376,7 +380,9 @@ internal sealed partial class AnswerPipeline(
         var found = attempt.Search;
         var cited = attempt.Filter?.CitedMarkers.ToHashSet() ?? [];
         var passages = found?.Chunks
-            .Select((c, i) => new RetrievedPassageTrace(c.PassageId, c.VersionId, c.Score, i + 1, i + 1, status != AnswerStatus.Refused && cited.Contains(i + 1)))
+            .Select((c, i) => new RetrievedPassageTrace(
+                c.PassageId, c.VersionId, c.Score, i + 1, i + 1, status != AnswerStatus.Refused && cited.Contains(i + 1),
+                c.DocumentId, c.DocumentTitle, c.VersionNumber, [.. c.SectionPath], c.PageStart, c.PageEnd))
             .ToList() ?? [];
 
         return new RequestTrace

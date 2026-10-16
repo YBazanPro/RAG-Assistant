@@ -1,0 +1,225 @@
+@using System.Globalization
+@inject IChatApi Api
+
+@* What the pipeline did for one answer (spec 015). Live while streaming, from the stored trace afterwards; recorded facts only. *@
+<div class="activity-panel">
+    <FluentButton Appearance="ButtonAppearance.Transparent" Class="activity-toggle" aria-expanded="@(Open ? "true" : "false")"
+                  aria-controls="@PanelId" OnClick="ToggleAsync">Activity</FluentButton>
+    @if (Open)
+    {
+        <section id="@PanelId" class="activity-body" aria-label="Activity">
+            @if (View is null && _failed)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">
+                    <ChildContent>The activity could not be loaded.</ChildContent>
+                    <ActionsTemplate>
+                        <FluentButton Appearance="ButtonAppearance.Outline" OnClick="LoadAsync">Retry</FluentButton>
+                    </ActionsTemplate>
+                </FluentMessageBar>
+            }
+            else if (View is null)
+            {
+                <FluentText>Loading the activity…</FluentText>
+            }
+            else
+            {
+                var view = View;
+                <ol class="activity-steps">
+                    <li>
+                        <span class="activity-step-title">Question</span>
+                        <span class="activity-step-text">@view.Question</span>
+                    </li>
+                    <li>
+                        <span class="activity-step-title">Rewrite</span>
+                        <span class="activity-step-text">@RewriteText(view.Rewrite)</span>
+                    </li>
+                    <li>
+                        <span class="activity-step-title">Scope</span>
+                        <span class="activity-step-text">@ScopeText(view.Scope)</span>
+                        @foreach (var document in view.Scope.Documents)
+                        {
+                            <span class="activity-scope-document" data-available="@(document.Available ? "true" : "false")">
+                                @(document.Title ?? "Document")@(document.Available ? "" : " (left out: unavailable)")
+                            </span>
+                        }
+                    </li>
+                    <li>
+                        <span class="activity-step-title">Retrieval</span>
+                        <span class="activity-step-text">@RetrievalText(view.Retrieval)</span>
+                        @if (view.Retrieval.Passages.Count > 0)
+                        {
+                            <ul class="activity-passages">
+                                @foreach (var passage in view.Retrieval.Passages.Take(_showAll ? int.MaxValue : PassageLimit))
+                                {
+                                    <li title="@passage.DocumentTitle">
+                                        @PassageText(passage)
+                                    </li>
+                                }
+                            </ul>
+                            @if (view.Retrieval.Passages.Count > PassageLimit && !_showAll)
+                            {
+                                <FluentButton Appearance="ButtonAppearance.Transparent" OnClick="@(() => _showAll = true)">Show all @view.Retrieval.Passages.Count passages</FluentButton>
+                            }
+                        }
+                    </li>
+                    <li>
+                        <span class="activity-step-title">Answer</span>
+                        <span class="activity-step-text">@AnswerText(view.Answer)</span>
+                    </li>
+                </ol>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private const int PassageLimit = 20;
+
+    private ActivityView? _stored;
+    private bool _loading;
+    private bool _failed;
+    private bool _showAll;
+
+    /// <summary>The answer being streamed; its partial activity is shown instead of a stored one.</summary>
+    [Parameter] public LiveAnswer? Live { get; set; }
+
+    [Parameter] public Guid? ConversationId { get; set; }
+
+    [Parameter] public Guid? MessageId { get; set; }
+
+    /// <summary>Owned by the thread, so the panel stays open when the stored answer replaces the live one.</summary>
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter] public string IdPrefix { get; set; } = "";
+
+    private string PanelId => $"{IdPrefix}activity";
+
+    private ActivityView? View => Live is not null ? Live.ToActivity() : _stored;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && Live is null && _stored is null && !_loading && !_failed)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        Open = !Open;
+        await OpenChanged.InvokeAsync(Open);
+        if (Open && Live is null && _stored is null)
+        {
+            _failed = false;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (ConversationId is not { } conversationId || MessageId is not { } messageId)
+        {
+            _failed = true;
+            return;
+        }
+
+        _loading = true;
+        _failed = false;
+        var result = await Api.GetActivityAsync(conversationId, messageId, CancellationToken.None);
+        _loading = false;
+        if (result.IsSuccess)
+        {
+            _stored = result.Value;
+        }
+        else
+        {
+            _failed = true;
+        }
+    }
+
+    private static string RewriteText(RewriteStep rewrite)
+    {
+        if (rewrite.Used)
+        {
+            return $"Rewritten into “{rewrite.Query}”{Ms(rewrite.Ms)}.";
+        }
+
+        return rewrite.FallbackReason switch
+        {
+            "timeout" => $"The rewrite timed out; the original question was searched{Ms(rewrite.Ms)}.",
+            "model_error" => $"The rewrite failed; the original question was searched{Ms(rewrite.Ms)}.",
+            "invalid" => $"The rewrite gave no usable question; the original question was searched{Ms(rewrite.Ms)}.",
+            _ => "Not needed; the question was searched as asked.",
+        };
+    }
+
+    private static string ScopeText(ScopeStep scope)
+    {
+        var parts = new List<string>();
+        if (scope.Documents.Count > 0)
+        {
+            parts.Add($"{scope.Documents.Count} {(scope.Documents.Count == 1 ? "document" : "documents")}");
+        }
+
+        if (scope.Tags.Count > 0)
+        {
+            parts.Add($"tags: {string.Join(", ", scope.Tags)}");
+        }
+
+        if (scope.Language is not null)
+        {
+            parts.Add($"language: {scope.Language}");
+        }
+
+        return parts.Count == 0 ? "The whole corpus." : string.Join("; ", parts) + ".";
+    }
+
+    private static string RetrievalText(RetrievalStep retrieval)
+    {
+        if (retrieval.Outcome is null)
+        {
+            return "Searching…";
+        }
+
+        var outcome = retrieval.Outcome switch
+        {
+            "sufficient" => "Enough evidence",
+            "lowConfidence" => "Low confidence",
+            "noEvidence" => "No evidence",
+            _ => retrieval.Outcome,
+        };
+        var thresholds = retrieval.MinScore is { } min && retrieval.ConfidentScore is { } confident
+            ? $" (minimum score {Score(min)}, confident from {Score(confident)})"
+            : "";
+        return $"{outcome}: {retrieval.Passages.Count} {(retrieval.Passages.Count == 1 ? "passage" : "passages")}{thresholds}{Ms(retrieval.Ms)}.";
+    }
+
+    private static string PassageText(PassageStep passage)
+    {
+        var title = passage.DocumentTitle ?? "Document unavailable";
+        var section = passage.SectionPath.Count > 0 ? $", {string.Join(" › ", passage.SectionPath)}" : "";
+        var page = passage.PageStart is { } start ? (passage.PageEnd is { } end && end != start ? $", pages {start}–{end}" : $", page {start}") : "";
+        return $"{passage.Rank}. {title}{section}{page}: score {Score(passage.Score)}{(passage.Cited ? ", cited" : "")}";
+    }
+
+    private static string AnswerText(AnswerStep? answer)
+    {
+        if (answer is null)
+        {
+            return "Writing the answer…";
+        }
+
+        var model = answer.ModelCalled ? "Model called" : "Model not called";
+        var first = answer.FirstTokenMs is { } ms ? $", first words after {ms} ms" : "";
+        var reason = answer.RefusalReason is { } r ? $" ({r.Replace('_', ' ')})" : "";
+        var extras = (answer.StrippedMarkerCount > 0 ? $", {answer.StrippedMarkerCount} invalid citation markers removed" : "")
+            + (answer.SentinelHit ? ", the model declined" : "");
+        return $"{model}{first}, {answer.TotalMs} ms in all. Status: {answer.Status}{reason}{extras}.";
+    }
+
+    private static string Score(double value) => value.ToString("0.00", CultureInfo.InvariantCulture);
+
+    private static string Ms(int? ms) => ms is { } value ? $" ({value} ms)" : "";
+}

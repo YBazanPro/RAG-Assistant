@@ -88,4 +88,17 @@ internal sealed class RequestTrace
     public int TotalMs { get; set; }
 }
 
-internal sealed record RetrievedPassageTrace(Guid PassageId, Guid VersionId, double Score, int Rank, int Marker, bool Cited);
+/// <remarks>The document fields (spec 015) are what the activity panel shows; traces written before it lack them. No passage text is stored.</remarks>
+internal sealed record RetrievedPassageTrace(
+    Guid PassageId,
+    Guid VersionId,
+    double Score,
+    int Rank,
+    int Marker,
+    bool Cited,
+    Guid? DocumentId = null,
+    string? DocumentTitle = null,
+    int? VersionNumber = null,
+    string[]? SectionPath = null,
+    int? PageStart = null,
+    int? PageEnd = null);
