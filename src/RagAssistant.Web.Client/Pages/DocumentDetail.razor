@@ -334,6 +334,12 @@ else
 
     private void OnTabChanged(string? tab)
     {
+        // The tabs raise a change event while the page is torn down; once the user has followed another link, it must not navigate back.
+        if (!new Uri(Navigation.Uri).AbsolutePath.Equals($"/documents/{DocumentId}", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         if (tab is not null && tab != ActiveTab)
         {
             Navigate(tab, tab == "passages" ? Version : null, null);

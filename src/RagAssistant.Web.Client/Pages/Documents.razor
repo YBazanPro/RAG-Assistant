@@ -190,6 +190,12 @@ else
 
     private void NavigateTo(DocumentQuery query, bool replace)
     {
+        // A late filter or debounce event must not pull the user back after they followed another link.
+        if (!new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Equals("/documents", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         var qs = query.ToQueryString();
         Navigation.NavigateTo(qs.Length == 0 ? "documents" : $"documents?{qs}", new NavigationOptions { ReplaceHistoryEntry = replace });
     }
