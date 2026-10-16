@@ -22,7 +22,7 @@ public class ScopeUiTests
         cut.FindAll("fluent-dialog fluent-button").First(b => b.TextContent.Trim() == text);
 
     private static async Task CheckAsync(IRenderedComponent<ChatPage> cut, string label) =>
-        await cut.InvokeAsync(() => cut.FindComponents<FluentCheckbox>().First(c => c.Instance.Label == label).Instance.ValueChanged.InvokeAsync(true));
+        await cut.InvokeAsync(() => cut.FindComponents<FluentCheckbox>().First(c => c.Instance.Label == label).Instance.CheckStateChanged.InvokeAsync(true));
 
     private static ConversationScope ScopeOf(params ScopeDocument[] documents) =>
         new([.. documents.Select(d => d.Id)], [], [.. documents.Where(d => !d.Available).Select(d => d.Id)], documents);
@@ -42,7 +42,7 @@ public class ScopeUiTests
             .Add(c => c.OnApply, EventCallback.Factory.Create<ScopeChoice>(ctx, c => applied = c)));
         cut.WaitForState(() => cut.FindComponents<FluentCheckbox>().Count == 2, TimeSpan.FromSeconds(5));
 
-        await cut.InvokeAsync(() => cut.FindComponents<FluentCheckbox>().First(c => c.Instance.Label == "Travel Policy").Instance.ValueChanged.InvokeAsync(true));
+        await cut.InvokeAsync(() => cut.FindComponents<FluentCheckbox>().First(c => c.Instance.Label == "Travel Policy").Instance.CheckStateChanged.InvokeAsync(true));
         cut.FindAll("fluent-dialog fluent-button").First(b => b.TextContent.Trim() == "Apply").Click();
 
         await Assert.That(documents.ListCalls[0].Status).IsEqualTo("active");
