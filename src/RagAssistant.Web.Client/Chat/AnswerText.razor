@@ -1,0 +1,103 @@
+@* The answer as the safe Markdown subset (spec 013): parsed into a tree and rendered as elements, never as markup. *@
+@foreach (var block in _blocks)
+{
+    switch (block)
+    {
+        case Paragraph paragraph:
+            <p>@Lines(paragraph.Lines)</p>
+            break;
+        case ListBlock { Ordered: true } list:
+            <ol>
+                @foreach (var item in list.Items)
+                {
+                    <li>@Inlines(item)</li>
+                }
+            </ol>
+            break;
+        case ListBlock list:
+            <ul>
+                @foreach (var item in list.Items)
+                {
+                    <li>@Inlines(item)</li>
+                }
+            </ul>
+            break;
+    }
+}
+
+@code {
+    private IReadOnlyList<Block> _blocks = [];
+    private string? _parsedText;
+
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+
+    /// <summary>The sources a <c>[n]</c> marker can resolve against. A marker without a source stays plain text.</summary>
+    [Parameter] public IReadOnlyList<Citation> Sources { get; set; } = [];
+
+    [Parameter] public int? SelectedMarker { get; set; }
+
+    /// <summary>Prefix of the buttons' element ids, so the page can return focus to the one that opened the preview.</summary>
+    [Parameter] public string IdPrefix { get; set; } = "";
+
+    [Parameter] public EventCallback<int> OnCitationSelected { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (_parsedText != Text)
+        {
+            _parsedText = Text;
+            _blocks = MarkdownSubset.Parse(Text);
+        }
+    }
+
+    private RenderFragment Lines(IReadOnlyList<IReadOnlyList<Inline>> lines) => builder =>
+    {
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (i > 0)
+            {
+                builder.OpenElement(0, "br");
+                builder.CloseElement();
+            }
+
+            builder.AddContent(1, Inlines(lines[i]));
+        }
+    };
+
+    private RenderFragment Inlines(IReadOnlyList<Inline> inlines) => builder =>
+    {
+        foreach (var inline in inlines)
+        {
+            switch (inline)
+            {
+                case TextRun run:
+                    builder.AddContent(0, run.Text);
+                    break;
+                case BoldRun bold:
+                    builder.OpenElement(1, "strong");
+                    builder.AddContent(2, Inlines(bold.Children));
+                    builder.CloseElement();
+                    break;
+                case ItalicRun italic:
+                    builder.OpenElement(3, "em");
+                    builder.AddContent(4, Inlines(italic.Children));
+                    builder.CloseElement();
+                    break;
+                case MarkerRun marker when Sources.FirstOrDefault(s => s.Marker == marker.Marker) is { } source:
+                    builder.OpenElement(5, "button");
+                    builder.AddAttribute(6, "type", "button");
+                    builder.AddAttribute(7, "class", SelectedMarker == marker.Marker ? "citation-marker citation-marker-selected" : "citation-marker");
+                    builder.AddAttribute(8, "id", $"{IdPrefix}marker-{marker.Marker}");
+                    builder.AddAttribute(9, "aria-label", CitationText.AccessibleName(source));
+                    builder.AddAttribute(10, "aria-pressed", SelectedMarker == marker.Marker ? "true" : "false");
+                    builder.AddAttribute(11, "onclick", EventCallback.Factory.Create(this, () => OnCitationSelected.InvokeAsync(marker.Marker)));
+                    builder.AddContent(12, $"[{marker.Marker}]");
+                    builder.CloseElement();
+                    break;
+                case MarkerRun marker:
+                    builder.AddContent(13, $"[{marker.Marker}]");
+                    break;
+            }
+        }
+    };
+}

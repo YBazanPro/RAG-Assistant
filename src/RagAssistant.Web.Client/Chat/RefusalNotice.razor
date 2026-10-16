@@ -1,0 +1,16 @@
+@* A refusal is the product working as designed, not an error: an informational card, never a message bar in the error style. *@
+<FluentCard Class="refusal-notice">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="4">
+        <FluentText Block="true"><span aria-hidden="true">ⓘ </span>@Message</FluentText>
+        <FluentText Block="true" Class="refusal-hint">Try rephrasing the question, or check what is in <a href="documents">Documents</a>.</FluentText>
+    </FluentStack>
+</FluentCard>
+
+@code {
+    /// <summary><c>no_evidence</c> or <c>model_declined</c>.</summary>
+    [Parameter, EditorRequired] public string? Reason { get; set; }
+
+    private string Message => Reason == "model_declined"
+        ? "The passages found don't answer this question."
+        : "The documents don't contain enough information to answer this.";
+}

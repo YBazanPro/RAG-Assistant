@@ -1,0 +1,37 @@
+@inject IClipboard Clipboard
+@inject NavigationManager Navigation
+
+@* Copies "title — section (version, pages)" and the absolute deep link; a blocked clipboard shows the same text to select instead. *@
+<FluentButton Appearance="ButtonAppearance.Transparent" OnClick="CopyAsync" aria-label="@($"Copy reference for source {Citation.Marker}")">Copy reference</FluentButton>
+@if (_copied)
+{
+    <span role="status" class="copy-confirmation">Copied</span>
+}
+@if (_fallback is not null)
+{
+    <FluentTextInput Label="Reference" ReadOnly="true" Value="@_fallback" Class="copy-fallback" />
+}
+
+@code {
+    private bool _copied;
+    private string? _fallback;
+
+    [Parameter, EditorRequired] public Citation Citation { get; set; } = default!;
+
+    private string Text => $"{CitationText.Reference(Citation)}\n{Navigation.ToAbsoluteUri(CitationText.DocumentLink(Citation))}";
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await Clipboard.CopyAsync(Text, CancellationToken.None);
+            _copied = true;
+            _fallback = null;
+        }
+        catch (ClipboardUnavailableException)
+        {
+            _copied = false;
+            _fallback = Text;
+        }
+    }
+}

@@ -1,0 +1,25 @@
+@if (Citations.Count > 0)
+{
+    <section class="citation-list" aria-label="Sources">
+        <FluentText Weight="TextWeight.Bold" Block="true">Sources</FluentText>
+        <ol>
+            @foreach (var citation in Citations.OrderBy(c => c.Marker))
+            {
+                <li value="@citation.Marker">
+                    <CitationItem Citation="@citation" IdPrefix="@IdPrefix" Selected="@(SelectedMarker == citation.Marker)" OnSelected="OnSelected" />
+                </li>
+            }
+        </ol>
+    </section>
+}
+
+@code {
+    /// <summary>The cited sources only, in marker order.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<Citation> Citations { get; set; } = [];
+
+    [Parameter] public int? SelectedMarker { get; set; }
+
+    [Parameter] public string IdPrefix { get; set; } = "";
+
+    [Parameter] public EventCallback<int> OnSelected { get; set; }
+}

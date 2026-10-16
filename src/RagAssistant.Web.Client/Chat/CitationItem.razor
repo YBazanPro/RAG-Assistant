@@ -1,0 +1,27 @@
+<div class="@(Selected ? "citation-item citation-item-selected" : "citation-item")">
+    @* A button whose visible text is plain markup, so title and location are in the prerendered HTML too. *@
+    <button type="button" id="@ElementId" class="citation-item-main" aria-label="@CitationText.AccessibleName(Citation)"
+            aria-pressed="@(Selected ? "true" : "false")" @onclick="() => OnSelected.InvokeAsync(Citation.Marker)">
+        <span class="citation-marker-label" aria-hidden="true">[@Citation.Marker]</span>
+        <span class="citation-title">@Citation.DocumentTitle</span>
+        @if (Citation.SectionPath.Count > 0)
+        {
+            <span class="citation-section">@CitationText.Section(Citation)</span>
+        }
+        <span class="citation-details">@CitationText.Version(Citation)@(CitationText.Pages(Citation) is { } pages ? $" · {pages}" : "")</span>
+    </button>
+    <CopyReference Citation="@Citation" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Citation Citation { get; set; } = default!;
+
+    [Parameter] public bool Selected { get; set; }
+
+    /// <summary>Prefix shared with <see cref="AnswerText"/>, so both buttons of a marker have distinct ids.</summary>
+    [Parameter] public string IdPrefix { get; set; } = "";
+
+    [Parameter] public EventCallback<int> OnSelected { get; set; }
+
+    public string ElementId => $"{IdPrefix}citation-{Citation.Marker}";
+}

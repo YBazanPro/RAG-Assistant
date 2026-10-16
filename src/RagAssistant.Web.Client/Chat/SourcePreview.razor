@@ -1,0 +1,89 @@
+@inject IThreadScroller Scroller
+
+@* Renders from the citation snapshot alone, so it cannot fail to load (spec 013). Esc and Close return focus to the opener. *@
+<aside @ref="_element" class="source-preview" tabindex="-1" aria-label="Source preview" @onkeydown="OnKeyDown">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+        <FluentStack HorizontalAlignment="HorizontalAlignment.SpaceBetween" VerticalAlignment="VerticalAlignment.Center">
+            <FluentText Weight="TextWeight.Bold">Source @Citation.Marker</FluentText>
+            <FluentButton Appearance="ButtonAppearance.Transparent" OnClick="CloseAsync" aria-label="Close source preview">Close</FluentButton>
+        </FluentStack>
+        <FluentText Block="true" Weight="TextWeight.Bold" Class="preview-title">@Citation.DocumentTitle</FluentText>
+        @if (Citation.SectionPath.Count > 0)
+        {
+            <nav aria-label="Section path">
+                <ol class="breadcrumb">
+                    @foreach (var part in Citation.SectionPath)
+                    {
+                        <li>@part</li>
+                    }
+                </ol>
+            </nav>
+        }
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8" Wrap="true">
+            <FluentBadge Appearance="BadgeAppearance.Outline">@CitationText.Version(Citation)</FluentBadge>
+            @if (CitationText.Pages(Citation) is { } pages)
+            {
+                <FluentBadge Appearance="BadgeAppearance.Outline">@pages</FluentBadge>
+            }
+        </FluentStack>
+        @if (CitedAt is { } citedAt)
+        {
+            <FluentText Block="true" Class="preview-cited">As cited on <time datetime="@citedAt.ToString("O")" title="@Formatting.UtcTooltip(citedAt)">@Formatting.Local(citedAt)</time></FluentText>
+        }
+        @if (Citation.Text is { } text)
+        {
+            <pre class="passage-text">@text</pre>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="16" Wrap="true">
+                <a class="open-document-link" href="@CitationText.DocumentLink(Citation)">Open in document</a>
+                @if (Citation.PageStart is { } page)
+                {
+                    <a class="open-page-link" href="@CitationText.OriginalFileLink(Citation)" target="_blank" rel="noopener">@("Open page " + page)</a>
+                }
+            </FluentStack>
+        }
+        else
+        {
+            <FluentText Block="true" Class="preview-pending">The passage is shown when the answer completes.</FluentText>
+        }
+    </FluentStack>
+</aside>
+
+@code {
+    private ElementReference _element;
+
+    [Parameter, EditorRequired] public Citation Citation { get; set; } = default!;
+
+    /// <summary>The answer's <c>completedAt</c>; null while it is still streaming.</summary>
+    [Parameter] public DateTimeOffset? CitedAt { get; set; }
+
+    /// <summary>The element that opened the preview; it gets focus back on close.</summary>
+    [Parameter] public string? ReturnFocusId { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Focus enters the preview when it opens so Esc works at once; replacing the citation keeps the focus where it is.
+        if (firstRender)
+        {
+            await _element.FocusAsync();
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CloseAsync();
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        await OnClose.InvokeAsync();
+        if (ReturnFocusId is not null)
+        {
+            await Scroller.FocusAsync(ReturnFocusId, CancellationToken.None);
+        }
+    }
+}

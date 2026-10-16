@@ -6,7 +6,10 @@ public sealed record ConversationSummary(Guid Id, string? Title, DateTimeOffset 
 
 public sealed record ConversationPage(IReadOnlyList<ConversationSummary> Items, int Page, int PageSize, int TotalCount);
 
-/// <summary>A cited passage as snapshotted when the answer was written; the preview renders from this alone.</summary>
+/// <summary>
+/// A cited passage as snapshotted when the answer was written; the preview renders from this alone. While an answer streams,
+/// the sources come from <c>retrieval.completed</c>, which has no passage text: <see cref="Text"/> is then null.
+/// </summary>
 public sealed record Citation(
     int Marker,
     Guid PassageId,
@@ -17,7 +20,11 @@ public sealed record Citation(
     IReadOnlyList<string> SectionPath,
     int? PageStart,
     int? PageEnd,
-    string Text);
+    string? Text)
+{
+    public static Citation FromSource(AnswerSource s) =>
+        new(s.Marker, s.PassageId, s.DocumentId, Guid.Empty, s.VersionNumber, s.DocumentTitle, s.SectionPath, s.PageStart, s.PageEnd, null);
+}
 
 /// <param name="Role"><c>user</c> or <c>assistant</c>.</param>
 /// <param name="Status">Assistant messages only: pending, complete, partial, refused, failed or cancelled.</param>
