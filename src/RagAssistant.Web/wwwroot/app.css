@@ -549,3 +549,49 @@ html, body {
         padding: 16px;
     }
 }
+
+.conversation-row {
+    display: flex;
+    align-items: center;
+}
+
+.conversation-row .conversation-link {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.conversation-delete {
+    flex: 0 0 auto;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.searched-for,
+.feedback-error {
+    color: var(--colorNeutralForeground3);
+    font-size: 0.9em;
+}
+
+.feedback-error {
+    color: var(--colorStatusDangerForeground1);
+}
+
+.answer-feedback {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.feedback-active {
+    font-weight: var(--fontWeightBold);
+}
+
+.feedback-thanks {
+    color: var(--colorStatusSuccessForeground1);
+    font-size: 0.9em;
+}

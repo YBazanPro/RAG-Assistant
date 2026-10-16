@@ -11,11 +11,14 @@
         <ul>
             @foreach (var conversation in Items)
             {
-                <li @key="conversation.Id">
+                <li @key="conversation.Id" class="conversation-row">
                     <a href="@($"chat/{conversation.Id}")" class="conversation-link" aria-current="@(conversation.Id == CurrentId ? "page" : null)">
                         <span class="conversation-title">@(conversation.Title ?? "New conversation")</span>
                         <time class="conversation-time" datetime="@conversation.LastActivityAt.ToString("O")" title="@Formatting.Local(conversation.LastActivityAt)">@Relative(conversation.LastActivityAt)</time>
                     </a>
+                    <FluentButton Appearance="ButtonAppearance.Transparent" Class="conversation-delete"
+                                  aria-label="@($"Delete conversation: {conversation.Title ?? "New conversation"}")"
+                                  OnClick="@(() => OnDelete.InvokeAsync(conversation.Id))">Delete</FluentButton>
                 </li>
             }
         </ul>
@@ -39,6 +42,9 @@
     [Parameter] public EventCallback OnNew { get; set; }
 
     [Parameter] public EventCallback OnLoadMore { get; set; }
+
+    /// <summary>Asks to delete a conversation; the page confirms first.</summary>
+    [Parameter] public EventCallback<Guid> OnDelete { get; set; }
 
     private string Relative(DateTimeOffset value)
     {

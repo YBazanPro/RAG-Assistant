@@ -59,11 +59,21 @@ else
                     </FluentMessageBar>
                 }
                 <ConversationList Items="_conversations" Total="_conversationTotal" CurrentId="ConversationId" Loading="_loadingList"
-                                  OnNew="StartNewAsync" OnLoadMore="LoadMoreAsync" />
+                                  OnNew="StartNewAsync" OnLoadMore="LoadMoreAsync" OnDelete="AskDelete" />
             </div>
         }
 
         <div class="chat-main">
+            @if (_currentId is not null)
+            {
+                <div class="chat-header">
+                    <FluentButton Appearance="ButtonAppearance.Transparent" Class="delete-conversation" OnClick="@(() => AskDelete(_currentId.Value))">Delete conversation</FluentButton>
+                </div>
+            }
+            @if (_deleteNotice is not null)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="alert">@_deleteNotice</FluentMessageBar>
+            }
             @if (HasThread)
             {
                 <ConversationThread Messages="VisibleMessages" PendingQuestion="@_pendingQuestion" Live="_live" ConversationId="_currentId"
@@ -141,6 +151,9 @@ else
     </div>
 }
 
+<ConfirmDialog Open="@(_deleteTarget is not null)" Title="Delete conversation" Message="Delete this conversation? This can't be undone."
+               ConfirmLabel="Delete" Destructive="true" OnConfirm="DeleteAsync" OnCancel="CancelDelete" />
+
 @code {
     private const int ListPageSize = 20;
 
@@ -180,6 +193,8 @@ else
 
     private CitationSelection? _selected;
     private string? _announcement;
+    private Guid? _deleteTarget;
+    private string? _deleteNotice;
     private readonly CancellationTokenSource _lifetime = new();
 
     [Parameter] public Guid? ConversationId { get; set; }
@@ -691,6 +706,79 @@ else
     }
 
     private void ClosePreview() => _selected = null;
+
+    private void AskDelete(Guid conversationId)
+    {
+        _deleteNotice = null;
+        _deleteTarget = conversationId;
+    }
+
+    private void CancelDelete() => _deleteTarget = null;
+
+    // The stream of the open conversation is cancelled first (spec 014): the server refuses to delete a live answer.
+    private async Task DeleteAsync()
+    {
+        if (_deleteTarget is not { } id)
+        {
+            return;
+        }
+
+        _deleteTarget = null;
+        var wasOpen = id == _currentId;
+        var cancelledOwnStream = false;
+        if (wasOpen && (_busy || _live is not null))
+        {
+            // Bumping the generation makes the unwinding send flow stand down instead of re-fetching a conversation about to vanish.
+            _generation++;
+            CancelStream();
+            DisposeLive();
+            _busy = false;
+            _pendingQuestion = null;
+            _retryingId = null;
+            cancelledOwnStream = true;
+        }
+
+        ApiResult<Done> result;
+        var attempts = 0;
+        while (true)
+        {
+            result = await Api.DeleteConversationAsync(id, _lifetime.Token);
+
+            // A cancelled answer may still be pending on the server for a moment.
+            if (result.IsSuccess || !cancelledOwnStream || result.Error!.Code != "chat.answer_in_progress" || ++attempts >= 4)
+            {
+                break;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(300), Clock, _lifetime.Token);
+        }
+
+        if (result.IsSuccess || result.Error!.IsNotFound)
+        {
+            _announcement = "Conversation deleted";
+            await Drafts.ClearAsync(DraftKey(id));
+            await LoadListPageAsync(first: true);
+            if (wasOpen)
+            {
+                Navigation.NavigateTo("chat");
+            }
+
+            // Focus goes to the question box: the list item that had it is gone.
+            StateHasChanged();
+            if (_input is not null)
+            {
+                await _input.FocusAsync();
+            }
+
+            return;
+        }
+
+        _deleteNotice = result.Error.Code == "chat.answer_in_progress"
+            ? "An answer is being written in another tab or window."
+            : result.Error.IsUnauthenticated
+                ? "Your session has ended. Sign in again to delete this conversation."
+                : "The conversation could not be deleted. Try again.";
+    }
 
     private Citation? FindCitation(CitationSelection selection)
     {

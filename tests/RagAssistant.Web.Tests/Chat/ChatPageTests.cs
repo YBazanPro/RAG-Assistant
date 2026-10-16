@@ -100,8 +100,12 @@ internal sealed class FakeAnswerEvents : IAnswerEventSource
 
     public List<(Guid ConversationId, Guid MessageId)> RetryCalls { get; } = [];
 
+    /// <summary>The token of the latest ask, so a test can see whether the page cancelled the stream.</summary>
+    public CancellationToken LastAskToken { get; private set; }
+
     public Task<ApiResult<IAsyncEnumerable<AnswerEvent>>> AskAsync(Guid conversationId, string question, CancellationToken cancellationToken)
     {
+        LastAskToken = cancellationToken;
         AskCalls.Add((conversationId, question));
         return Task.FromResult(OnAsk(question));
     }
