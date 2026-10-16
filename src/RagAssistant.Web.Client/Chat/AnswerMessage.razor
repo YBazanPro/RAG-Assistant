@@ -87,6 +87,9 @@
 
     [Parameter] public EventCallback OnRefresh { get; set; }
 
+    /// <summary>Called after each render of a live answer so the thread can follow the bottom. A plain delegate, not an EventCallback: it must not re-render the parent.</summary>
+    [Parameter] public Func<Task>? OnRendered { get; set; }
+
     private AnswerView View => Live is not null ? Live.ToView() : _view ??= AnswerView.From(Message!);
 
     private string IdPrefix => $"m{(Live?.AssistantMessageId ?? Message?.Id):N}-";
@@ -129,6 +132,14 @@
 
         _renderedInputs = inputs;
         return true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Live is not null && OnRendered is not null)
+        {
+            await OnRendered();
+        }
     }
 
     private void OnLiveChanged() => _ = InvokeAsync(StateHasChanged);

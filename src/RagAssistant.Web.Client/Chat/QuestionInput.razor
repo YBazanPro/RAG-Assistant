@@ -1,0 +1,100 @@
+@implements IAsyncDisposable
+@inject IEnterKeyHandler EnterKey
+
+<div @ref="_container" class="question-input">
+    <FluentTextArea @ref="_area" Value="@Text" ValueChanged="OnValueChangedAsync" Immediate="true" ImmediateDelay="50"
+                    AutoResize="true" Class="question-textarea" Placeholder="Ask a question about the documents"
+                    AriaLabel="Your question" Disabled="@Disabled" Message="@FieldMessage" MessageCondition="@(_ => FieldMessage is not null)"
+                    MessageState="MessageState.Error" />
+    <div class="question-actions">
+        @if (Length > CounterFrom)
+        {
+            <span class="question-counter" aria-live="off">@Length / @MaxLength</span>
+        }
+        @if (Streaming)
+        {
+            <FluentButton Appearance="ButtonAppearance.Outline" OnClick="OnCancel">Cancel</FluentButton>
+        }
+        else
+        {
+            <FluentButton Appearance="ButtonAppearance.Primary" Disabled="@(!CanSend)" OnClick="SendAsync">Send</FluentButton>
+        }
+    </div>
+</div>
+
+@code {
+    public const int MaxLength = 1000;
+    public const int CounterFrom = 900;
+
+    private ElementReference _container;
+    private FluentTextArea? _area;
+    private bool _attached;
+
+    [Parameter] public string Text { get; set; } = "";
+
+    [Parameter] public EventCallback<string> TextChanged { get; set; }
+
+    /// <summary>An answer is streaming: Send becomes Cancel and the text stays editable.</summary>
+    [Parameter] public bool Streaming { get; set; }
+
+    /// <summary>The input cannot be used (for example another tab is writing the answer).</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>A question is being sent; a second send is ignored until it is accepted.</summary>
+    [Parameter] public bool Sending { get; set; }
+
+    /// <summary>A server-side validation message to show under the field.</summary>
+    [Parameter] public string? ServerMessage { get; set; }
+
+    [Parameter] public EventCallback<string> OnSend { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private int Length => Text.Trim().Length;
+
+    private bool CanSend => !Disabled && !Sending && !Streaming && Length is > 0 and <= MaxLength;
+
+    private string? FieldMessage => Length > MaxLength ? $"A question can have at most {MaxLength:N0} characters." : ServerMessage;
+
+    public async Task FocusAsync()
+    {
+        if (_area?.Element is { } element)
+        {
+            await element.FocusAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await EnterKey.AttachAsync(_container, EnterPressedAsync);
+            _attached = true;
+        }
+    }
+
+    // Called by the browser key handler; the same rules as the Send button.
+    public Task EnterPressedAsync() => InvokeAsync(SendAsync);
+
+    private async Task OnValueChangedAsync(string? value)
+    {
+        Text = value ?? "";
+        await TextChanged.InvokeAsync(Text);
+    }
+
+    private async Task SendAsync()
+    {
+        if (CanSend)
+        {
+            await OnSend.InvokeAsync(Text.Trim());
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_attached)
+        {
+            await EnterKey.DetachAsync(_container);
+        }
+    }
+}

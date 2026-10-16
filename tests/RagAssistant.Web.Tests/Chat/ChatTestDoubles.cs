@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FluentUI.AspNetCore.Components;
 using RagAssistant.Web.Client.Chat;
@@ -25,11 +26,76 @@ public sealed class FakeClipboard : IClipboard
 
 public sealed class FakeThreadScroller : IThreadScroller
 {
+    private Func<bool, Task>? _onFollowing;
+
     public List<string> Focused { get; } = [];
+
+    public List<bool> Scrolls { get; } = [];
+
+    public Task WatchAsync(ElementReference thread, Func<bool, Task> onFollowingChanged)
+    {
+        _onFollowing = onFollowingChanged;
+        return Task.CompletedTask;
+    }
+
+    public Task ScrollToBottomAsync(ElementReference thread, bool force)
+    {
+        Scrolls.Add(force);
+        return Task.CompletedTask;
+    }
+
+    public Task UnwatchAsync(ElementReference thread) => Task.CompletedTask;
+
+    /// <summary>What the browser reports when the reader scrolls away from, or back to, the bottom.</summary>
+    public Task ReportFollowingAsync(bool following) => _onFollowing!(following);
 
     public Task FocusAsync(string elementId, CancellationToken cancellationToken)
     {
         Focused.Add(elementId);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class FakeEnterKey : IEnterKeyHandler
+{
+    public Func<Task>? OnEnter { get; private set; }
+
+    public Task AttachAsync(ElementReference container, Func<Task> onEnter)
+    {
+        OnEnter = onEnter;
+        return Task.CompletedTask;
+    }
+
+    public Task DetachAsync(ElementReference container)
+    {
+        OnEnter = null;
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class FakeDraftStore : IDraftStore
+{
+    public Dictionary<string, string> Drafts { get; } = [];
+
+    public Task<string?> LoadAsync(string key) => Task.FromResult(Drafts.TryGetValue(key, out var text) ? text : null);
+
+    public Task SaveAsync(string key, string text)
+    {
+        if (text.Length == 0)
+        {
+            Drafts.Remove(key);
+        }
+        else
+        {
+            Drafts[key] = text;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task ClearAsync(string key)
+    {
+        Drafts.Remove(key);
         return Task.CompletedTask;
     }
 }
@@ -49,6 +115,7 @@ internal static class ChatTestData
         scroller = new FakeThreadScroller();
         ctx.Services.AddSingleton<IClipboard>(clipboard);
         ctx.Services.AddSingleton<IThreadScroller>(scroller);
+        ctx.Services.AddSingleton<IEnterKeyHandler>(new FakeEnterKey());
         return ctx;
     }
 }

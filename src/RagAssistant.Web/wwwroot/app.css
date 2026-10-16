@@ -366,3 +366,85 @@ html, body {
 .refusal-notice {
     border-inline-start: 4px solid var(--colorBrandStroke1);
 }
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.thread-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+.thread {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 8px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.thread:focus-visible {
+    outline: 2px solid var(--colorStrokeFocus2);
+}
+
+.thread-question-text {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.answer-message p,
+.answer-message ul,
+.answer-message ol {
+    margin: 0 0 8px;
+}
+
+.jump-to-latest {
+    position: absolute;
+    inset-block-end: 8px;
+    inset-inline-end: 16px;
+}
+
+.question-input {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+}
+
+.question-textarea {
+    width: 100%;
+    max-height: 9.5rem;
+}
+
+.question-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+}
+
+.question-counter {
+    color: var(--colorNeutralForeground3);
+    font-size: 0.85em;
+}
+
+.answer-cancelled {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--colorNeutralForeground3);
+}

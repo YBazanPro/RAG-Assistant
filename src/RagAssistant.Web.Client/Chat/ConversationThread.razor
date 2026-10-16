@@ -1,0 +1,126 @@
+@implements IAsyncDisposable
+@inject IThreadScroller Scroller
+
+<div class="thread-wrap">
+    <div @ref="_thread" class="thread" tabindex="0" aria-label="Conversation">
+        @foreach (var message in Messages)
+        {
+            @if (message.Role == "user")
+            {
+                <div class="thread-question" @key="message.Id">
+                    <FluentText Weight="TextWeight.Semibold" Block="true" Class="thread-role">You</FluentText>
+                    <p class="thread-question-text">@message.Text</p>
+                </div>
+            }
+            else
+            {
+                <div class="thread-answer" @key="message.Id">
+                    <AnswerMessage Message="@message"
+                                   SelectedMarker="@MarkerFor(message.Id)"
+                                   OnCitationSelected="OnCitationSelected"
+                                   OnRetry="() => OnRetry.InvokeAsync(message.Id)"
+                                   OnAskAgain="() => OnAskAgain.InvokeAsync(QuestionBefore(message))"
+                                   OnRefresh="OnRefresh" />
+                </div>
+            }
+        }
+        @if (PendingQuestion is not null)
+        {
+            <div class="thread-question" @key="@("pending-question")">
+                <FluentText Weight="TextWeight.Semibold" Block="true" Class="thread-role">You</FluentText>
+                <p class="thread-question-text">@PendingQuestion</p>
+            </div>
+        }
+        @if (Live is not null)
+        {
+            <div class="thread-answer" @key="@("live-answer")">
+                <AnswerMessage Live="@Live" SelectedMarker="@MarkerFor(Live.AssistantMessageId)" OnCitationSelected="OnCitationSelected"
+                               OnRendered="FollowAsync" />
+            </div>
+        }
+    </div>
+    @if (!_following)
+    {
+        <FluentButton Appearance="ButtonAppearance.Outline" Class="jump-to-latest" OnClick="JumpAsync">Jump to latest</FluentButton>
+    }
+    <div class="visually-hidden" aria-live="polite" aria-atomic="true">@Announcement</div>
+</div>
+
+@code {
+    private ElementReference _thread;
+    private bool _watching;
+    private bool _following = true;
+    private Guid? _scrolledFor;
+
+    /// <summary>The stored messages, in order.</summary>
+    [Parameter] public IReadOnlyList<ChatMessage> Messages { get; set; } = [];
+
+    /// <summary>A question that is shown at once, before the server has stored it.</summary>
+    [Parameter] public string? PendingQuestion { get; set; }
+
+    [Parameter] public LiveAnswer? Live { get; set; }
+
+    /// <summary>The conversation shown; opening a different one scrolls to its last message.</summary>
+    [Parameter] public Guid? ConversationId { get; set; }
+
+    [Parameter] public CitationSelection? Selected { get; set; }
+
+    /// <summary>The latest stage sentence for the screen-reader region.</summary>
+    [Parameter] public string? Announcement { get; set; }
+
+    [Parameter] public EventCallback<CitationSelection> OnCitationSelected { get; set; }
+
+    [Parameter] public EventCallback<Guid> OnRetry { get; set; }
+
+    [Parameter] public EventCallback<string> OnAskAgain { get; set; }
+
+    [Parameter] public EventCallback OnRefresh { get; set; }
+
+    private int? MarkerFor(Guid? messageId) => messageId is not null && Selected?.MessageId == messageId ? Selected.Value.Marker : null;
+
+    // The user message an answer replies to, or the one just before it.
+    private string QuestionBefore(ChatMessage answer)
+    {
+        var question = Messages.FirstOrDefault(m => m.Id == answer.ReplyToMessageId)
+            ?? Messages.Where(m => m.Role == "user" && m.Sequence < answer.Sequence).OrderByDescending(m => m.Sequence).FirstOrDefault();
+        return question?.Text ?? "";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Scroller.WatchAsync(_thread, OnFollowingChangedAsync);
+            _watching = true;
+        }
+
+        if (ConversationId is { } id && Messages.Count > 0 && _scrolledFor != id)
+        {
+            _scrolledFor = id;
+            await Scroller.ScrollToBottomAsync(_thread, force: true);
+        }
+        else if (PendingQuestion is not null && Live is null)
+        {
+            await Scroller.ScrollToBottomAsync(_thread, force: true);
+        }
+    }
+
+    // Called after the live answer renders: keep the bottom in view unless the reader scrolled up.
+    private Task FollowAsync() => Scroller.ScrollToBottomAsync(_thread, force: false);
+
+    private Task JumpAsync() => Scroller.ScrollToBottomAsync(_thread, force: true);
+
+    private async Task OnFollowingChangedAsync(bool following)
+    {
+        _following = following;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_watching)
+        {
+            await Scroller.UnwatchAsync(_thread);
+        }
+    }
+}
