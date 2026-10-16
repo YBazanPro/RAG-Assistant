@@ -6,6 +6,8 @@ const string OllamaImageTag = "0.40.4";
 // The 1024 dimensions must match Documents:Embeddings:Dimensions and the passages.embedding column. The model name recorded on
 // each version comes from the provider; Documents:Embeddings:Model (default "bge-m3") is only the fallback, so keep them equal.
 const string EmbeddingModel = "bge-m3";
+// Chosen by the spec 012 calibration spike; configuration, not code, for the API (ADR 0003).
+const string ChatModel = "qwen3:4b";
 // Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
 const string WebClientSecret = "ragassistant-web-dev-secret";
 
@@ -36,6 +38,10 @@ var ollama = builder.AddOllama("ollama")
     .WithLifetime(ContainerLifetime.Persistent);
 var embeddings = ollama.AddModel("embeddings", EmbeddingModel);
 
+// Chat:Provider = Demo (launch profile "https-demo") runs the API's deterministic demo chat client: no chat model is pulled.
+var demoChat = builder.Configuration["Chat:Provider"] == "Demo";
+var chat = demoChat ? null : ollama.AddModel("chat", ChatModel);
+
 var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("migrations")
     .WithReference(database)
     .WaitFor(database);
@@ -53,6 +59,15 @@ var api = builder.AddProject<Projects.RagAssistant_Api>("api")
     .WaitFor(database)
     .WaitFor(keycloak)
     .WaitForCompletion(migrations);
+if (chat is null)
+{
+    api.WithEnvironment("Chat__Provider", "Demo");
+}
+else
+{
+    // Not waited for, like the embedding model: an answer fails with a retryable error until the model is pulled.
+    api.WithReference(chat);
+}
 
 builder.AddProject<Projects.RagAssistant_Web>("web")
     .WithReference(api)
