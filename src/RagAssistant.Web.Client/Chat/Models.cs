@@ -40,7 +40,10 @@ public sealed record ChatMessage(
     string? ErrorCode,
     bool? Retryable,
     DateTimeOffset? CompletedAt,
-    IReadOnlyList<Citation>? Citations);
+    IReadOnlyList<Citation>? Citations,
+    string? RetrievalQuery = null,
+    string? Rating = null,
+    int? ReportCount = null);
 
 public sealed record ConversationDetail(
     Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<ChatMessage> Messages);
@@ -63,6 +66,9 @@ public sealed record QuestionAccepted(Guid ConversationId, Guid UserMessageId, G
 
 public sealed record RetrievalCompleted(string Outcome, IReadOnlyList<AnswerSource> Sources) : AnswerEvent;
 
+/// <summary>What retrieval searches for; differs from the question for a follow-up (spec 014).</summary>
+public sealed record RetrievalStarted(string Query) : AnswerEvent;
+
 public sealed record AnswerDelta(string Text) : AnswerEvent;
 
 public sealed record AnswerCompleted(string Status, string? RefusalReason, IReadOnlyList<Citation> Citations) : AnswerEvent;
@@ -71,3 +77,15 @@ public sealed record AnswerError(string Code, string Message, bool Retryable) : 
 
 /// <summary>A citation chosen in the thread: which answer, which of its markers, and the element that opened it (it gets focus back).</summary>
 public readonly record struct CitationSelection(Guid MessageId, int Marker, string OpenerId);
+
+/// <summary>The answer of calls that return no body (204).</summary>
+public sealed record Done;
+
+public sealed record RatingResult(string Rating, DateTimeOffset UpdatedAt);
+
+public sealed record IssueReportResult(Guid Id, string Category, string? Comment, DateTimeOffset CreatedAt);
+
+public sealed record CategoryChoice(string Value, string Text);
+
+/// <summary>What the report dialog hands back: a category and an optional comment.</summary>
+public sealed record ReportRequest(string Category, string? Comment);

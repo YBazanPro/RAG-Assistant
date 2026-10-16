@@ -20,6 +20,23 @@ public sealed class FakeChatApi : IChatApi
     public Func<int, ApiResult<ConversationPage>> OnList { get; set; } = page =>
         ApiResult.Ok(new ConversationPage([], page, 20, 0));
 
+    public List<Guid> DeleteCalls { get; } = [];
+
+    public List<(Guid Message, string Rating)> RatingCalls { get; } = [];
+
+    public List<Guid> ClearCalls { get; } = [];
+
+    public List<(Guid Message, string Category, string? Comment)> ReportCalls { get; } = [];
+
+    public Func<Guid, ApiResult<Done>> OnDelete { get; set; } = _ => ApiResult.Ok(new Done());
+
+    public Func<string, ApiResult<RatingResult>> OnRate { get; set; } = rating => ApiResult.Ok(new RatingResult(rating, DateTimeOffset.UnixEpoch));
+
+    public Func<ApiResult<Done>> OnClear { get; set; } = () => ApiResult.Ok(new Done());
+
+    public Func<string, ApiResult<IssueReportResult>> OnReport { get; set; } = category =>
+        ApiResult.Ok(new IssueReportResult(Guid.NewGuid(), category, null, DateTimeOffset.UnixEpoch));
+
     public Func<Guid, ApiResult<ConversationDetail>> OnGet { get; set; } = id =>
         ApiResult.Ok(new ConversationDetail(id, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, []));
 
@@ -39,6 +56,31 @@ public sealed class FakeChatApi : IChatApi
     {
         ListCalls.Add(page);
         return Task.FromResult(OnList(page));
+    }
+
+    public Task<ApiResult<Done>> DeleteConversationAsync(Guid conversationId, CancellationToken cancellationToken)
+    {
+        DeleteCalls.Add(conversationId);
+        return Task.FromResult(OnDelete(conversationId));
+    }
+
+    public Task<ApiResult<RatingResult>> SetRatingAsync(Guid conversationId, Guid messageId, string rating, CancellationToken cancellationToken)
+    {
+        RatingCalls.Add((messageId, rating));
+        return Task.FromResult(OnRate(rating));
+    }
+
+    public Task<ApiResult<Done>> ClearRatingAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken)
+    {
+        ClearCalls.Add(messageId);
+        return Task.FromResult(OnClear());
+    }
+
+    public Task<ApiResult<IssueReportResult>> ReportIssueAsync(
+        Guid conversationId, Guid messageId, string category, string? comment, CancellationToken cancellationToken)
+    {
+        ReportCalls.Add((messageId, category, comment));
+        return Task.FromResult(OnReport(category));
     }
 
     public Task<ApiResult<ConversationDetail>> GetConversationAsync(Guid conversationId, CancellationToken cancellationToken)
@@ -192,7 +234,7 @@ public class ChatPageTests
         await Assert.That(h.Ctx.Services.GetRequiredService<NavigationManager>().Uri).IsEqualTo($"http://localhost/chat/{id}");
         await Assert.That(cut.Find(".thread-question-text").TextContent).IsEqualTo("What is the limit?");
         await Assert.That(cut.FindComponent<QuestionInput>().Instance.Text).IsEqualTo("");
-        await Assert.That(cut.FindAll("fluent-button").Any(b => b.TextContent.Trim() == "Cancel")).IsTrue();
+        await Assert.That(cut.FindAll(".question-actions fluent-button").Any(b => b.TextContent.Trim() == "Cancel")).IsTrue();
         script.End();
     }
 
@@ -240,7 +282,7 @@ public class ChatPageTests
         stored = true;
         script.Send(new AnswerCompleted("complete", null, [ChatTestData.Citation(1)]));
         ChatPageHarness.WaitFor(cut, "Sources");
-        cut.WaitForState(() => cut.FindAll("fluent-button").All(b => b.TextContent.Trim() != "Cancel"), TimeSpan.FromSeconds(5));
+        cut.WaitForState(() => cut.FindAll(".question-actions fluent-button").All(b => b.TextContent.Trim() != "Cancel"), TimeSpan.FromSeconds(5));
 
         await Assert.That(h.Api.GetCalls.Count).IsEqualTo(2);
         await Assert.That(h.Api.ListCalls.Count).IsGreaterThanOrEqualTo(2);
@@ -273,7 +315,7 @@ public class ChatPageTests
         script.Send(new QuestionAccepted(id, question.Id, cancelled.Id));
         ChatPageHarness.WaitFor(cut, "Cancel");
         accepted = true;
-        cut.FindAll("fluent-button").First(b => b.TextContent.Trim() == "Cancel").Click();
+        cut.FindAll(".question-actions fluent-button").First(b => b.TextContent.Trim() == "Cancel").Click();
         ChatPageHarness.WaitFor(cut, "Answer cancelled.");
 
         await Assert.That(cut.FindAll("fluent-button").Any(b => b.TextContent.Trim() == "Retry")).IsTrue();
@@ -294,7 +336,7 @@ public class ChatPageTests
         await ChatPageHarness.TypeAsync(cut, "Never accepted");
         _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         ChatPageHarness.WaitFor(cut, "Cancel");
-        cut.FindAll("fluent-button").First(b => b.TextContent.Trim() == "Cancel").Click();
+        cut.FindAll(".question-actions fluent-button").First(b => b.TextContent.Trim() == "Cancel").Click();
         cut.WaitForState(() => cut.FindComponent<QuestionInput>().Instance.Text == "Never accepted", TimeSpan.FromSeconds(5));
 
         await Assert.That(cut.FindAll(".thread-question").Count).IsEqualTo(0);

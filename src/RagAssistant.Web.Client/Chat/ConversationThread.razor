@@ -16,6 +16,9 @@
             {
                 <div class="thread-answer" @key="message.Id">
                     <AnswerMessage Message="@message"
+                                   ConversationId="ConversationId"
+                                   SearchedFor="@SearchedForOf(message)"
+                                   OnFeedbackAnnounce="OnAnnounce"
                                    SelectedMarker="@MarkerFor(message.Id)"
                                    OnCitationSelected="OnCitationSelected"
                                    OnRetry="() => OnRetry.InvokeAsync(message.Id)"
@@ -76,15 +79,21 @@
 
     [Parameter] public EventCallback OnRefresh { get; set; }
 
+    /// <summary>A sentence for the screen-reader region, raised by the feedback controls.</summary>
+    [Parameter] public EventCallback<string> OnAnnounce { get; set; }
+
     private int? MarkerFor(Guid? messageId) => messageId is not null && Selected?.MessageId == messageId ? Selected.Value.Marker : null;
 
     // The user message an answer replies to, or the one just before it.
-    private string QuestionBefore(ChatMessage answer)
-    {
-        var question = Messages.FirstOrDefault(m => m.Id == answer.ReplyToMessageId)
+    private ChatMessage? QuestionOf(ChatMessage answer) =>
+        Messages.FirstOrDefault(m => m.Id == answer.ReplyToMessageId)
             ?? Messages.Where(m => m.Role == "user" && m.Sequence < answer.Sequence).OrderByDescending(m => m.Sequence).FirstOrDefault();
-        return question?.Text ?? "";
-    }
+
+    private string QuestionBefore(ChatMessage answer) => QuestionOf(answer)?.Text ?? "";
+
+    // The "Searched for" line (spec 014): the query only when the rewrite changed it (trimmed, case-sensitive).
+    private string? SearchedForOf(ChatMessage answer) =>
+        QuestionOf(answer) is { RetrievalQuery: { } query } question && query.Trim() != question.Text.Trim() ? query : null;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

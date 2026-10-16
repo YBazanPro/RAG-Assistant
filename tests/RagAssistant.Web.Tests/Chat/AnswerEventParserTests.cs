@@ -44,7 +44,7 @@ public class AnswerEventParserTests
 
     [Test]
     [Arguments("heartbeat", "")]
-    [Arguments("retrieval.started", "{}")]
+    [Arguments("retrieval.unknown", "{}")]
     [Arguments("something.new", """{"a":1}""")]
     [Arguments("answer.delta", "not json")]
     public async Task Parse_unknownOrMalformed_isIgnored(string type, string data)

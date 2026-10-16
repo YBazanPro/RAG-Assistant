@@ -48,6 +48,15 @@ public sealed class LiveAnswer : IDisposable
     /// <summary>Raised with each stage sentence for the screen-reader region.</summary>
     public event Action<string>? Announced;
 
+    /// <summary>What the user typed; set by the page, so the "Searched for" line knows when the query differs.</summary>
+    public string? Question { get; init; }
+
+    /// <summary>What retrieval searches for, once <c>retrieval.started</c> has arrived.</summary>
+    public string? RetrievalQuery { get; private set; }
+
+    /// <summary>The query when it differs from the question (trimmed, case-sensitive), otherwise null.</summary>
+    public string? SearchedFor => RetrievalQuery is { } query && Question is { } question && query.Trim() != question.Trim() ? query : null;
+
     public Guid? UserMessageId { get; private set; }
 
     public Guid? AssistantMessageId { get; private set; }
@@ -147,6 +156,10 @@ public sealed class LiveAnswer : IDisposable
                 UserMessageId = accepted.UserMessageId;
                 AssistantMessageId = accepted.AssistantMessageId;
                 Accepted?.Invoke();
+                RenderNow();
+                return false;
+            case RetrievalStarted started:
+                RetrievalQuery = started.Query;
                 RenderNow();
                 return false;
             case RetrievalCompleted retrieval:

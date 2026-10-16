@@ -2,6 +2,10 @@
 
 @* One answer, in whichever state it is: streaming (Live), or stored (Message). A final message re-renders only when its inputs change. *@
 <div class="answer-message" data-status="@View.Status" aria-busy="@(View.IsStreaming ? "true" : "false")">
+    @if (SearchedForLine is not null)
+    {
+        <FluentText Block="true" Class="searched-for">Searched for: @SearchedForLine</FluentText>
+    }
     @switch (View.Status)
     {
         case "pending":
@@ -64,6 +68,10 @@
             </div>
             break;
     }
+    @if (Live is null && Message is not null && ConversationId is { } conversationId)
+    {
+        <AnswerFeedback ConversationId="conversationId" Message="Message" OnAnnounce="OnFeedbackAnnounce" />
+    }
 </div>
 
 @code {
@@ -79,6 +87,14 @@
 
     [Parameter] public int? SelectedMarker { get; set; }
 
+    /// <summary>The conversation of a stored answer; feedback needs it.</summary>
+    [Parameter] public Guid? ConversationId { get; set; }
+
+    /// <summary>For a stored answer: the query retrieval used, when it differs from the question (spec 014).</summary>
+    [Parameter] public string? SearchedFor { get; set; }
+
+    [Parameter] public EventCallback<string> OnFeedbackAnnounce { get; set; }
+
     [Parameter] public EventCallback<CitationSelection> OnCitationSelected { get; set; }
 
     [Parameter] public EventCallback OnRetry { get; set; }
@@ -90,12 +106,14 @@
     /// <summary>Called after each render of a live answer so the thread can follow the bottom. A plain delegate, not an EventCallback: it must not re-render the parent.</summary>
     [Parameter] public Func<Task>? OnRendered { get; set; }
 
+    private string? SearchedForLine => Live is not null ? Live.SearchedFor : SearchedFor;
+
     private AnswerView View => Live is not null ? Live.ToView() : _view ??= AnswerView.From(Message!);
 
     private string IdPrefix => $"m{(Live?.AssistantMessageId ?? Message?.Id):N}-";
 
     // The first render is unconditional and shows these inputs, so the first parent re-render with the same ones is skipped too.
-    protected override void OnInitialized() => _renderedInputs = (Message, SelectedMarker);
+    protected override void OnInitialized() => _renderedInputs = (Message, SelectedMarker, SearchedFor);
 
     protected override void OnParametersSet()
     {
@@ -124,7 +142,7 @@
             return true;
         }
 
-        var inputs = (Message, SelectedMarker);
+        var inputs = (Message, SelectedMarker, SearchedFor);
         if (Equals(_renderedInputs, inputs))
         {
             return false;

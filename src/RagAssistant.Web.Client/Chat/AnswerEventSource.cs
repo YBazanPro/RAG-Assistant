@@ -83,6 +83,7 @@ public static class AnswerEventParser
             return type switch
             {
                 "question.accepted" => JsonSerializer.Deserialize<QuestionAccepted>(data, ChatApi.Json),
+                "retrieval.started" => JsonSerializer.Deserialize<RetrievalStarted>(data, ChatApi.Json),
                 "retrieval.completed" => JsonSerializer.Deserialize<RetrievalCompleted>(data, ChatApi.Json),
                 "answer.delta" => JsonSerializer.Deserialize<AnswerDelta>(data, ChatApi.Json),
                 "answer.completed" => JsonSerializer.Deserialize<AnswerCompleted>(data, ChatApi.Json),

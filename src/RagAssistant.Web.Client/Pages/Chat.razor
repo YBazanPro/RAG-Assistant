@@ -68,7 +68,7 @@ else
             {
                 <ConversationThread Messages="VisibleMessages" PendingQuestion="@_pendingQuestion" Live="_live" ConversationId="_currentId"
                                     Selected="_selected" Announcement="@_announcement" OnCitationSelected="SelectAsync"
-                                    OnRetry="RetryAsync" OnAskAgain="AskAgainAsync" OnRefresh="ReloadConversationAsync" />
+                                    OnRetry="RetryAsync" OnAskAgain="AskAgainAsync" OnRefresh="ReloadConversationAsync" OnAnnounce="AnnounceAsync" />
             }
             else
             {
@@ -500,7 +500,7 @@ else
         }
 
         DisposeLive();
-        var live = new LiveAnswer(Clock);
+        var live = new LiveAnswer(Clock) { Question = question ?? QuestionOfAnswer(retrying) };
         live.Announced += OnAnnounced;
         live.Accepted += () => _ = InvokeAsync(ClearAcceptedDraftAsync);
         _live = live;
@@ -654,6 +654,18 @@ else
         {
             await Drafts.ClearAsync(DraftKey(_currentId));
         }
+    }
+
+    private string? QuestionOfAnswer(Guid? assistantMessageId)
+    {
+        var answer = _detail?.Messages.FirstOrDefault(m => m.Id == assistantMessageId);
+        return _detail?.Messages.FirstOrDefault(m => m.Id == answer?.ReplyToMessageId)?.Text;
+    }
+
+    private Task AnnounceAsync(string sentence)
+    {
+        _announcement = sentence;
+        return Task.CompletedTask;
     }
 
     private void OnAnnounced(string sentence) => _ = InvokeAsync(() =>

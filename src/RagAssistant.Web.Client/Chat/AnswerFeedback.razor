@@ -1,0 +1,112 @@
+@inject IChatApi Api
+
+@* Rating and issue reports for a finished answer (spec 014). Errors stay next to the control: feedback never takes the page down. *@
+@if (Eligible)
+{
+    <div class="answer-feedback" role="group" aria-label="Feedback on this answer">
+        <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" aria-pressed="@(_rating == "helpful" ? "true" : "false")"
+                      Class="@(_rating == "helpful" ? "feedback-active" : null)" OnClick="@(() => RateAsync("helpful"))">Helpful</FluentButton>
+        <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_busy" aria-pressed="@(_rating == "not_helpful" ? "true" : "false")"
+                      Class="@(_rating == "not_helpful" ? "feedback-active" : null)" OnClick="@(() => RateAsync("not_helpful"))">Not helpful</FluentButton>
+        <FluentButton Appearance="ButtonAppearance.Transparent" Disabled="@(_limitReached)" OnClick="OpenReport">Report issue</FluentButton>
+        @if (_reported)
+        {
+            <span class="feedback-thanks" role="status">Thanks, reported.</span>
+        }
+        @if (_error is not null)
+        {
+            <span class="feedback-error" role="alert">@_error</span>
+        }
+    </div>
+    <ReportIssueDialog Open="_reportOpen" Busy="_reporting" Error="@_reportError" OnSubmit="ReportAsync" OnCancel="CloseReport" />
+}
+
+@code {
+    private string? _rating;
+    private ChatMessage? _seen;
+    private bool _busy;
+    private bool _reporting;
+    private bool _reportOpen;
+    private bool _reported;
+    private bool _limitReached;
+    private string? _error;
+    private string? _reportError;
+
+    [Parameter, EditorRequired] public Guid ConversationId { get; set; }
+
+    [Parameter, EditorRequired] public ChatMessage Message { get; set; } = default!;
+
+    /// <summary>Sentences for the screen-reader region: "Rated helpful", "Rating removed", "Issue reported".</summary>
+    [Parameter] public EventCallback<string> OnAnnounce { get; set; }
+
+    private bool Eligible => Message.Role == "assistant" && Message.Status is "complete" or "partial" or "refused";
+
+    protected override void OnParametersSet()
+    {
+        // A different stored message starts from what the server says about it; the same one keeps what the user just did.
+        if (!ReferenceEquals(_seen, Message))
+        {
+            _seen = Message;
+            _rating = Message.Rating;
+        }
+    }
+
+    private async Task RateAsync(string rating)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        var clearing = _rating == rating;
+        var failure = clearing
+            ? (await Api.ClearRatingAsync(ConversationId, Message.Id, CancellationToken.None)).Error
+            : (await Api.SetRatingAsync(ConversationId, Message.Id, rating, CancellationToken.None)).Error;
+        _busy = false;
+
+        if (failure is not null)
+        {
+            _error = "The rating could not be saved. Try again.";
+            return;
+        }
+
+        _rating = clearing ? null : rating;
+        await OnAnnounce.InvokeAsync(clearing ? "Rating removed" : rating == "helpful" ? "Rated helpful" : "Rated not helpful");
+    }
+
+    private void OpenReport()
+    {
+        _reportError = null;
+        _reportOpen = true;
+    }
+
+    private void CloseReport() => _reportOpen = false;
+
+    private async Task ReportAsync(ReportRequest request)
+    {
+        _reporting = true;
+        _reportError = null;
+        var result = await Api.ReportIssueAsync(ConversationId, Message.Id, request.Category, request.Comment, CancellationToken.None);
+        _reporting = false;
+
+        if (result.IsSuccess)
+        {
+            _reportOpen = false;
+            _reported = true;
+            await OnAnnounce.InvokeAsync("Issue reported");
+            return;
+        }
+
+        if (result.Error!.Code == "chat.report_limit")
+        {
+            _limitReached = true;
+            _reportError = "This answer has reached the maximum number of reports.";
+        }
+        else
+        {
+            _reportError = "The report could not be sent. Try again.";
+        }
+    }
+}
