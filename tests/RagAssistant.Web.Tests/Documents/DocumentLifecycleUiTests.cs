@@ -226,7 +226,7 @@ public class DocumentLifecycleUiTests
         api.OnGet = id => ApiResult.Ok(Samples.Detail(id, archived ? "archived" : "active"));
         api.OnArchive = id => { archived = true; return ApiResult.Ok(Samples.Detail(id, "archived")); };
         var cut = RenderPage(ctx);
-        var dialog = cut.FindComponent<ConfirmDialog>();
+        var dialog = cut.FindComponents<ConfirmDialog>().First(d => d.Instance.ConfirmContent is null);
 
         ActionButton(cut, "Archive").Click();
         await Assert.That(dialog.Instance.Open).IsTrue();
@@ -255,7 +255,7 @@ public class DocumentLifecycleUiTests
             : Samples.Detail(id));
         api.OnReprocess = id => { reprocessed = true; return ApiResult.Ok(new VersionAccepted(id, Guid.NewGuid(), 2, Guid.NewGuid(), "queued")); };
         var cut = RenderPage(ctx);
-        var dialog = cut.FindComponent<ConfirmDialog>();
+        var dialog = cut.FindComponents<ConfirmDialog>().First(d => d.Instance.ConfirmContent is null);
 
         ActionButton(cut, "Reprocess").Click();
         await Assert.That(dialog.Instance.Open).IsTrue();
@@ -278,7 +278,7 @@ public class DocumentLifecycleUiTests
         api.OnRestore = _ => ApiResult.Fail<DocumentInfo>(new ApiError(
             409, "documents.duplicate_content", "dup", new Dictionary<string, string[]>(), existing));
         var cut = RenderPage(ctx);
-        var dialog = cut.FindComponent<ConfirmDialog>();
+        var dialog = cut.FindComponents<ConfirmDialog>().First(d => d.Instance.ConfirmContent is null);
 
         ActionButton(cut, "Restore").Click();
         await cut.InvokeAsync(() => dialog.Instance.OnConfirm.InvokeAsync());

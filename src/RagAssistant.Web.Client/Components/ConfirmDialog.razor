@@ -12,7 +12,7 @@
             <ActionTemplate>
                 <FluentButton Appearance="ButtonAppearance.Primary" Disabled="ConfirmDisabled"
                               Class="@(Destructive ? "confirm-destructive" : null)"
-                              OnClick="ConfirmAsync">@ConfirmLabel</FluentButton>
+                              OnClick="ConfirmAsync">@if (ConfirmContent is not null) { @ConfirmContent } else { @ConfirmLabel }</FluentButton>
                 <FluentButton Appearance="ButtonAppearance.Outline" OnClick="CancelAsync">@CancelLabel</FluentButton>
             </ActionTemplate>
         </FluentDialogBody>
@@ -33,6 +33,12 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     [Parameter] public bool ConfirmDisabled { get; set; }
+
+    /// <summary>Replaces the confirm label, for example with a spinner while the action runs.</summary>
+    [Parameter] public RenderFragment? ConfirmContent { get; set; }
+
+    /// <summary>Escape or a dismissal by the dialog itself. Defaults to <see cref="OnCancel"/>; a dialog whose Cancel button does more than close can differ.</summary>
+    [Parameter] public EventCallback OnDismiss { get; set; }
 
     [Parameter] public string ConfirmLabel { get; set; } = "Confirm";
 
@@ -66,7 +72,9 @@
 
     private Task CancelAsync() => OnCancel.InvokeAsync();
 
-    private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
+    private Task DismissAsync() => OnDismiss.HasDelegate ? OnDismiss.InvokeAsync() : CancelAsync();
+
+    private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? DismissAsync() : Task.CompletedTask;
 
     // The web component swallows Escape before Blazor sees a keydown, so a dismissal by the component is reported here.
     // The parent stays the source of truth: if it keeps Open true, the next render shows the dialog again.
@@ -75,7 +83,7 @@
         if (args.State == DialogState.Closed && _shown)
         {
             _shown = false;
-            await CancelAsync();
+            await DismissAsync();
             StateHasChanged();
         }
     }

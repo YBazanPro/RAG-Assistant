@@ -2,82 +2,76 @@
 @inject NavigationManager Navigation
 @inject IFileUploader Uploader
 
-<div @onkeydown="OnKeyDownAsync">
-    <FluentDialog @ref="_dialog" Modal="true" OnStateChange="OnStateChangeAsync" aria-label="@DialogTitle">
-        <FluentDialogBody>
-            <TitleTemplate>@DialogTitle</TitleTemplate>
-            <ChildContent>
-                <FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Class="upload-form">
-                    @if (_formError is not null)
-                    {
-                        <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@_formError</FluentMessageBar>
-                    }
-                    @if (_duplicateId is { } existing)
-                    {
-                        <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">
-                            This content is already in the corpus. <FluentLink Href="@($"documents/{existing}")">Open the existing document</FluentLink>.
-                        </FluentMessageBar>
-                    }
+@* The import and new-version dialog: the shared confirm dialog around the upload form. Escape never aborts a running upload, the Cancel button does. *@
+<ConfirmDialog Open="Open" Title="@DialogTitle" CancelLabel="@(_busy ? "Cancel upload" : "Cancel")" ConfirmDisabled="_busy"
+               OnConfirm="SubmitAsync" OnCancel="CancelButtonAsync" OnDismiss="CancelAsync">
+    <ChildContent>
+            <FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Class="upload-form">
+                @if (_formError is not null)
+                {
+                    <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">@_formError</FluentMessageBar>
+                }
+                @if (_duplicateId is { } existing)
+                {
+                    <FluentMessageBar Intent="MessageBarIntent.Error" AllowDismiss="false" role="alert">
+                        This content is already in the corpus. <FluentLink Href="@($"documents/{existing}")">Open the existing document</FluentLink>.
+                    </FluentMessageBar>
+                }
 
-                    @if (IsNewVersion)
-                    {
-                        <FluentText Block="true" Class="field-hint">New version of <b>@DocumentTitle</b>. The metadata stays as it is.</FluentText>
-                    }
+                @if (IsNewVersion)
+                {
+                    <FluentText Block="true" Class="field-hint">New version of <b>@DocumentTitle</b>. The metadata stays as it is.</FluentText>
+                }
 
-                    <div>
-                        <FluentLabel Required="true">File (.md, .markdown or .txt up to 1 MiB, or .pdf up to 100 MiB)</FluentLabel>
-                        <FluentInputFile Id="up-file" Mode="InputFileMode.Stream" Accept=".md,.markdown,.txt,.pdf" Multiple="false" Disabled="_busy"
-                                         DragDropZoneVisible="true" Height="80px" OnInputFileChange="OnFileChosenAsync">
-                            <ChildContent>Drop a file here, or <b>browse</b></ChildContent>
-                        </FluentInputFile>
-                        @if (_fileName is not null)
-                        {
-                            <FluentText Block="true" Class="field-hint">Selected: @_fileName</FluentText>
-                        }
-                        @if (_fileError is not null)
-                        {
-                            <FluentText Block="true" Class="field-error" id="up-file-error" role="alert">@_fileError</FluentText>
-                        }
+                <div>
+                    <FluentLabel Required="true">File (.md, .markdown or .txt up to 1 MiB, or .pdf up to 100 MiB)</FluentLabel>
+                    <FluentInputFile Id="up-file" Mode="InputFileMode.Stream" Accept=".md,.markdown,.txt,.pdf" Multiple="false" Disabled="_busy"
+                                     DragDropZoneVisible="true" Height="80px" OnInputFileChange="OnFileChosenAsync">
+                        <ChildContent>Drop a file here, or <b>browse</b></ChildContent>
+                    </FluentInputFile>
+                    @if (_fileName is not null)
+                    {
+                        <FluentText Block="true" Class="field-hint">Selected: @_fileName</FluentText>
+                    }
+                    @if (_fileError is not null)
+                    {
+                        <FluentText Block="true" Class="field-error" id="up-file-error" role="alert">@_fileError</FluentText>
+                    }
+                </div>
+
+                @if (!IsNewVersion)
+                {
+                <FluentTextInput Id="up-title" Label="Title" Required="true" MaxLength="200" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                 @bind-Value="_title" Message="@Error("title")" MessageCondition="@(_ => Error("title") is not null)" MessageState="MessageState.Error" />
+                <FluentTextInput Id="up-owner" Label="Owner" Required="true" MaxLength="100" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                 @bind-Value="_owner" Message="@Error("ownerName")" MessageCondition="@(_ => Error("ownerName") is not null)" MessageState="MessageState.Error" />
+                <FluentTextInput Id="up-language" Label="Language" Required="true" MaxLength="2" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                 @bind-Value="_language" Message="@Error("language")" MessageCondition="@(_ => Error("language") is not null)" MessageState="MessageState.Error" />
+                <FluentTextInput Id="up-tags" Label="Tags (comma-separated)" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                 @bind-Value="_tags" Message="@Error("tags")" MessageCondition="@(_ => Error("tags") is not null)" MessageState="MessageState.Error" />
+                <FluentDatePicker TValue="DateTime?" Id="up-effective" Label="Effective date" Disabled="_busy"
+                                  Value="@ParseDate(_effectiveDate)" ValueChanged="@(d => _effectiveDate = d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" />
+                <FluentTextInput Id="up-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="_busy"
+                                 @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
+                }
+                @if (_busy)
+                {
+                    <div class="upload-progress" aria-live="polite">
+                        <progress role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Percent"
+                                  value="@Percent" max="100"></progress>
+                        <FluentText Block="true" Class="field-hint">@ProgressLabel</FluentText>
                     </div>
-
-                    @if (!IsNewVersion)
-                    {
-                    <FluentTextInput Id="up-title" Label="Title" Required="true" MaxLength="200" Immediate="true" ImmediateDelay="0" Disabled="_busy"
-                                     @bind-Value="_title" Message="@Error("title")" MessageCondition="@(_ => Error("title") is not null)" MessageState="MessageState.Error" />
-                    <FluentTextInput Id="up-owner" Label="Owner" Required="true" MaxLength="100" Immediate="true" ImmediateDelay="0" Disabled="_busy"
-                                     @bind-Value="_owner" Message="@Error("ownerName")" MessageCondition="@(_ => Error("ownerName") is not null)" MessageState="MessageState.Error" />
-                    <FluentTextInput Id="up-language" Label="Language" Required="true" MaxLength="2" Immediate="true" ImmediateDelay="0" Disabled="_busy"
-                                     @bind-Value="_language" Message="@Error("language")" MessageCondition="@(_ => Error("language") is not null)" MessageState="MessageState.Error" />
-                    <FluentTextInput Id="up-tags" Label="Tags (comma-separated)" Immediate="true" ImmediateDelay="0" Disabled="_busy"
-                                     @bind-Value="_tags" Message="@Error("tags")" MessageCondition="@(_ => Error("tags") is not null)" MessageState="MessageState.Error" />
-                    <FluentDatePicker TValue="DateTime?" Id="up-effective" Label="Effective date" Disabled="_busy"
-                                      Value="@ParseDate(_effectiveDate)" ValueChanged="@(d => _effectiveDate = d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" />
-                    <FluentTextInput Id="up-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="_busy"
-                                     @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
-                    }
-                    @if (_busy)
-                    {
-                        <div class="upload-progress" aria-live="polite">
-                            <progress role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@Percent"
-                                      value="@Percent" max="100"></progress>
-                            <FluentText Block="true" Class="field-hint">@ProgressLabel</FluentText>
-                        </div>
-                    }
-                </FluentStack>
-            </ChildContent>
-            <ActionTemplate>
-                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_busy" OnClick="SubmitAsync">
-                    @if (_busy)
-                    {
-                        <FluentSpinner aria-label="Uploading" />
-                    }
-                    @(IsNewVersion ? "Upload" : "Import")
-                </FluentButton>
-                <FluentButton Appearance="ButtonAppearance.Outline" OnClick="CancelButtonAsync">@(_busy ? "Cancel upload" : "Cancel")</FluentButton>
-            </ActionTemplate>
-        </FluentDialogBody>
-    </FluentDialog>
-</div>
+                }
+            </FluentStack>
+    </ChildContent>
+    <ConfirmContent>
+        @if (_busy)
+        {
+            <FluentSpinner aria-label="Uploading" />
+        }
+        @(IsNewVersion ? "Upload" : "Import")
+    </ConfirmContent>
+</ConfirmDialog>
 
 @code {
     /// <summary>Mirrors <c>Documents:Import:MaxFileSizeBytes</c> (text formats); the API stays authoritative.</summary>
@@ -97,8 +91,6 @@
         "documents.invalid_pdf", "documents.requires_ocr", "documents.text_layer_unusable",
     ];
 
-    private FluentDialog? _dialog;
-    private bool _shown;
     private bool _busy;
     private long _sent;
     private long _total;
@@ -133,24 +125,6 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     [Parameter] public EventCallback<ImportAccepted> OnImported { get; set; }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (_dialog is null || Open == _shown)
-        {
-            return;
-        }
-
-        _shown = Open;
-        if (Open)
-        {
-            await _dialog.ShowAsync();
-        }
-        else
-        {
-            await _dialog.HideAsync();
-        }
-    }
 
     private bool IsNewVersion => DocumentId is not null;
 
@@ -447,20 +421,6 @@
 
     // Escape never aborts a long upload by accident; it only closes an idle dialog.
     private Task CancelAsync() => _busy ? Task.CompletedTask : OnClose.InvokeAsync();
-
-    private Task OnKeyDownAsync(KeyboardEventArgs args) => args.Key == "Escape" ? CancelAsync() : Task.CompletedTask;
-
-    // The web component swallows Escape before Blazor sees a keydown, so a dismissal by the component is reported here.
-    // While busy the parent keeps Open true and the next render shows the dialog again.
-    private async Task OnStateChangeAsync(DialogEventArgs args)
-    {
-        if (args.State == DialogState.Closed && _shown)
-        {
-            _shown = false;
-            await CancelAsync();
-            StateHasChanged();
-        }
-    }
 
     /// <summary>Leaving the page must not leave an upload running with nobody to tell: it is aborted.</summary>
     public void Dispose()
