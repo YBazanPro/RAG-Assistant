@@ -11,7 +11,7 @@
             <div role="group" aria-label="Chosen documents" class="scope-list">
                 @foreach (var document in _chosen.Values)
                 {
-                    <FluentCheckbox Label="@(document.Title ?? "Document")" Value="true" ValueChanged="@(_ => Toggle(document))" />
+                    <FluentCheckbox Label="@(document.Title ?? "Document")" CheckState="@((bool?)true)" CheckStateChanged="@((bool? _) => Toggle(document))" />
                 }
             </div>
         }
@@ -40,7 +40,7 @@
             {
                 @foreach (var document in Candidates)
                 {
-                    <FluentCheckbox Label="@document.Title" Value="false" ValueChanged="@(_ => Toggle(new ScopeDocument(document.Id, document.Title, true)))" />
+                    <FluentCheckbox Label="@document.Title" CheckState="@((bool?)false)" CheckStateChanged="@((bool? _) => Toggle(new ScopeDocument(document.Id, document.Title, true)))" />
                 }
 
                 @if (_total > _shown)

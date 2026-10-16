@@ -1,6 +1,6 @@
 # Spec 015: Chat Scope, Activity Panel and Layout
 
-**Status:** Approved (2026-10-16)
+**Status:** Implemented (2026-10-16). Approved 2026-10-16. Two details differ from the first draft: the activity endpoint returns one named object per step instead of an array, and a scope is also stored on the user message (not only on the trace) so a retry keeps it
 **Date:** 2026-10-16
 **Roadmap:** new step 3.7 ([roadmap](../roadmap.md)) · **Builds on:** specs [011](011-retrieval.md) (retrieval filters), [012](012-chat-conversations-and-grounded-answers.md) (pipeline, traces), [013](013-chat-ui.md) (Chat UI), [014](014-follow-ups-feedback-and-deletion.md) (rewrite, "Searched for") · **Related:** [ADR 0009](../adr/0009-document-visibility.md) (private and shared documents, proposed)
 

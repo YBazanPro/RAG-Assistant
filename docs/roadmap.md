@@ -161,7 +161,7 @@ Order inside the phase matters: **the refusal path first.** It needs no LLM, pro
 | 3.5 | ✅ **Follow-up questions** ([spec 014](specs/014-follow-ups-feedback-and-deletion.md)) | Bounded history window + rewriting into a standalone retrieval query (`GetResponseAsync<T>`); conversation never used as evidence. | — |
 | 3.6 | ✅ **Feedback** ([spec 014](specs/014-follow-ups-feedback-and-deletion.md)) | Helpful / not helpful / report issue, stored with the message. | KnowledgeSeeker |
 
-| 3.7 | **Scope, activity panel, layout** ([spec 015](specs/015-chat-scope-activity-and-layout.md), approved) *(added 2026-10-16)* | Per-conversation scope (documents + tags), an activity panel per answer (live and from the stored trace), wider chat page with distinct user and assistant messages. | KnowledgeSeeker |
+| 3.7 | ✅ **Scope, activity panel, layout** ([spec 015](specs/015-chat-scope-activity-and-layout.md), implemented) *(added 2026-10-16)* | Per-conversation scope (documents + tags), an activity panel per answer (live and from the stored trace), wider chat page with distinct user and assistant messages. | KnowledgeSeeker |
 
 Proposed alongside: [ADR 0009](adr/0009-document-visibility.md), private and shared documents without tenants (accepted 2026-10-16; its spec is not written yet).
 
