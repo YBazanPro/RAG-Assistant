@@ -7,7 +7,7 @@ const string OllamaImageTag = "0.40.4";
 // each version comes from the provider; Documents:Embeddings:Model (default "bge-m3") is only the fallback, so keep them equal.
 const string EmbeddingModel = "bge-m3";
 // Chosen by the spec 012 calibration spike; configuration, not code, for the API (ADR 0003).
-const string ChatModel = "qwen3:4b";
+const string ChatModel = "llama3.2:3b";
 // Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
 const string WebClientSecret = "ragassistant-web-dev-secret";
 
