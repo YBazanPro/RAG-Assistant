@@ -107,6 +107,7 @@ public static class DocumentsModule
         services.AddScoped<QueryEmbedder>();
         services.AddScoped<PassageCandidates>();
         services.AddScoped<IDocumentSearch, DocumentSearch>();
+        services.AddScoped<IDocumentCatalog, DocumentCatalog>();
         return services;
     }
 }

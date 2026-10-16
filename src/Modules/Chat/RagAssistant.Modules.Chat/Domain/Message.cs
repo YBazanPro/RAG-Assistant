@@ -21,6 +21,9 @@ internal sealed class Message
 
     public string[] FilterTags { get; set; } = [];
 
+    /// <summary>User messages: the documents the question was restricted to (spec 015); empty means no restriction.</summary>
+    public Guid[] FilterDocumentIds { get; set; } = [];
+
     /// <summary>User messages: the query retrieval used (spec 014). Equals <see cref="Text"/> when nothing was rewritten; null on older rows.</summary>
     public string? RetrievalQuery { get; set; }
 

@@ -112,6 +112,16 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("owner_sub");
 
+                    b.PrimitiveCollection<Guid[]>("ScopeDocumentIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("scope_document_ids");
+
+                    b.PrimitiveCollection<string[]>("ScopeTags")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("scope_tags");
+
                     b.Property<string>("Title")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -183,6 +193,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("error_code");
+
+                    b.PrimitiveCollection<Guid[]>("FilterDocumentIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("filter_document_ids");
 
                     b.Property<string>("FilterLanguage")
                         .HasMaxLength(2)
@@ -316,6 +331,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("evidence_outcome");
 
+                    b.PrimitiveCollection<Guid[]>("FilterDocumentIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("filter_document_ids");
+
                     b.Property<string>("FilterLanguage")
                         .HasMaxLength(2)
                         .HasColumnType("character varying(2)")
@@ -429,6 +449,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                     b.Property<int>("TotalMs")
                         .HasColumnType("integer")
                         .HasColumnName("total_ms");
+
+                    b.PrimitiveCollection<Guid[]>("UnavailableDocumentIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]")
+                        .HasColumnName("unavailable_document_ids");
 
                     b.Property<Guid>("UserMessageId")
                         .HasColumnType("uuid")

@@ -75,11 +75,11 @@ internal static class AcceptQuestion
 
             var question = command.Question!.Trim();
             var language = string.IsNullOrWhiteSpace(command.Language) ? null : command.Language.Trim().ToLowerInvariant();
-            var tags = (command.Tags ?? [])
-                .Where(t => !string.IsNullOrWhiteSpace(t))
-                .Select(t => t.Trim().ToLowerInvariant())
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
+            var requested = ScopeRules.NormalizeTags(command.Tags);
+
+            // Spec 015: tags sent with the question replace the conversation's scope tags for that question; the documents stay.
+            var tags = requested.Length > 0 ? requested : conversation.ScopeTags;
+            var documentIds = conversation.ScopeDocumentIds;
 
             var userMessage = new Message
             {
@@ -92,6 +92,7 @@ internal static class AcceptQuestion
                 CreatedAt = now,
                 FilterLanguage = language,
                 FilterTags = tags,
+                FilterDocumentIds = documentIds,
             };
             var answer = new Message
             {
@@ -114,7 +115,7 @@ internal static class AcceptQuestion
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            return new AcceptedAnswer(conversation.Id, userMessage.Id, answer.Id, conversation.OwnerSub, question, language, tags, answer.Attempts, userMessage.Sequence);
+            return new AcceptedAnswer(conversation.Id, userMessage.Id, answer.Id, conversation.OwnerSub, question, language, tags, documentIds, answer.Attempts, userMessage.Sequence);
         }
     }
 }

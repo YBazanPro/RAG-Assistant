@@ -20,7 +20,7 @@ internal static partial class SearchPassages
 
     /// <param name="TopK">Raw text, so a malformed value surfaces as a field error; empty means <c>DefaultTopK</c>.</param>
     /// <param name="IncludeDiagnostics">Also counts documents skipped for a model mismatch; only the endpoint needs it.</param>
-    public sealed record Query(string? Q, string? Language, string[] Tags, string? TopK, bool IncludeDiagnostics)
+    public sealed record Query(string? Q, string? Language, string[] Tags, string? TopK, bool IncludeDiagnostics, IReadOnlyList<Guid>? DocumentIds = null)
         : IRequest<Result<SearchRun>>;
 
     /// <param name="SkippedForModelMismatch">Null unless diagnostics were requested.</param>
@@ -76,7 +76,8 @@ internal static partial class SearchPassages
             var topK = string.IsNullOrWhiteSpace(query.TopK) ? settings.DefaultTopK : int.Parse(query.TopK, CultureInfo.InvariantCulture);
             var filter = new CandidateFilter(
                 string.IsNullOrWhiteSpace(query.Language) ? null : query.Language.Trim().ToLowerInvariant(),
-                DocumentMetadata.NormalizeTags(query.Tags.Where(t => !string.IsNullOrWhiteSpace(t))));
+                DocumentMetadata.NormalizeTags(query.Tags.Where(t => !string.IsNullOrWhiteSpace(t))),
+                query.DocumentIds);
             var thresholds = new EvidenceThresholds(settings.MinScore, settings.ConfidentScore, settings.DuplicateOverlap);
 
             using var activity = DocumentsTelemetry.Source.StartActivity("documents.search");

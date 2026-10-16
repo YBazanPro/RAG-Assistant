@@ -4,6 +4,7 @@ using RagAssistant.Modules.Chat.Common;
 using RagAssistant.Modules.Chat.Domain;
 using RagAssistant.Modules.Chat.Persistence;
 using RagAssistant.SharedKernel.Common;
+using RagAssistant.SharedKernel.Contracts.Documents;
 
 namespace RagAssistant.Modules.Chat.Features.GetConversation;
 
@@ -34,9 +35,9 @@ internal static class GetConversation
         int? ReportCount = null);
 
     public sealed record ConversationDetail(
-        Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<MessageView> Messages);
+        Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<MessageView> Messages, ConversationScope Scope);
 
-    internal sealed class Handler(ChatDbContext db) : IRequestHandler<Query, Result<ConversationDetail>>
+    internal sealed class Handler(ChatDbContext db, IDocumentCatalog catalog) : IRequestHandler<Query, Result<ConversationDetail>>
     {
         public async ValueTask<Result<ConversationDetail>> Handle(Query query, CancellationToken cancellationToken)
         {
@@ -62,12 +63,19 @@ internal static class GetConversation
                 .Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(g => g.Key, g => g.Count, cancellationToken);
 
+            var availability = await catalog.CheckAsync(conversation.ScopeDocumentIds, cancellationToken);
+            var scope = new ConversationScope(
+                conversation.ScopeDocumentIds,
+                conversation.ScopeTags,
+                [.. conversation.ScopeDocumentIds.Where(id => !availability.Searchable.Contains(id))]);
+
             return new ConversationDetail(
                 conversation.Id,
                 conversation.Title,
                 conversation.CreatedAt,
                 conversation.LastActivityAt,
-                [.. conversation.Messages.Select(m => ToView(m, ratings, reportCounts))]);
+                [.. conversation.Messages.Select(m => ToView(m, ratings, reportCounts))],
+                scope);
         }
 
         private static MessageView ToView(Message m, Dictionary<Guid, FeedbackRating> ratings, Dictionary<Guid, int> reportCounts) => m.Role == MessageRole.User
