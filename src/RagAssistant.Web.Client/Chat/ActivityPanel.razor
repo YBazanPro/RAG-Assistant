@@ -3,8 +3,8 @@
 
 @* What the pipeline did for one answer (spec 015). Live while streaming, from the stored trace afterwards; recorded facts only. *@
 <div class="activity-panel">
-    <FluentButton Appearance="ButtonAppearance.Transparent" Class="activity-toggle" aria-expanded="@(Open ? "true" : "false")"
-                  aria-controls="@PanelId" OnClick="ToggleAsync">Activity</FluentButton>
+    <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Class="activity-toggle" aria-expanded="@(Open ? "true" : "false")"
+                  aria-controls="@PanelId" OnClick="ToggleAsync">@(Open ? "▾" : "▸") Activity</FluentButton>
     @if (Open)
     {
         <section id="@PanelId" class="activity-body" aria-label="Activity">
@@ -181,6 +181,14 @@
         if (retrieval.Outcome is null)
         {
             return "Searching…";
+        }
+
+        if (retrieval.Outcome == "noEvidence" && retrieval.MinScore is { } minimum)
+        {
+            var closest = retrieval.BestScore is { } best
+                ? $"the closest passage scored {Score(best)}"
+                : "no indexed passage matched";
+            return $"No evidence: nothing reached the minimum score of {Score(minimum)}; {closest}{Ms(retrieval.Ms)}.";
         }
 
         var outcome = retrieval.Outcome switch

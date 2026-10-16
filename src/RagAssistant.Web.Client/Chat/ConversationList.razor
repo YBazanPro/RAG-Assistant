@@ -1,7 +1,8 @@
 @inject TimeProvider Clock
 
 <nav class="conversation-list" aria-label="Conversations">
-    <FluentButton Appearance="ButtonAppearance.Outline" OnClick="OnNew" Class="new-conversation">New conversation</FluentButton>
+    <FluentText Block="true" Class="panel-title">Conversations</FluentText>
+    <FluentButton Appearance="ButtonAppearance.Outline" Size="ButtonSize.Small" OnClick="OnNew" Class="new-conversation">New conversation</FluentButton>
     @if (Items.Count == 0 && !Loading)
     {
         <FluentText Block="true" Class="conversation-list-empty">No conversations yet.</FluentText>
@@ -16,9 +17,9 @@
                         <span class="conversation-title">@(conversation.Title ?? "New conversation")</span>
                         <time class="conversation-time" datetime="@conversation.LastActivityAt.ToString("O")" title="@Formatting.Local(conversation.LastActivityAt)">@Relative(conversation.LastActivityAt)</time>
                     </a>
-                    <FluentButton Appearance="ButtonAppearance.Transparent" Class="conversation-delete"
-                                  aria-label="@($"Delete conversation: {conversation.Title ?? "New conversation"}")"
-                                  OnClick="@(() => OnDelete.InvokeAsync(conversation.Id))">Delete</FluentButton>
+                    <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Class="conversation-delete"
+                                  aria-label="@($"Delete conversation: {conversation.Title ?? "New conversation"}")" title="Delete"
+                                  OnClick="@(() => OnDelete.InvokeAsync(conversation.Id))"><TrashIcon /></FluentButton>
                 </li>
             }
         </ul>

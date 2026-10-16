@@ -27,7 +27,8 @@ public sealed record SearchResult(
     EvidenceOutcome Outcome,
     IReadOnlyList<RetrievedChunk> Chunks,
     EvidenceThresholds Thresholds,
-    string EmbeddingModel);
+    string EmbeddingModel,
+    double? BestScore = null);
 
 /// <param name="Text">The full passage text.</param>
 /// <param name="Score">Cosine similarity to the query (1 − cosine distance); higher is better.</param>

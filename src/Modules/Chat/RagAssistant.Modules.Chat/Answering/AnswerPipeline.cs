@@ -145,7 +145,7 @@ internal sealed partial class AnswerPipeline(
             AnswerEvents.Item(
                 AnswerEvents.RetrievalCompletedType,
                 new AnswerEvents.RetrievalCompleted(
-                    found.Outcome.ToApi(), sources, scope, attempt.UnavailableDocumentIds, found.Thresholds.MinScore, found.Thresholds.ConfidentScore, attempt.RetrievalMs)),
+                    found.Outcome.ToApi(), sources, scope, attempt.UnavailableDocumentIds, found.Thresholds.MinScore, found.Thresholds.ConfidentScore, attempt.RetrievalMs, found.BestScore)),
             aborted);
 
         if (found.Outcome == EvidenceOutcome.NoEvidence)
@@ -410,6 +410,7 @@ internal sealed partial class AnswerPipeline(
             MinScore = found?.Thresholds.MinScore,
             ConfidentScore = found?.Thresholds.ConfidentScore,
             DuplicateOverlap = found?.Thresholds.DuplicateOverlap,
+            BestScore = found?.BestScore,
             EmbeddingModel = found?.EmbeddingModel,
             RetrievedPassages = JsonSerializer.Serialize(passages, TraceJson),
             ChatModel = attempt.ChatModel,

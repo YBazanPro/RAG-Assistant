@@ -32,7 +32,8 @@ internal static partial class SearchPassages
         IReadOnlyList<DiscardedPassage> Discarded,
         EvidenceThresholds Thresholds,
         string EmbeddingModel,
-        int? SkippedForModelMismatch);
+        int? SkippedForModelMismatch,
+        double? BestScore = null);
 
     public sealed class Validator : AbstractValidator<Query>
     {
@@ -115,7 +116,8 @@ internal static partial class SearchPassages
             metrics.SearchCompleted(outcome, clock.GetElapsedTime(started));
             LogCompleted(logger, outcome, pool.Count, decision.Kept.Count);
 
-            return new SearchRun(text, topK, decision.Outcome, decision.Kept, decision.Discarded, thresholds, model, skipped);
+            double? best = pool.Count > 0 ? pool.Max(c => c.Score) : null;
+            return new SearchRun(text, topK, decision.Outcome, decision.Kept, decision.Discarded, thresholds, model, skipped, best);
         }
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Searching passages for \"{Query}\".")]

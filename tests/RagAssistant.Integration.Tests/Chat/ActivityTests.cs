@@ -88,6 +88,12 @@ public sealed class ActivityTests(PostgresFixture postgres)
         await Assert.That(answer.GetProperty("status").GetString()).IsEqualTo("refused");
         await Assert.That(answer.GetProperty("refusalReason").GetString()).IsEqualTo("no_evidence");
         await Assert.That(activity.GetProperty("retrieval").GetProperty("outcome").GetString()).IsEqualTo("noEvidence");
+
+        // a refusal says how close the best passage came, so "not enough information" can be judged
+        var best = activity.GetProperty("retrieval").GetProperty("bestScore").GetDouble();
+        await Assert.That(best).IsLessThan(0.5);
+        var streamed = result.Data("retrieval.completed").GetProperty("bestScore").GetDouble();
+        await Assert.That(streamed).IsEqualTo(best);
     }
 
     // AC-6, AC-8

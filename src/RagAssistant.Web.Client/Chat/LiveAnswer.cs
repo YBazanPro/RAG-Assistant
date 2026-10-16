@@ -130,7 +130,7 @@ public sealed class LiveAnswer : IDisposable
                 Question ?? "",
                 new RewriteStep(SearchedFor is not null, RetrievalQuery, null, null),
                 new ScopeStep(scope?.Language, scope?.Tags ?? [], documents),
-                new RetrievalStep(_retrieval?.Outcome, _retrieval?.MinScore, _retrieval?.ConfidentScore, _retrieval?.RetrievalMs, passages),
+                new RetrievalStep(_retrieval?.Outcome, _retrieval?.MinScore, _retrieval?.ConfidentScore, _retrieval?.RetrievalMs, passages, _retrieval?.BestScore),
                 null);
         }
     }
