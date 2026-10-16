@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Lets the Security group below raise vulnerable transitive packages to their patched versions. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
   <ItemGroup Label="Aspire">
@@ -74,6 +76,11 @@
     <PackageVersion Include="Testcontainers.Keycloak" Version="4.16.0" />
     <PackageVersion Include="bunit" Version="2.11.3" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.59.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Security (transitive pins)">
+    <!-- GHSA-qhrr-8q5h-9q3h: 2.5.302 comes in through the Aspire hosting packages; 2.5.303 is the first patched 2.5 release. -->
+    <PackageVersion Include="MessagePack" Version="2.5.303" />
   </ItemGroup>
 
 </Project>
