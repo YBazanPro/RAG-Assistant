@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using RagAssistant.Modules.Chat.Answering;
 using RagAssistant.Modules.Chat.Options;
 using RagAssistant.Modules.Chat.Persistence;
 using RagAssistant.SharedKernel.Common.Behaviors;
@@ -56,6 +57,8 @@ public static class ChatModule
         });
         services.AddValidatorsFromAssembly(typeof(ChatModule).Assembly, includeInternalTypes: true);
         services.AddEndpoints(typeof(ChatModule).Assembly);
+
+        services.AddScoped<AnswerPipeline>();
         return services;
     }
 }

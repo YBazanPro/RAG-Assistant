@@ -57,6 +57,9 @@ public sealed class RagAssistantAppFactory : WebApplicationFactory<Program>, IAs
             // Paused by default: the worker's probe fails, so spec 006 imports stay queued. Ingestion tests swap in a working fake.
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>, UnavailableEmbeddingGenerator>();
 
+            // Shared by every test on this factory, so tests that script the model use a ChatBed of their own.
+            services.AddSingleton<IChatClient, ScriptedChatClient>();
+
             TestAuthentication.Configure(services);
         });
     }

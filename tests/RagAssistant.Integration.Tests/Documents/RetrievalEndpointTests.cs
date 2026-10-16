@@ -228,10 +228,16 @@ public sealed class RetrievalEndpointTests(PostgresFixture postgres)
         ActivitySource.AddActivityListener(activities);
 
         const string secret = "budget question nobody else asks 7f3a";
-        var (status, _) = await GetAsync(bed, "/api/documents/search?q=" + Uri.EscapeDataString(secret));
+        // The listener sees every search in the process, including other tests' running in parallel: pick this request's span by
+        // its trace, which the API continues from the traceparent header.
+        var traceId = ActivityTraceId.CreateRandom();
+        using var client = bed.App.CreateClientAs(Persona.Maintainer);
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri("/api/documents/search?q=" + Uri.EscapeDataString(secret), UriKind.Relative));
+        request.Headers.Add("traceparent", $"00-{traceId}-{ActivitySpanId.CreateRandom()}-01");
+        using var response = await client.SendAsync(request);
 
-        await Assert.That(status).IsEqualTo(HttpStatusCode.OK);
-        var span = stopped.Single(a => a.OperationName == "documents.search" && a.GetTagItem("documents.search.returned") is 1);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var span = stopped.Single(a => a.OperationName == "documents.search" && a.TraceId == traceId);
         await Assert.That(span.GetTagItem("documents.search.outcome")).IsEqualTo("sufficient");
         await Assert.That(span.GetTagItem("documents.search.candidates")).IsEqualTo(1);
         await Assert.That(span.GetTagItem("documents.search.embedding.cache_hit") is false).IsTrue();
