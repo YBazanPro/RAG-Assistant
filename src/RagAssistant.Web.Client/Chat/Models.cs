@@ -46,7 +46,16 @@ public sealed record ChatMessage(
     int? ReportCount = null);
 
 public sealed record ConversationDetail(
-    Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<ChatMessage> Messages);
+    Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<ChatMessage> Messages, ConversationScope? Scope = null);
+
+/// <summary>The documents and tags a conversation searches (spec 015); empty means the whole corpus.</summary>
+public sealed record ConversationScope(
+    IReadOnlyList<Guid> DocumentIds, IReadOnlyList<string> Tags, IReadOnlyList<Guid> UnavailableDocumentIds, IReadOnlyList<ScopeDocument> Documents)
+{
+    public static ConversationScope Empty { get; } = new([], [], [], []);
+
+    public bool IsEmpty => DocumentIds.Count == 0 && Tags.Count == 0;
+}
 
 /// <summary>A source named by <c>retrieval.completed</c>; it carries no passage text.</summary>
 public sealed record AnswerSource(
@@ -100,6 +109,9 @@ public sealed record CategoryChoice(string Value, string Text);
 
 /// <summary>What the report dialog hands back: a category and an optional comment.</summary>
 public sealed record ReportRequest(string Category, string? Comment);
+
+/// <summary>What the scope picker hands back: the chosen documents (with the titles it saw) and tags.</summary>
+public sealed record ScopeChoice(IReadOnlyList<ScopeDocument> Documents, IReadOnlyList<string> Tags);
 
 // What the pipeline did for one answer (spec 015); the same shape the activity endpoint returns. Live answers fill it in part.
 

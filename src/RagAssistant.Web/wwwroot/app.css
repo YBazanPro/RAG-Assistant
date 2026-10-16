@@ -629,6 +629,36 @@ html, body {
     font-size: 0.9em;
 }
 
+/* Scope bar and picker (spec 015) */
+.scope-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.scope-summary {
+    color: var(--colorNeutralForeground3);
+    font-size: 0.9em;
+}
+
+.scope-chip[data-available="false"] {
+    opacity: 0.7;
+}
+
+.scope-error {
+    color: var(--colorStatusDangerForeground1);
+    font-size: 0.9em;
+}
+
+.scope-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 14rem;
+    overflow-y: auto;
+}
+
 /* Activity panel (spec 015) */
 .activity-panel {
     margin-top: 8px;

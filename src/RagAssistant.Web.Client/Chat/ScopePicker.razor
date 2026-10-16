@@ -1,0 +1,180 @@
+@using RagAssistant.Web.Client.Documents
+@inject IDocumentsApi DocumentsApi
+
+@* Chooses the documents and tags a conversation searches (spec 015). Edits a copy; Apply hands it back. *@
+<ConfirmDialog Open="Open" Title="Choose what to search" ConfirmLabel="Apply" ConfirmDisabled="@(!WithinLimits)" OnConfirm="ApplyAsync" OnCancel="OnCancel">
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12" Class="scope-picker">
+        <FluentText Block="true">Questions in this conversation search only what you choose here. Choose nothing to search every document.</FluentText>
+
+        @if (_chosen.Count > 0)
+        {
+            <div role="group" aria-label="Chosen documents" class="scope-list">
+                @foreach (var document in _chosen.Values)
+                {
+                    <FluentCheckbox Label="@(document.Title ?? "Document")" Value="true" ValueChanged="@(_ => Toggle(document))" />
+                }
+            </div>
+        }
+
+        <FluentTextInput Id="scope-search" Label="Find documents" Value="@_search" ValueChanged="OnSearchChangedAsync"
+                         Immediate="true" ImmediateDelay="300" MaxLength="@DocumentQuery.MaxSearchLength" />
+        <div role="group" aria-label="Documents" class="scope-list">
+            @if (_failed)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">
+                    <ChildContent>The documents could not be loaded.</ChildContent>
+                    <ActionsTemplate>
+                        <FluentButton Appearance="ButtonAppearance.Outline" OnClick="@(() => SearchAsync(_search))">Retry</FluentButton>
+                    </ActionsTemplate>
+                </FluentMessageBar>
+            }
+            else if (_loading)
+            {
+                <FluentText>Loading documents…</FluentText>
+            }
+            else if (Candidates.Count == 0)
+            {
+                <FluentText>No other active documents match.</FluentText>
+            }
+            else
+            {
+                @foreach (var document in Candidates)
+                {
+                    <FluentCheckbox Label="@document.Title" Value="false" ValueChanged="@(_ => Toggle(new ScopeDocument(document.Id, document.Title, true)))" />
+                }
+
+                @if (_total > _shown)
+                {
+                    <FluentText Class="field-hint">Showing @_shown of @_total. Search to narrow the list.</FluentText>
+                }
+            }
+        </div>
+
+        @if (_tagChoices.Length > 0)
+        {
+            <FluentSelect Id="scope-tags" Label="Tags (documents must have all of them)" TOption="Choice" TValue="string" Multiple="true" Items="_tagChoices"
+                          OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
+                          SelectedItems="@SelectedTagChoices" SelectedItemsChanged="OnTagsChanged" />
+        }
+
+        <FluentText Block="true" Class="@(WithinLimits ? "field-hint" : "scope-error")" role="status">
+            @_chosen.Count of @MaxDocuments documents, @_tags.Count of @MaxTags tags
+        </FluentText>
+    </FluentStack>
+</ConfirmDialog>
+
+@code {
+    public const int MaxDocuments = 25;
+    public const int MaxTags = 20;
+
+    private sealed record Choice(string Value, string Text);
+
+    private readonly Dictionary<Guid, ScopeDocument> _chosen = [];
+    private readonly HashSet<string> _tags = new(StringComparer.Ordinal);
+    private IReadOnlyList<DocumentSummary> _results = [];
+    private Choice[] _tagChoices = [];
+    private string _search = "";
+    private bool _wasOpen;
+    private bool _loading;
+    private bool _failed;
+    private int _shown;
+    private int _total;
+    private int _searchVersion;
+
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>The scope in force; each opening starts from it.</summary>
+    [Parameter] public ConversationScope Scope { get; set; } = ConversationScope.Empty;
+
+    [Parameter] public EventCallback<ScopeChoice> OnApply { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private bool WithinLimits => _chosen.Count <= MaxDocuments && _tags.Count <= MaxTags;
+
+    private IReadOnlyList<DocumentSummary> Candidates => [.. _results.Where(d => !_chosen.ContainsKey(d.Id))];
+
+    private IReadOnlyCollection<Choice> SelectedTagChoices => [.. _tagChoices.Where(c => _tags.Contains(c.Value))];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !_wasOpen)
+        {
+            _chosen.Clear();
+            foreach (var document in Scope.Documents)
+            {
+                _chosen[document.Id] = document;
+            }
+
+            _tags.Clear();
+            foreach (var tag in Scope.Tags)
+            {
+                _tags.Add(tag);
+            }
+
+            _search = "";
+            _wasOpen = true;
+            await Task.WhenAll(SearchAsync(""), LoadTagsAsync());
+        }
+        else if (!Open)
+        {
+            _wasOpen = false;
+        }
+    }
+
+    private Task OnSearchChangedAsync(string value)
+    {
+        _search = value;
+        return SearchAsync(value);
+    }
+
+    private async Task SearchAsync(string text)
+    {
+        var version = ++_searchVersion;
+        _loading = true;
+        _failed = false;
+        var result = await DocumentsApi.ListAsync(new DocumentQuery { Q = string.IsNullOrWhiteSpace(text) ? null : text.Trim(), Status = "active" }, CancellationToken.None);
+        if (version != _searchVersion)
+        {
+            return; // a newer search owns the list
+        }
+
+        _loading = false;
+        if (result.IsSuccess)
+        {
+            _results = result.Value.Items;
+            _shown = result.Value.Items.Count;
+            _total = result.Value.TotalCount;
+        }
+        else
+        {
+            _failed = true;
+        }
+    }
+
+    private async Task LoadTagsAsync()
+    {
+        var facets = await DocumentsApi.GetFacetsAsync(CancellationToken.None);
+        var values = facets.IsSuccess ? facets.Value.Tags.Select(t => t.Value) : [];
+        _tagChoices = [.. values.Concat(_tags).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(t => new Choice(t, t))];
+    }
+
+    private void Toggle(ScopeDocument document)
+    {
+        if (!_chosen.Remove(document.Id))
+        {
+            _chosen[document.Id] = document;
+        }
+    }
+
+    private void OnTagsChanged(IEnumerable<Choice>? selected)
+    {
+        _tags.Clear();
+        foreach (var choice in selected ?? [])
+        {
+            _tags.Add(choice.Value);
+        }
+    }
+
+    private Task ApplyAsync() => OnApply.InvokeAsync(new ScopeChoice([.. _chosen.Values], [.. _tags.Order(StringComparer.Ordinal)]));
+}

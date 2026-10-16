@@ -137,6 +137,7 @@ else
                 </FluentMessageBar>
             }
 
+            <ScopeBar Scope="CurrentScope" Disabled="@(_busy || InputDisabled)" Error="@_scopeError" OnChoose="OpenScopePicker" OnClear="ClearScopeAsync" />
             <QuestionInput @ref="_input" Text="@_text" TextChanged="OnTextChangedAsync" Streaming="_busy" Disabled="InputDisabled"
                            ServerMessage="@_serverMessage" OnSend="SendAsync" OnCancel="CancelAsync" />
         </div>
@@ -150,6 +151,8 @@ else
         }
     </div>
 }
+
+<ScopePicker Open="_scopePickerOpen" Scope="CurrentScope" OnApply="ApplyScopeAsync" OnCancel="CloseScopePicker" />
 
 <ConfirmDialog Open="@(_deleteTarget is not null)" Title="Delete conversation" Message="Delete this conversation? This can't be undone."
                ConfirmLabel="Delete" Destructive="true" OnConfirm="DeleteAsync" OnCancel="CancelDelete" />
@@ -195,12 +198,19 @@ else
     private string? _announcement;
     private Guid? _deleteTarget;
     private string? _deleteNotice;
+
+    // Spec 015: the scope of a conversation that does not exist yet is kept here and saved when the first question creates it.
+    private ConversationScope _pendingScope = ConversationScope.Empty;
+    private bool _scopePickerOpen;
+    private string? _scopeError;
     private readonly CancellationTokenSource _lifetime = new();
 
     [Parameter] public Guid? ConversationId { get; set; }
 
     private IReadOnlyList<ChatMessage> VisibleMessages =>
         _detail is null ? [] : _retryingId is null ? _detail.Messages : [.. _detail.Messages.Where(m => m.Id != _retryingId)];
+
+    private ConversationScope CurrentScope => _currentId is null ? _pendingScope : _detail?.Scope ?? ConversationScope.Empty;
 
     private bool HasThread => VisibleMessages.Count > 0 || _pendingQuestion is not null || _live is not null;
 
@@ -254,6 +264,9 @@ else
         _conversationFull = false;
         _announcement = null;
         _listOpen = false;
+        _pendingScope = ConversationScope.Empty;
+        _scopePickerOpen = false;
+        _scopeError = null;
         _text = await Drafts.LoadAsync(DraftKey(ConversationId)) ?? "";
 
         if (ConversationId is null)
@@ -486,11 +499,77 @@ else
 
         var id = created.Value.Id;
         _currentId = id;
-        _detail = new ConversationDetail(id, null, created.Value.CreatedAt, created.Value.LastActivityAt, []);
+        _detail = new ConversationDetail(id, null, created.Value.CreatedAt, created.Value.LastActivityAt, [], _pendingScope);
+        if (!_pendingScope.IsEmpty)
+        {
+            var saved = await Api.SetScopeAsync(id, _pendingScope.Documents.Select(d => d.Id).ToArray(), _pendingScope.Tags, cancellationToken);
+            if (generation != _generation)
+            {
+                return false;
+            }
+
+            if (!saved.IsSuccess)
+            {
+                // The conversation exists but the scope did not stick: do not ask under the wrong scope.
+                _currentId = id;
+                Navigation.NavigateTo($"chat/{id}", new NavigationOptions { ReplaceHistoryEntry = true });
+                _scopeError = "The search scope could not be saved. Choose it again, then ask.";
+                _detail = new ConversationDetail(id, null, created.Value.CreatedAt, created.Value.LastActivityAt, []);
+                await Drafts.SaveAsync(DraftKey(id), question);
+                _text = question;
+                _pendingQuestion = null;
+                _busy = false;
+                return false;
+            }
+
+            _detail = _detail with { Scope = saved.Value };
+        }
+
         await Drafts.ClearAsync(DraftKey(null));
         await Drafts.SaveAsync(DraftKey(id), question);
         Navigation.NavigateTo($"chat/{id}", new NavigationOptions { ReplaceHistoryEntry = true });
         return true;
+    }
+
+    private void OpenScopePicker()
+    {
+        _scopeError = null;
+        _scopePickerOpen = true;
+    }
+
+    private void CloseScopePicker() => _scopePickerOpen = false;
+
+    private Task ClearScopeAsync() => ApplyScopeAsync(new ScopeChoice([], []));
+
+    private async Task ApplyScopeAsync(ScopeChoice choice)
+    {
+        _scopePickerOpen = false;
+        _scopeError = null;
+        if (_currentId is not { } id)
+        {
+            _pendingScope = new ConversationScope(
+                [.. choice.Documents.Select(d => d.Id)], choice.Tags, [], [.. choice.Documents.Select(d => d with { Available = true })]);
+            return;
+        }
+
+        var result = await Api.SetScopeAsync(id, [.. choice.Documents.Select(d => d.Id)], choice.Tags, _lifetime.Token);
+        if (_lifetime.IsCancellationRequested || id != _currentId)
+        {
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            _detail = _detail is null ? null : _detail with { Scope = result.Value };
+        }
+        else if (result.Error!.IsUnauthenticated)
+        {
+            _signInNeeded = true;
+        }
+        else
+        {
+            _scopeError = result.Error.Status == 409 ? result.Error.Message : "The search scope could not be saved. Try again.";
+        }
     }
 
     private async Task RetryAsync(Guid assistantMessageId)

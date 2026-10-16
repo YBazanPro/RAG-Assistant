@@ -16,6 +16,10 @@ public interface IChatApi
     /// <param name="rating"><c>helpful</c> or <c>not_helpful</c>.</param>
     Task<ApiResult<RatingResult>> SetRatingAsync(Guid conversationId, Guid messageId, string rating, CancellationToken cancellationToken);
 
+    /// <summary>Replaces the documents and tags the conversation searches; both empty means the whole corpus.</summary>
+    Task<ApiResult<ConversationScope>> SetScopeAsync(
+        Guid conversationId, IReadOnlyList<Guid> documentIds, IReadOnlyList<string> tags, CancellationToken cancellationToken);
+
     Task<ApiResult<ActivityView>> GetActivityAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken);
 
     Task<ApiResult<Done>> ClearRatingAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken);

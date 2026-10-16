@@ -216,6 +216,9 @@ public sealed class ScopeTests(PostgresFixture postgres)
 
         await Assert.That(first.Body.ToString()).IsEqualTo(second.Body.ToString());
         await Assert.That(first.Body.GetProperty("documentIds").GetArrayLength()).IsEqualTo(1);
+        var chip = first.Body.GetProperty("documents").EnumerateArray().Single();
+        await Assert.That(chip.GetProperty("title").GetString()).IsEqualTo("A");
+        await Assert.That(chip.GetProperty("available").GetBoolean()).IsTrue();
         await Assert.That(first.Body.GetProperty("tags").EnumerateArray().Select(e => e.GetString()).SequenceEqual(["hr"])).IsTrue();
     }
 }

@@ -45,6 +45,11 @@ public sealed class FakeChatApi : IChatApi
 
     public List<Guid> ActivityCalls { get; } = [];
 
+    public List<(Guid Conversation, Guid[] Documents, string[] Tags)> ScopeCalls { get; } = [];
+
+    public Func<Guid[], string[], ApiResult<ConversationScope>> OnScope { get; set; } = (documents, tags) =>
+        ApiResult.Ok(new ConversationScope(documents, tags, [], [.. documents.Select(id => new ScopeDocument(id, $"Document {id.ToString()[..4]}", true))]));
+
     public int CreateCalls { get; private set; }
 
     public List<Guid> GetCalls { get; } = [];
@@ -86,6 +91,13 @@ public sealed class FakeChatApi : IChatApi
     {
         ReportCalls.Add((messageId, category, comment));
         return Task.FromResult(OnReport(category));
+    }
+
+    public Task<ApiResult<ConversationScope>> SetScopeAsync(
+        Guid conversationId, IReadOnlyList<Guid> documentIds, IReadOnlyList<string> tags, CancellationToken cancellationToken)
+    {
+        ScopeCalls.Add((conversationId, [.. documentIds], [.. tags]));
+        return Task.FromResult(OnScope([.. documentIds], [.. tags]));
     }
 
     public Task<ApiResult<ActivityView>> GetActivityAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken)

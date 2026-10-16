@@ -58,10 +58,7 @@ internal static class SetScope
             conversation.ScopeTags = ScopeRules.NormalizeTags(command.Tags);
             await db.SaveChangesAsync(cancellationToken);
 
-            return new ConversationScope(
-                conversation.ScopeDocumentIds,
-                conversation.ScopeTags,
-                [.. documentIds.Where(id => !availability.Searchable.Contains(id))]);
+            return ConversationScope.From(conversation.ScopeDocumentIds, conversation.ScopeTags, availability);
         }
     }
 }
