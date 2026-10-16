@@ -8,13 +8,17 @@
             @if (message.Role == "user")
             {
                 <div class="thread-question" @key="message.Id">
-                    <FluentText Weight="TextWeight.Semibold" Block="true" Class="thread-role">You</FluentText>
-                    <p class="thread-question-text">@message.Text</p>
+                    <span class="visually-hidden">You said</span>
+                    <div class="thread-bubble">
+                        <p class="thread-question-text">@message.Text</p>
+                    </div>
                 </div>
             }
             else
             {
                 <div class="thread-answer" @key="message.Id">
+                    <span class="visually-hidden">Assistant said</span>
+                    <FluentText Weight="TextWeight.Semibold" Block="true" Class="assistant-label" aria-hidden="true">Assistant</FluentText>
                     <AnswerMessage Message="@message"
                                    ConversationId="ConversationId"
                                    SearchedFor="@SearchedForOf(message)"
@@ -30,13 +34,17 @@
         @if (PendingQuestion is not null)
         {
             <div class="thread-question" @key="@("pending-question")">
-                <FluentText Weight="TextWeight.Semibold" Block="true" Class="thread-role">You</FluentText>
-                <p class="thread-question-text">@PendingQuestion</p>
+                <span class="visually-hidden">You said</span>
+                <div class="thread-bubble">
+                    <p class="thread-question-text">@PendingQuestion</p>
+                </div>
             </div>
         }
         @if (Live is not null)
         {
             <div class="thread-answer" @key="@("live-answer")">
+                <span class="visually-hidden">Assistant said</span>
+                <FluentText Weight="TextWeight.Semibold" Block="true" Class="assistant-label" aria-hidden="true">Assistant</FluentText>
                 <AnswerMessage Live="@Live" SelectedMarker="@MarkerFor(Live.AssistantMessageId)" OnCitationSelected="OnCitationSelected"
                                OnRendered="FollowAsync" />
             </div>

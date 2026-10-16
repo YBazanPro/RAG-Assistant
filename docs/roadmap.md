@@ -161,6 +161,10 @@ Order inside the phase matters: **the refusal path first.** It needs no LLM, pro
 | 3.5 | ✅ **Follow-up questions** ([spec 014](specs/014-follow-ups-feedback-and-deletion.md)) | Bounded history window + rewriting into a standalone retrieval query (`GetResponseAsync<T>`); conversation never used as evidence. | — |
 | 3.6 | ✅ **Feedback** ([spec 014](specs/014-follow-ups-feedback-and-deletion.md)) | Helpful / not helpful / report issue, stored with the message. | KnowledgeSeeker |
 
+| 3.7 | **Scope, activity panel, layout** ([spec 015](specs/015-chat-scope-activity-and-layout.md), approved) *(added 2026-10-16)* | Per-conversation scope (documents + tags), an activity panel per answer (live and from the stored trace), wider chat page with distinct user and assistant messages. | KnowledgeSeeker |
+
+Proposed alongside: [ADR 0009](adr/0009-document-visibility.md), private and shared documents without tenants (accepted 2026-10-16; its spec is not written yet).
+
 **Kit:** `/spec`, `/plan`, `/tdd`, `resilience` (provider calls), `error-handling`. **Extra:** `technology-selection` (dotnet-ai) when wiring the provider from D1; `author-component`, `coordinate-components`, `use-js-interop` (auto-scroll, copy reference) for the UI.
 **Tests:** fake `IChatClient` that streams scripted tokens and citation markers. Assert the **event sequence** and the persisted snapshot.
 **Demo after Phase 3 = the core promise:** ask, watch the answer stream, open a citation, get an honest refusal for an off-corpus question.
