@@ -90,7 +90,7 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
         }
     }
 
-    private static readonly IReadOnlyDictionary<string, string[]> NoFields = new Dictionary<string, string[]>();
+    internal static readonly IReadOnlyDictionary<string, string[]> NoFields = new Dictionary<string, string[]>();
 
     /// <summary>Reads the outcome of an upload the browser made itself into the same result type every other call returns.</summary>
     public static ApiResult<T> FromUpload<T>(UploadResult upload)
@@ -119,7 +119,7 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
     }
 
     // The API and the BFF both answer errors with ProblemDetails carrying a stable `code`; anything else is reduced to its status.
-    private static async Task<ApiError> ToErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    internal static async Task<ApiError> ToErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         string? text = null;
         try
@@ -134,7 +134,7 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
         return ErrorFromBody((int)response.StatusCode, response.ReasonPhrase, text);
     }
 
-    private static ApiError ErrorFromBody(int status, string? reasonPhrase, string? text)
+    internal static ApiError ErrorFromBody(int status, string? reasonPhrase, string? text)
     {
         string code = $"http.{status}";
         string message = reasonPhrase ?? "The request failed.";

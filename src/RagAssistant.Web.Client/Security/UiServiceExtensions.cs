@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.FluentUI.AspNetCore.Components;
 using RagAssistant.Security;
+using RagAssistant.Web.Client.Chat;
 using RagAssistant.Web.Client.Documents;
 
 namespace RagAssistant.Web.Client.Security;
@@ -20,6 +21,8 @@ public static class UiServiceExtensions
         services.AddScoped<IDocumentsApi>(sp => new DocumentsApi(sp.GetRequiredService<HttpClient>));
         services.AddScoped<IIngestionEventSource>(sp => new IngestionEventSource(sp.GetRequiredService<HttpClient>));
         services.AddScoped<IFileUploader, BrowserFileUploader>();
+        services.AddScoped<IChatApi>(sp => new ChatApi(sp.GetRequiredService<HttpClient>));
+        services.AddScoped<IAnswerEventSource>(sp => new AnswerEventSource(sp.GetRequiredService<HttpClient>));
         return services;
     }
 
