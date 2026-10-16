@@ -11,9 +11,12 @@ public sealed class ChatAuthTests(RagAssistantAppFactory factory)
     public static IEnumerable<Func<(string Method, string Url)>> Endpoints()
     {
         var id = Guid.NewGuid();
+        var message = Guid.NewGuid();
         yield return () => ("POST", "/api/chat/conversations");
         yield return () => ("GET", "/api/chat/conversations");
         yield return () => ("GET", $"/api/chat/conversations/{id}");
+        yield return () => ("POST", $"/api/chat/conversations/{id}/messages");
+        yield return () => ("POST", $"/api/chat/conversations/{id}/messages/{message}/retry");
     }
 
     [Test]
@@ -36,6 +39,21 @@ public sealed class ChatAuthTests(RagAssistantAppFactory factory)
         using var response = await SendAsync(client, endpoint);
 
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    [Arguments(Persona.KnowledgeSeeker)]
+    [Arguments(Persona.Maintainer)]
+    public async Task Retry_anotherUsersConversation_returns404(Persona persona)
+    {
+        using var owner = factory.CreateClientAs(Persona.KnowledgeSeeker, subject: ChatRequests.NewUser());
+        var id = await owner.CreateConversationAsync();
+        using var other = factory.CreateClientAs(persona, subject: ChatRequests.NewUser());
+
+        var result = await ChatBed.RetryAsync(other, id, Guid.NewGuid());
+
+        await Assert.That(result.Status).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(result.Problem.GetProperty("code").GetString()).IsEqualTo("chat.conversation_not_found");
     }
 
     [Test]

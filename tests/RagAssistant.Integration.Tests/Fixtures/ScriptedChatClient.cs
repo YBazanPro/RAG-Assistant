@@ -19,11 +19,12 @@ public sealed class ScriptedChatClient : IChatClient
     private readonly TaskCompletionSource _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _cancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private TaskCompletionSource? _gate;
-    private int? _throwAfter;
+    private object? _throwAfter;
 
     public IReadOnlyList<IReadOnlyList<ChatMessage>> Calls => [.. _calls];
 
     public int CallCount => _calls.Count;
+
 
     /// <summary>The next reply streams these fragments, in order.</summary>
     public void Script(params string[] tokens) => _replies.Enqueue(tokens);
@@ -35,7 +36,7 @@ public sealed class ScriptedChatClient : IChatClient
 
     public void Release() => _gate?.TrySetResult();
 
-    /// <summary>The next calls throw a transport failure after streaming <paramref name="tokens"/> fragments.</summary>
+    /// <summary>The next call throws a transport failure after streaming <paramref name="tokens"/> fragments.</summary>
     public void ThrowAfter(int tokens) => _throwAfter = tokens;
 
     /// <summary>Completes when a call observed its cancellation token.</summary>
@@ -51,27 +52,42 @@ public sealed class ScriptedChatClient : IChatClient
     {
         _calls.Enqueue([.. messages]);
         var tokens = _replies.TryDequeue(out var scripted) ? scripted : DefaultReply;
-        using var registration = cancellationToken.Register(() => _cancelled.TrySetResult());
+        var throwAfter = (int?)Interlocked.Exchange(ref _throwAfter, null);
 
+        // Recorded where the cancellation is caught: a token registration would be removed before it runs, because the
+        // cancelled wait continues inline inside Cancel() and leaves this method first.
         if (_gate is { } gate)
         {
             _held.TrySetResult();
-            await gate.Task.WaitAsync(cancellationToken);
+            try
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _cancelled.TrySetResult();
+                throw;
+            }
         }
 
         for (var i = 0; i < tokens.Length; i++)
         {
-            if (_throwAfter == i)
+            if (throwAfter == i)
             {
                 throw new HttpRequestException("Scripted model failure.");
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                _cancelled.TrySetResult();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             await Task.Yield();
             yield return new ChatResponseUpdate(ChatRole.Assistant, tokens[i]) { ModelId = ModelId };
         }
 
-        if (_throwAfter is { } after && after >= tokens.Length)
+        if (throwAfter is { } after && after >= tokens.Length)
         {
             throw new HttpRequestException("Scripted model failure.");
         }

@@ -99,6 +99,19 @@ public sealed class ChatBed : IAsyncDisposable
         return new StreamResult(response.StatusCode, events, default);
     }
 
+    /// <summary>Asks and keeps the stream open, for tests that read part of it or disconnect.</summary>
+    public static async Task<LiveAnswer> OpenAsync(HttpClient client, Guid conversationId, string question = Question)
+    {
+        var timeout = new CancellationTokenSource(StreamTimeout);
+        var request = new HttpRequestMessage(HttpMethod.Post, $"/api/chat/conversations/{conversationId}/messages")
+        {
+            Content = JsonContent.Create(new { question }),
+        };
+        var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+        var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+        return new LiveAnswer(response, SseParser.Create(stream).EnumerateAsync(timeout.Token).GetAsyncEnumerator(timeout.Token), timeout);
+    }
+
     /// <summary>Status, refusal reason, error code and text of an assistant message.</summary>
     public async Task<(string? Status, string? RefusalReason, string? ErrorCode, string Text)> AnswerAsync(Guid assistantMessageId)
     {
@@ -114,6 +127,69 @@ public sealed class ChatBed : IAsyncDisposable
             assistantMessageId);
 
     public async ValueTask DisposeAsync() => await App.DisposeAsync();
+}
+
+/// <summary>An answer stream being read; disposing it is the client disconnect.</summary>
+public sealed class LiveAnswer(HttpResponseMessage response, IAsyncEnumerator<SseItem<string>> events, CancellationTokenSource timeout) : IAsyncDisposable
+{
+    public List<SseItem<string>> Received { get; } = [];
+
+    /// <summary>Reads until an event matches, and returns it.</summary>
+    public async Task<SseItem<string>> ReadUntilAsync(Func<SseItem<string>, bool> stop)
+    {
+        while (await events.MoveNextAsync())
+        {
+            Received.Add(events.Current);
+            if (stop(events.Current))
+            {
+                return events.Current;
+            }
+        }
+
+        throw new InvalidOperationException("The stream ended before the expected event.");
+    }
+
+    public async Task ReadToEndAsync()
+    {
+        while (await events.MoveNextAsync())
+        {
+            Received.Add(events.Current);
+        }
+    }
+
+    /// <summary>
+    /// Disconnects the way a browser does mid-read: the test server aborts the request (and so cancels <c>RequestAborted</c>) when
+    /// a pending read of the response body is cancelled.
+    /// </summary>
+    public async Task DisconnectAsync()
+    {
+        var pending = events.MoveNextAsync().AsTask();
+        await timeout.CancelAsync();
+        try
+        {
+            await pending;
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException)
+        {
+            // Expected: the read was cancelled to disconnect.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await timeout.CancelAsync();
+        try
+        {
+            await events.DisposeAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: the read was cancelled to disconnect.
+        }
+
+        response.Dispose();
+        timeout.Dispose();
+    }
 }
 
 public sealed record StreamResult(HttpStatusCode Status, IReadOnlyList<SseItem<string>> Events, JsonElement Problem)

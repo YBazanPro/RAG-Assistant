@@ -59,6 +59,7 @@ public static class ChatModule
         services.AddEndpoints(typeof(ChatModule).Assembly);
 
         services.AddScoped<AnswerPipeline>();
+        services.AddHostedService<PendingAnswerSweeper>();
         return services;
     }
 }
