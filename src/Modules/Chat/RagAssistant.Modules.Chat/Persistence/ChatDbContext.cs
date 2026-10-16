@@ -16,6 +16,10 @@ internal sealed class ChatDbContext(DbContextOptions<ChatDbContext> options) : D
 
     public DbSet<RequestTrace> RequestTraces => Set<RequestTrace>();
 
+    public DbSet<MessageRating> MessageRatings => Set<MessageRating>();
+
+    public DbSet<IssueReport> IssueReports => Set<IssueReport>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

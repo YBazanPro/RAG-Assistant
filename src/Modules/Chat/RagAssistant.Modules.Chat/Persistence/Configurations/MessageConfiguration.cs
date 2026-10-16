@@ -13,6 +13,7 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
         builder.Property(m => m.Id).ValueGeneratedNever();
         builder.Property(m => m.FilterLanguage).HasMaxLength(2);
         builder.Property(m => m.ErrorCode).HasMaxLength(100);
+        builder.Property(m => m.RetrievalQuery).HasMaxLength(1000);
 
         builder.HasIndex(m => new { m.ConversationId, m.Sequence }).IsUnique();
 

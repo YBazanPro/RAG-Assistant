@@ -21,6 +21,9 @@ internal sealed class Message
 
     public string[] FilterTags { get; set; } = [];
 
+    /// <summary>User messages: the query retrieval used (spec 014). Equals <see cref="Text"/> when nothing was rewritten; null on older rows.</summary>
+    public string? RetrievalQuery { get; set; }
+
     public Guid? ReplyToMessageId { get; set; }
 
     public AnswerStatus? Status { get; set; }

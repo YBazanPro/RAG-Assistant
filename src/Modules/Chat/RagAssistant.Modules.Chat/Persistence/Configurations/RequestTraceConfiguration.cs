@@ -19,6 +19,8 @@ internal sealed class RequestTraceConfiguration : IEntityTypeConfiguration<Reque
         builder.Property(t => t.ChatModel).HasMaxLength(200);
         builder.Property(t => t.PromptVersion).HasMaxLength(32);
         builder.Property(t => t.ErrorCode).HasMaxLength(100);
+        builder.Property(t => t.RetrievalQuery).HasMaxLength(1000);
+        builder.Property(t => t.RewritePromptVersion).HasMaxLength(32);
         builder.Property(t => t.RetrievedPassages).HasColumnType("jsonb");
 
         builder.HasIndex(t => new { t.AssistantMessageId, t.Attempt }).IsUnique();

@@ -20,6 +20,21 @@ internal sealed class RequestTrace
 
     public required string QuestionText { get; set; }
 
+    /// <summary>What retrieval searched for: the standalone question, or the original one (spec 014).</summary>
+    public string? RetrievalQuery { get; set; }
+
+    public bool RewriteUsed { get; set; }
+
+    public RewriteFallback? RewriteFallbackReason { get; set; }
+
+    public int? RewriteMs { get; set; }
+
+    public long? RewriteInputTokens { get; set; }
+
+    public long? RewriteOutputTokens { get; set; }
+
+    public string? RewritePromptVersion { get; set; }
+
     public string? FilterLanguage { get; set; }
 
     public string[] FilterTags { get; set; } = [];

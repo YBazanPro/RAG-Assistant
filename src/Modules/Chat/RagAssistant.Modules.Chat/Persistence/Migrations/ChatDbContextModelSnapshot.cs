@@ -125,6 +125,38 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                     b.ToTable("conversations", "chat");
                 });
 
+            modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.IssueReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.ToTable("issue_reports", "chat");
+                });
+
             modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.Message", b =>
                 {
                     b.Property<Guid>("Id")
@@ -175,6 +207,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("reply_to_message_id");
 
+                    b.Property<string>("RetrievalQuery")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("retrieval_query");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -210,6 +247,27 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("messages", "chat");
+                });
+
+            modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.MessageRating", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<string>("Rating")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("rating");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("MessageId");
+
+                    b.ToTable("message_ratings", "chat");
                 });
 
             modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.RequestTrace", b =>
@@ -320,10 +378,41 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("retrieval_ms");
 
+                    b.Property<string>("RetrievalQuery")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("retrieval_query");
+
                     b.Property<string>("RetrievedPassages")
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("retrieved_passages");
+
+                    b.Property<string>("RewriteFallbackReason")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("rewrite_fallback_reason");
+
+                    b.Property<long?>("RewriteInputTokens")
+                        .HasColumnType("bigint")
+                        .HasColumnName("rewrite_input_tokens");
+
+                    b.Property<int?>("RewriteMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("rewrite_ms");
+
+                    b.Property<long?>("RewriteOutputTokens")
+                        .HasColumnType("bigint")
+                        .HasColumnName("rewrite_output_tokens");
+
+                    b.Property<string>("RewritePromptVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("rewrite_prompt_version");
+
+                    b.Property<bool>("RewriteUsed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("rewrite_used");
 
                     b.Property<bool>("SentinelHit")
                         .HasColumnType("boolean")
@@ -366,11 +455,29 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.IssueReport", b =>
+                {
+                    b.HasOne("RagAssistant.Modules.Chat.Domain.Message", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.Message", b =>
                 {
                     b.HasOne("RagAssistant.Modules.Chat.Domain.Conversation", null)
                         .WithMany("Messages")
                         .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.MessageRating", b =>
+                {
+                    b.HasOne("RagAssistant.Modules.Chat.Domain.Message", null)
+                        .WithOne()
+                        .HasForeignKey("RagAssistant.Modules.Chat.Domain.MessageRating", "MessageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

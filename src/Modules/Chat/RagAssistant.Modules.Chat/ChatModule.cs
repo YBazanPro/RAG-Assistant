@@ -47,6 +47,16 @@ public static class ChatModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<FollowUpOptions>()
+            .Bind(configuration.GetSection(FollowUpOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<FollowUpOptions>, FollowUpOptionsValidator>();
+        services.AddOptions<FeedbackOptions>()
+            .Bind(configuration.GetSection(FeedbackOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddMediator(options =>
         {
             options.Namespace = "RagAssistant.Modules.Chat.Generated";
