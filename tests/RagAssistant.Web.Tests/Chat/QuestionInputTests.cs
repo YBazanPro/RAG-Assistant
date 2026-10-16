@@ -74,13 +74,29 @@ public class QuestionInputTests
         var cut = ctx.Render<QuestionInput>(p => p
             .Add(c => c.Text, "Question")
             .Add(c => c.OnSend, EventCallback.Factory.Create<string>(this, _ => sent++)));
-        await cut.InvokeAsync(() => enter.OnEnter!());
+        await cut.InvokeAsync(() => enter.OnEnter!(null));
         cut.Render(p => p.Add(c => c.Sending, true));
-        await cut.InvokeAsync(() => enter.OnEnter!());
+        await cut.InvokeAsync(() => enter.OnEnter!(null));
         cut.Render(p => p.Add(c => c.Sending, false).Add(c => c.Streaming, true));
-        await cut.InvokeAsync(() => enter.OnEnter!());
+        await cut.InvokeAsync(() => enter.OnEnter!(null));
 
         await Assert.That(sent).IsEqualTo(1);
+    }
+
+    // The value change is debounced in the browser, so a fast Enter carries the textarea's current value.
+    [Test]
+    public async Task Enter_usesTheValueTheBrowserSendsAlong()
+    {
+        await using var ctx = ChatTestData.NewContext(out _, out _);
+        var enter = (FakeEnterKey)ctx.Services.GetRequiredService<IEnterKeyHandler>();
+        string? sent = null;
+
+        var cut = ctx.Render<QuestionInput>(p => p
+            .Add(c => c.Text, "old")
+            .Add(c => c.OnSend, EventCallback.Factory.Create<string>(this, t => sent = t)));
+        await cut.InvokeAsync(() => enter.OnEnter!("typed just now"));
+
+        await Assert.That(sent).IsEqualTo("typed just now");
     }
 
     // AC-7

@@ -184,7 +184,7 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "What is the limit?");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         ChatPageHarness.WaitFor(cut, "Searching the documents");
 
         await Assert.That(h.Api.CreateCalls).IsEqualTo(1);
@@ -209,9 +209,9 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "First");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         await ChatPageHarness.TypeAsync(cut, "Second");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
 
         await Assert.That(h.Answers.AskCalls.Count).IsEqualTo(1);
         script.End();
@@ -233,7 +233,7 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "What is the limit?");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         script.Send(new QuestionAccepted(id, question.Id, answer.Id));
         script.Send(AnswerData.Retrieval(1));
         script.Send(new AnswerDelta("It is 5000 [1]."));
@@ -269,7 +269,7 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "Slow question");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         script.Send(new QuestionAccepted(id, question.Id, cancelled.Id));
         ChatPageHarness.WaitFor(cut, "Cancel");
         accepted = true;
@@ -292,7 +292,7 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "Never accepted");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         ChatPageHarness.WaitFor(cut, "Cancel");
         cut.FindAll("fluent-button").First(b => b.TextContent.Trim() == "Cancel").Click();
         cut.WaitForState(() => cut.FindComponent<QuestionInput>().Instance.Text == "Never accepted", TimeSpan.FromSeconds(5));
@@ -338,7 +338,7 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "Q");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         script.Send(new QuestionAccepted(id, question.Id, cancelled.Id));
         dropped = true;
         script.End();
@@ -359,7 +359,7 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "Keep me");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         ChatPageHarness.WaitFor(cut, "Sign in required");
 
         await Assert.That(h.Drafts.Drafts[$"ragassistant.chat.draft.{id}"]).IsEqualTo("Keep me");
@@ -381,7 +381,7 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await ChatPageHarness.TypeAsync(cut, "One more");
-        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!());
+        _ = cut.InvokeAsync(() => h.EnterKey.OnEnter!(null));
         ChatPageHarness.WaitFor(cut, "This conversation is full.");
         cut.FindAll("fluent-button").First(b => b.TextContent.Trim() == "Start a new conversation").Click();
 

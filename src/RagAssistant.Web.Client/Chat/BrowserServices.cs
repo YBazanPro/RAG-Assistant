@@ -34,7 +34,8 @@ public interface IThreadScroller
 /// </summary>
 public interface IEnterKeyHandler
 {
-    Task AttachAsync(ElementReference container, Func<Task> onEnter);
+    /// <param name="onEnter">Receives the textarea's value at the time of the key press: the debounced value change may not have reached .NET yet.</param>
+    Task AttachAsync(ElementReference container, Func<string?, Task> onEnter);
 
     Task DetachAsync(ElementReference container);
 }
@@ -106,7 +107,7 @@ public sealed class BrowserChatInterop(IJSRuntime js) : IClipboard, IThreadScrol
         Forget(thread);
     }
 
-    public async Task AttachAsync(ElementReference container, Func<Task> onEnter)
+    public async Task AttachAsync(ElementReference container, Func<string?, Task> onEnter)
     {
         var callback = DotNetObjectReference.Create(new EnterCallback(onEnter));
         Remember(container, callback);
@@ -216,9 +217,9 @@ public sealed class BrowserChatInterop(IJSRuntime js) : IClipboard, IThreadScrol
         public Task OnChanged(bool narrow) => handler(narrow);
     }
 
-    private sealed class EnterCallback(Func<Task> handler)
+    private sealed class EnterCallback(Func<string?, Task> handler)
     {
         [JSInvokable]
-        public Task OnEnter() => handler();
+        public Task OnEnter(string? value) => handler(value);
     }
 }

@@ -74,7 +74,15 @@
     }
 
     // Called by the browser key handler; the same rules as the Send button.
-    public Task EnterPressedAsync() => InvokeAsync(SendAsync);
+    public Task EnterPressedAsync(string? value) => InvokeAsync(async () =>
+    {
+        if (value is not null && value != Text)
+        {
+            await OnValueChangedAsync(value);
+        }
+
+        await SendAsync();
+    });
 
     private async Task OnValueChangedAsync(string? value)
     {

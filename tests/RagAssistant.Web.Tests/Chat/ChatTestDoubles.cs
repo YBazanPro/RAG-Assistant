@@ -58,9 +58,9 @@ public sealed class FakeThreadScroller : IThreadScroller
 
 public sealed class FakeEnterKey : IEnterKeyHandler
 {
-    public Func<Task>? OnEnter { get; private set; }
+    public Func<string?, Task>? OnEnter { get; private set; }
 
-    public Task AttachAsync(ElementReference container, Func<Task> onEnter)
+    public Task AttachAsync(ElementReference container, Func<string?, Task> onEnter)
     {
         OnEnter = onEnter;
         return Task.CompletedTask;

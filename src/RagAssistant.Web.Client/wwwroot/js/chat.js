@@ -52,7 +52,7 @@ export function attachEnter(container, callback) {
     const handler = event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
             event.preventDefault();
-            callback.invokeMethodAsync('OnEnter');
+            callback.invokeMethodAsync('OnEnter', container.querySelector('fluent-textarea')?.value ?? null);
         }
     };
     container.addEventListener('keydown', handler);

@@ -1,6 +1,6 @@
 # Spec 013: Chat UI
 
-**Status:** Approved (2026-10-15)
+**Status:** Implemented (2026-10-16). Approved 2026-10-15; `IAnswerStream` is named `IAnswerEventSource` (analyzer CA1711 forbids a `Stream` suffix), and Enter sends the textarea's current value because Fluent debounces value changes
 **Date:** 2026-10-15
 **Roadmap:** step 3.4 ([roadmap](../roadmap.md)) · **Builds on:** specs [005](005-web-shell.md) (shell, BFF), [008](008-browse-corpus-and-documents-ui.md) (document detail deep links, UI conventions), [012](012-chat-conversations-and-grounded-answers.md) (chat API and answer stream) · **Decision records:** [ADR 0001](../adr/0001-ui-ai-streaming-stack.md), [ADR 0007](../adr/0007-browser-smoke-tests-playwright.md)
 

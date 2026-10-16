@@ -864,7 +864,7 @@ This area may be protected and intentionally technical.
 | `CitationList` | Display sources for an answer | Empty, loading, loaded |
 | `CitationItem` | Display one source | Default, selected, unavailable |
 | `SourcePreview` | Display the cited passage | Loading, loaded, missing |
-| `ConfidenceIndicator` | Communicate evidence confidence | High, medium, low, unknown |
+| `ConfidenceIndicator` | Communicate evidence confidence | High, medium, low, unknown. Folded into `AnswerMessage` (status only), spec 013 |
 | `RefusalNotice` | Explain an inability to answer | No evidence, conflicting evidence, restricted content |
 | `AnswerFeedback` | Collect user feedback | Neutral, helpful, not helpful, submitted |
 
