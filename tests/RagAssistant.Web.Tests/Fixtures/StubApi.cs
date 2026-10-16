@@ -19,6 +19,7 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _authorizations = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, TaskCompletionSource> _ingestionReleases = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, TaskCompletionSource> _firstUploadBytes = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, TaskCompletionSource> _chatReleases = new();
     private TaskCompletionSource _streamCancelled = NewSignal();
 
     /// <summary>The bytes of the file served for version 1 of any document (range requests work on it).</summary>
@@ -37,6 +38,9 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
 
     /// <summary>Lets the ingestion stream of one document send its second event and finish.</summary>
     public void ReleaseIngestion(Guid documentId) => _ingestionReleases.GetOrAdd(documentId, _ => NewSignal()).TrySetResult();
+
+    /// <summary>Lets the answer stream of one conversation send its final event and finish.</summary>
+    public void ReleaseChat(Guid conversationId) => _chatReleases.GetOrAdd(conversationId, _ => NewSignal()).TrySetResult();
 
     public Task StreamCancelled => _streamCancelled.Task;
 
@@ -67,6 +71,7 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
                 request.Headers["X-Requested-With"].ToString())));
 
         app.MapGet("/api/stream", StreamAsync);
+        app.MapPost("/api/chat/conversations/{id:guid}/messages", ChatAnswerAsync);
 
         // The Documents read routes, with just enough JSON to prove the BFF forwards them and the client can read the shapes.
         app.MapGet("/api/documents", () => Results.Json(new { items = Array.Empty<object>(), page = 1, pageSize = 25, totalCount = 0 }));
@@ -107,6 +112,18 @@ public sealed class StubApi : IAsyncInitializer, IAsyncDisposable
         {
             await _app.DisposeAsync();
         }
+    }
+
+    // Like the answer endpoint: the first event goes out at once, the last one only when the test releases it.
+    private async Task ChatAnswerAsync(Guid id, HttpContext context)
+    {
+        context.Response.ContentType = "text/event-stream";
+        var accepted = Guid.NewGuid();
+        await context.Response.WriteAsync(
+            $"event: question.accepted\ndata: {{\"conversationId\":\"{id}\",\"userMessageId\":\"{accepted}\",\"assistantMessageId\":\"{accepted}\"}}\n\n", context.RequestAborted);
+        await context.Response.Body.FlushAsync(context.RequestAborted);
+        await _chatReleases.GetOrAdd(id, _ => NewSignal()).Task.WaitAsync(context.RequestAborted);
+        await context.Response.WriteAsync("event: answer.completed\ndata: {\"status\":\"complete\",\"refusalReason\":null,\"citations\":[]}\n\n", context.RequestAborted);
     }
 
     private async Task<IResult> ReadUploadAsync(HttpRequest request)
