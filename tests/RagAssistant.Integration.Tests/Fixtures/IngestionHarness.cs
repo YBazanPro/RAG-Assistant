@@ -40,9 +40,15 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
     private readonly Dictionary<string, string> _settings;
 
     private IngestionHarness(
-        string connectionString, string databaseName, FakeEmbeddingGenerator generator, Dictionary<string, string> settings, ManualTimeProvider? clock)
+        string connectionString,
+        string databaseName,
+        FakeEmbeddingGenerator generator,
+        Dictionary<string, string> settings,
+        ManualTimeProvider? clock,
+        ScriptedChatClient chat)
     {
         Clock = clock;
+        Chat = chat;
         _connectionString = connectionString;
         DatabaseName = databaseName;
         Generator = generator;
@@ -59,6 +65,8 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
 
     public FakeEmbeddingGenerator Generator { get; }
 
+    public ScriptedChatClient Chat { get; }
+
     public CapturingLoggerProvider Logs { get; } = new();
 
     public NpgsqlDataSource Db => Services.GetRequiredService<NpgsqlDataSource>();
@@ -69,7 +77,8 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
         string? databaseName = null,
         FakeEmbeddingGenerator? generator = null,
         IReadOnlyDictionary<string, string>? settings = null,
-        ManualTimeProvider? clock = null)
+        ManualTimeProvider? clock = null,
+        ScriptedChatClient? chat = null)
     {
         databaseName ??= $"ing_{Guid.NewGuid():N}";
         var connection = new NpgsqlConnectionStringBuilder(postgres.ConnectionString)
@@ -98,7 +107,7 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
             merged[key] = value;
         }
 
-        var harness = new IngestionHarness(connection, databaseName, generator ?? new FakeEmbeddingGenerator(), merged, clock);
+        var harness = new IngestionHarness(connection, databaseName, generator ?? new FakeEmbeddingGenerator(), merged, clock, chat ?? new ScriptedChatClient());
         await using var scope = harness.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<DatabaseMigrator>().MigrateAsync(CancellationToken.None);
         return harness;
@@ -134,6 +143,7 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
         {
             services.AddDatabaseMigrator();
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(Generator);
+            services.AddSingleton<IChatClient>(Chat);
             if (Clock is not null)
             {
                 services.AddSingleton<TimeProvider>(Clock);
