@@ -24,6 +24,12 @@ internal static class ChatErrors
     public static readonly Error RetryNotAllowed =
         Error.Conflict("chat.retry_not_allowed", "Only the last answer can be retried, and only when it failed or was cancelled.");
 
+    public static readonly Error FeedbackNotAllowed =
+        Error.Conflict("chat.feedback_not_allowed", "Feedback can only be given on a finished answer.");
+
+    public static readonly Error ReportLimit =
+        Error.Conflict("chat.report_limit", "This answer has reached the maximum number of issue reports.");
+
     /// <summary>Messages of the errors sent as <c>error</c> events, by code.</summary>
     public static string StreamMessage(string code) => code switch
     {

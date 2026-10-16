@@ -64,6 +64,11 @@ internal static class AcceptRetry
             answer.PendingSince = now;
             answer.Attempts++;
             answer.Citations.Clear();
+
+            // The answer is about to change, so a verdict on the old one no longer applies (spec 014; in practice failed and
+            // cancelled answers cannot have feedback, this is the defensive rule).
+            await db.MessageRatings.Where(r => r.MessageId == answer.Id).ExecuteDeleteAsync(cancellationToken);
+            await db.IssueReports.Where(r => r.MessageId == answer.Id).ExecuteDeleteAsync(cancellationToken);
             conversation.LastActivityAt = now;
 
             await db.SaveChangesAsync(cancellationToken);

@@ -29,7 +29,9 @@ internal static class GetConversation
         string? ErrorCode,
         bool? Retryable,
         DateTimeOffset? CompletedAt,
-        IReadOnlyList<CitationView>? Citations);
+        IReadOnlyList<CitationView>? Citations,
+        string? Rating = null,
+        int? ReportCount = null);
 
     public sealed record ConversationDetail(
         Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<MessageView> Messages);
@@ -50,15 +52,25 @@ internal static class GetConversation
                 return ChatErrors.ConversationNotFound;
             }
 
+            var answerIds = conversation.Messages.Where(m => m.Role == MessageRole.Assistant).Select(m => m.Id).ToList();
+            var ratings = await db.MessageRatings.AsNoTracking()
+                .Where(r => answerIds.Contains(r.MessageId))
+                .ToDictionaryAsync(r => r.MessageId, r => r.Rating, cancellationToken);
+            var reportCounts = await db.IssueReports.AsNoTracking()
+                .Where(r => answerIds.Contains(r.MessageId))
+                .GroupBy(r => r.MessageId)
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.Key, g => g.Count, cancellationToken);
+
             return new ConversationDetail(
                 conversation.Id,
                 conversation.Title,
                 conversation.CreatedAt,
                 conversation.LastActivityAt,
-                [.. conversation.Messages.Select(ToView)]);
+                [.. conversation.Messages.Select(m => ToView(m, ratings, reportCounts))]);
         }
 
-        private static MessageView ToView(Message m) => m.Role == MessageRole.User
+        private static MessageView ToView(Message m, Dictionary<Guid, FeedbackRating> ratings, Dictionary<Guid, int> reportCounts) => m.Role == MessageRole.User
             ? new MessageView(
                 m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, new MessageFilters(m.FilterLanguage, m.FilterTags),
                 m.RetrievalQuery ?? m.Text, null, null, null, null, null, null, null)
@@ -69,6 +81,8 @@ internal static class GetConversation
                 m.ErrorCode,
                 m.Status == AnswerStatus.Failed && m.ErrorCode is { } code ? ChatErrors.IsRetryable(code) : null,
                 m.CompletedAt,
-                [.. m.Citations.Select(CitationView.From)]);
+                [.. m.Citations.Select(CitationView.From)],
+                ratings.TryGetValue(m.Id, out var rating) ? rating.ToApi() : null,
+                reportCounts.GetValueOrDefault(m.Id));
     }
 }

@@ -17,6 +17,9 @@ public sealed class ChatAuthTests(RagAssistantAppFactory factory)
         yield return () => ("GET", $"/api/chat/conversations/{id}");
         yield return () => ("POST", $"/api/chat/conversations/{id}/messages");
         yield return () => ("POST", $"/api/chat/conversations/{id}/messages/{message}/retry");
+        yield return () => ("PUT", $"/api/chat/conversations/{id}/messages/{message}/rating");
+        yield return () => ("DELETE", $"/api/chat/conversations/{id}/messages/{message}/rating");
+        yield return () => ("POST", $"/api/chat/conversations/{id}/messages/{message}/reports");
     }
 
     [Test]
@@ -72,7 +75,8 @@ public sealed class ChatAuthTests(RagAssistantAppFactory factory)
     }
 
     private static Task<HttpResponseMessage> SendAsync(HttpClient client, (string Method, string Url) endpoint) =>
-        endpoint.Method == "GET"
-            ? client.GetAsync(endpoint.Url)
-            : client.PostAsJsonAsync(endpoint.Url, new { question = "Who approves a budget exception?" });
+        client.SendAsync(new HttpRequestMessage(new HttpMethod(endpoint.Method), endpoint.Url)
+        {
+            Content = endpoint.Method is "GET" or "DELETE" ? null : JsonContent.Create(new { question = "Who approves a budget exception?" }),
+        });
 }
