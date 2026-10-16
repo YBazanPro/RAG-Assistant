@@ -28,6 +28,7 @@ public sealed class LiveAnswer : IDisposable
     private readonly List<string> _announcements = [];
     private ITimer? _timer;
     private IReadOnlyList<Citation> _sources = [];
+    private RetrievalCompleted? _retrieval;
     private AnswerCompleted? _completed;
     private AnswerError? _error;
     private bool _stageWriting;
@@ -113,6 +114,27 @@ public sealed class LiveAnswer : IDisposable
         return outcome;
     }
 
+    /// <summary>The steps known so far (spec 015): the answer step is null until the stored activity replaces this.</summary>
+    public ActivityView ToActivity()
+    {
+        lock (_gate)
+        {
+            var scope = _retrieval?.Scope;
+            var leftOut = _retrieval?.LeftOut ?? [];
+            var documents = (scope?.DocumentIds ?? []).Select(id => new ScopeDocument(id, null, !leftOut.Contains(id))).ToList();
+            var passages = (_retrieval?.Sources ?? [])
+                .Select(s => new PassageStep(
+                    s.Marker, s.Marker, s.Score, false, s.DocumentId, s.DocumentTitle, s.VersionNumber, s.SectionPath, s.PageStart, s.PageEnd))
+                .ToList();
+            return new ActivityView(
+                Question ?? "",
+                new RewriteStep(SearchedFor is not null, RetrievalQuery, null, null),
+                new ScopeStep(scope?.Language, scope?.Tags ?? [], documents),
+                new RetrievalStep(_retrieval?.Outcome, _retrieval?.MinScore, _retrieval?.ConfidentScore, _retrieval?.RetrievalMs, passages),
+                null);
+        }
+    }
+
     public AnswerView ToView()
     {
         lock (_gate)
@@ -165,6 +187,7 @@ public sealed class LiveAnswer : IDisposable
             case RetrievalCompleted retrieval:
                 lock (_gate)
                 {
+                    _retrieval = retrieval;
                     _sources = [.. retrieval.Sources.Select(Citation.FromSource)];
                     _stageWriting = true;
                 }

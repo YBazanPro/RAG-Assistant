@@ -211,7 +211,7 @@ public class AnswerMessageTests
         await ScriptedEvents.WaitUntilAsync(() => cut.FindAll("fluent-message-bar").Count == 1);
 
         await Assert.That(cut.Markup).Contains("took too long");
-        await Assert.That(cut.FindAll("fluent-button").Select(b => b.TextContent.Trim())).IsEquivalentTo(["Retry"]);
+        await Assert.That(cut.FindAll("fluent-button:not(.activity-toggle)").Select(b => b.TextContent.Trim())).IsEquivalentTo(["Retry"]);
         await Assert.That(live.Announcements[^1]).StartsWith("Error: ");
     }
 
@@ -253,7 +253,7 @@ public class AnswerMessageTests
 
         await Assert.That(cut.Markup).Contains(message);
         await Assert.That(cut.FindAll("fluent-message-bar").Count).IsEqualTo(0);
-        await Assert.That(cut.FindAll("fluent-button").Count).IsEqualTo(0);
+        await Assert.That(cut.FindAll("fluent-button:not(.activity-toggle)").Count).IsEqualTo(0);
     }
 
     // AC-5
@@ -267,7 +267,7 @@ public class AnswerMessageTests
 
         await Assert.That(cut.Markup).Contains("The answer model is unavailable right now.");
         await Assert.That(cut.FindAll("fluent-message-bar").Count).IsEqualTo(1);
-        await Assert.That(cut.FindAll("fluent-button").Select(b => b.TextContent.Trim())).IsEquivalentTo(["Retry"]);
+        await Assert.That(cut.FindAll("fluent-button:not(.activity-toggle)").Select(b => b.TextContent.Trim())).IsEquivalentTo(["Retry"]);
     }
 
     // AC-5
@@ -282,7 +282,7 @@ public class AnswerMessageTests
             .Add(c => c.OnAskAgain, EventCallback.Factory.Create(this, () => askedAgain++)));
         cut.Find("fluent-button").Click();
 
-        await Assert.That(cut.FindAll("fluent-button").Select(b => b.TextContent.Trim())).IsEquivalentTo(["Ask again"]);
+        await Assert.That(cut.FindAll("fluent-button:not(.activity-toggle)").Select(b => b.TextContent.Trim())).IsEquivalentTo(["Ask again"]);
         await Assert.That(askedAgain).IsEqualTo(1);
     }
 

@@ -13,17 +13,18 @@ internal sealed class DocumentCatalog(DocumentsDbContext db) : IDocumentCatalog
         ArgumentNullException.ThrowIfNull(documentIds);
         if (documentIds.Count == 0)
         {
-            return new DocumentAvailability(new HashSet<Guid>(), new HashSet<Guid>());
+            return new DocumentAvailability(new HashSet<Guid>(), new HashSet<Guid>(), new Dictionary<Guid, string>());
         }
 
         var wanted = documentIds.Distinct().ToArray();
         var rows = await db.Documents.AsNoTracking()
             .Where(d => wanted.Contains(d.Id))
-            .Select(d => new { d.Id, Searchable = d.Status == DocumentStatus.Active && d.ActiveVersionId != null })
+            .Select(d => new { d.Id, d.Title, Searchable = d.Status == DocumentStatus.Active && d.ActiveVersionId != null })
             .ToListAsync(cancellationToken);
 
         return new DocumentAvailability(
             rows.Select(r => r.Id).ToHashSet(),
-            rows.Where(r => r.Searchable).Select(r => r.Id).ToHashSet());
+            rows.Where(r => r.Searchable).Select(r => r.Id).ToHashSet(),
+            rows.ToDictionary(r => r.Id, r => r.Title));
     }
 }

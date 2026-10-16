@@ -72,8 +72,8 @@ Not shown: passage text (the existing source preview does that), prompt text, to
 |---|---|---|---|---|
 | `PUT` | `/api/chat/conversations/{id}/scope` | `{ documentIds: Guid[], tags: string[] }` | `200` conversation scope `{ documentIds, tags, unavailableDocumentIds }` | 400 validation (limits), 404 not owner |
 | `GET` | `/api/chat/conversations/{id}` | unchanged | gains `scope` | |
-| `GET` | `/api/chat/conversations/{id}/messages/{messageId}/activity` | none | `200 { steps: [...] }` for the latest attempt | 404 not owner or no trace |
-| SSE | `POST …/messages` | unchanged | `retrieval.completed` gains `scope` and `leftOut`; stage events already exist | |
+| `GET` | `/api/chat/conversations/{id}/messages/{messageId}/activity` | none | `200 { question, rewrite, scope, retrieval, answer }`, one named object per step, for the latest attempt | 404 not owner or no trace |
+| SSE | `POST …/messages` | unchanged | `retrieval.completed` gains `scope`, `leftOut`, `minScore`, `confidentScore`, `retrievalMs`, and a `score` on each source; stage events already exist | |
 
 - `PUT scope` replaces the scope (idempotent). It validates that each document id exists and is readable by the caller; unknown ids give `400` with the offending ids, so a stale link cannot silently build an empty scope.
 - Reuse `GET /api/documents` (spec 008) for the picker's search and the facets endpoint for tags: no new Documents endpoints. The picker needs a title search parameter if one is not already there (check during planning; adding `q` to the list is allowed).

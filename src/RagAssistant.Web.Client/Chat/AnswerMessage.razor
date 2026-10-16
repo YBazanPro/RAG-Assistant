@@ -68,6 +68,11 @@
             </div>
             break;
     }
+    @if (ActivityMessageId is { } activityId && View.Status is not ("pending" or "lost" or "cancelled"))
+    {
+        <ActivityPanel Live="Live" ConversationId="ConversationId" MessageId="activityId" IdPrefix="@IdPrefix"
+                       Open="ActivityOpen" OpenChanged="ActivityOpenChanged" />
+    }
     @if (Live is null && Message is not null && ConversationId is { } conversationId)
     {
         <AnswerFeedback ConversationId="conversationId" Message="Message" OnAnnounce="OnFeedbackAnnounce" />
@@ -93,6 +98,11 @@
     /// <summary>For a stored answer: the query retrieval used, when it differs from the question (spec 014).</summary>
     [Parameter] public string? SearchedFor { get; set; }
 
+    /// <summary>Whether the activity panel is open; the thread owns it so it survives the live answer being replaced by the stored one.</summary>
+    [Parameter] public bool ActivityOpen { get; set; }
+
+    [Parameter] public EventCallback<bool> ActivityOpenChanged { get; set; }
+
     [Parameter] public EventCallback<string> OnFeedbackAnnounce { get; set; }
 
     [Parameter] public EventCallback<CitationSelection> OnCitationSelected { get; set; }
@@ -106,6 +116,8 @@
     /// <summary>Called after each render of a live answer so the thread can follow the bottom. A plain delegate, not an EventCallback: it must not re-render the parent.</summary>
     [Parameter] public Func<Task>? OnRendered { get; set; }
 
+    private Guid? ActivityMessageId => Live is not null ? Live.AssistantMessageId : Message?.Id;
+
     private string? SearchedForLine => Live is not null ? Live.SearchedFor : SearchedFor;
 
     // Built once per render: a live view copies the whole text, and the markup reads it many times.
@@ -114,7 +126,7 @@
     private string IdPrefix => $"m{(Live?.AssistantMessageId ?? Message?.Id):N}-";
 
     // The first render is unconditional and shows these inputs, so the first parent re-render with the same ones is skipped too.
-    protected override void OnInitialized() => _renderedInputs = (Message, SelectedMarker, SearchedFor);
+    protected override void OnInitialized() => _renderedInputs = (Message, SelectedMarker, SearchedFor, ActivityOpen);
 
     protected override void OnParametersSet()
     {
@@ -144,7 +156,7 @@
             return true;
         }
 
-        var inputs = (Message, SelectedMarker, SearchedFor);
+        var inputs = (Message, SelectedMarker, SearchedFor, ActivityOpen);
         if (Equals(_renderedInputs, inputs))
         {
             return false;

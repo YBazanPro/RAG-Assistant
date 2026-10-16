@@ -24,6 +24,8 @@
                                    SearchedFor="@SearchedForOf(message)"
                                    OnFeedbackAnnounce="OnAnnounce"
                                    SelectedMarker="@MarkerFor(message.Id)"
+                                   ActivityOpen="@_activityOpen.Contains(message.Id)"
+                                   ActivityOpenChanged="@(open => SetActivityOpen(message.Id, open))"
                                    OnCitationSelected="OnCitationSelected"
                                    OnRetry="() => OnRetry.InvokeAsync(message.Id)"
                                    OnAskAgain="() => OnAskAgain.InvokeAsync(QuestionBefore(message))"
@@ -46,6 +48,8 @@
                 <span class="visually-hidden">Assistant said</span>
                 <FluentText Weight="TextWeight.Semibold" Block="true" Class="assistant-label" aria-hidden="true">Assistant</FluentText>
                 <AnswerMessage Live="@Live" SelectedMarker="@MarkerFor(Live.AssistantMessageId)" OnCitationSelected="OnCitationSelected"
+                               ActivityOpen="@(Live.AssistantMessageId is { } liveId && _activityOpen.Contains(liveId))"
+                               ActivityOpenChanged="@(open => SetActivityOpen(Live.AssistantMessageId, open))"
                                OnRendered="FollowAsync" />
             </div>
         }
@@ -58,6 +62,7 @@
 </div>
 
 @code {
+    private readonly HashSet<Guid> _activityOpen = [];
     private ElementReference _thread;
     private bool _watching;
     private bool _following = true;
@@ -89,6 +94,23 @@
 
     /// <summary>A sentence for the screen-reader region, raised by the feedback controls.</summary>
     [Parameter] public EventCallback<string> OnAnnounce { get; set; }
+
+    private void SetActivityOpen(Guid? messageId, bool open)
+    {
+        if (messageId is not { } id)
+        {
+            return;
+        }
+
+        if (open)
+        {
+            _activityOpen.Add(id);
+        }
+        else
+        {
+            _activityOpen.Remove(id);
+        }
+    }
 
     private int? MarkerFor(Guid? messageId) => messageId is not null && Selected?.MessageId == messageId ? Selected.Value.Marker : null;
 

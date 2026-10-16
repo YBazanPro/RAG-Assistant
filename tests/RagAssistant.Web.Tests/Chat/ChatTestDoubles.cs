@@ -145,6 +145,7 @@ internal static class ChatTestData
         ctx.Services.AddSingleton<IThreadScroller>(scroller);
         ctx.Services.AddSingleton<IEnterKeyHandler>(new FakeEnterKey());
         ctx.Services.AddSingleton<IFocusTrap>(new FakeFocusTrap());
+        ctx.Services.AddSingleton<IChatApi>(new FakeChatApi());
         return ctx;
     }
 }

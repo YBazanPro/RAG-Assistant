@@ -16,6 +16,8 @@ public interface IChatApi
     /// <param name="rating"><c>helpful</c> or <c>not_helpful</c>.</param>
     Task<ApiResult<RatingResult>> SetRatingAsync(Guid conversationId, Guid messageId, string rating, CancellationToken cancellationToken);
 
+    Task<ApiResult<ActivityView>> GetActivityAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken);
+
     Task<ApiResult<Done>> ClearRatingAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken);
 
     Task<ApiResult<IssueReportResult>> ReportIssueAsync(

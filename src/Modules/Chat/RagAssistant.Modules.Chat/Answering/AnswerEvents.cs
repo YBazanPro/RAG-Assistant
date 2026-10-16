@@ -31,9 +31,21 @@ internal static class AnswerEvents
         int VersionNumber,
         IReadOnlyList<string> SectionPath,
         int? PageStart,
-        int? PageEnd);
+        int? PageEnd,
+        double Score);
 
-    public sealed record RetrievalCompleted(string Outcome, IReadOnlyList<Source> Sources);
+    /// <summary>The filters this question was searched under (spec 015).</summary>
+    public sealed record ScopeInfo(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid> DocumentIds);
+
+    /// <param name="LeftOut">Chosen documents retrieval could not use.</param>
+    public sealed record RetrievalCompleted(
+        string Outcome,
+        IReadOnlyList<Source> Sources,
+        ScopeInfo Scope,
+        IReadOnlyList<Guid> LeftOut,
+        double MinScore,
+        double ConfidentScore,
+        int? RetrievalMs);
 
     public sealed record AnswerDelta(string Text);
 

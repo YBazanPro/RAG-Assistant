@@ -40,6 +40,11 @@ public sealed class FakeChatApi : IChatApi
     public Func<Guid, ApiResult<ConversationDetail>> OnGet { get; set; } = id =>
         ApiResult.Ok(new ConversationDetail(id, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, []));
 
+    public Func<Guid, ApiResult<ActivityView>> OnActivity { get; set; } = _ =>
+        ApiResult.Fail<ActivityView>(new ApiError(404, "chat.activity_not_found", "There is no activity for this answer.", new Dictionary<string, string[]>()));
+
+    public List<Guid> ActivityCalls { get; } = [];
+
     public int CreateCalls { get; private set; }
 
     public List<Guid> GetCalls { get; } = [];
@@ -81,6 +86,12 @@ public sealed class FakeChatApi : IChatApi
     {
         ReportCalls.Add((messageId, category, comment));
         return Task.FromResult(OnReport(category));
+    }
+
+    public Task<ApiResult<ActivityView>> GetActivityAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken)
+    {
+        ActivityCalls.Add(messageId);
+        return Task.FromResult(OnActivity(messageId));
     }
 
     public Task<ApiResult<ConversationDetail>> GetConversationAsync(Guid conversationId, CancellationToken cancellationToken)

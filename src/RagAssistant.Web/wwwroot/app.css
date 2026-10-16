@@ -628,3 +628,51 @@ html, body {
     color: var(--colorStatusSuccessForeground1);
     font-size: 0.9em;
 }
+
+/* Activity panel (spec 015) */
+.activity-panel {
+    margin-top: 8px;
+}
+
+.activity-body {
+    border-inline-start: 2px solid var(--colorNeutralStroke2);
+    padding: 4px 12px;
+    margin-top: 4px;
+    font-size: 0.9em;
+    color: var(--colorNeutralForeground2);
+}
+
+.activity-steps,
+.activity-passages {
+    margin: 0;
+    padding-inline-start: 20px;
+}
+
+.activity-steps > li {
+    margin-bottom: 8px;
+}
+
+.activity-step-title {
+    font-weight: var(--fontWeightSemibold);
+    margin-inline-end: 8px;
+}
+
+.activity-scope-document {
+    display: block;
+    padding-inline-start: 8px;
+}
+
+.activity-scope-document[data-available="false"] {
+    color: var(--colorStatusWarningForeground1);
+}
+
+.activity-passages {
+    list-style: none;
+    padding-inline-start: 8px;
+}
+
+.activity-passages li {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

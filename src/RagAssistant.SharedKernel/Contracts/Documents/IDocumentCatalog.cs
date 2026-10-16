@@ -8,4 +8,5 @@ public interface IDocumentCatalog
 
 /// <param name="Known">The requested ids that name a document, whatever its state.</param>
 /// <param name="Searchable">The subset that is active with an indexed version, so retrieval can return its passages.</param>
-public sealed record DocumentAvailability(IReadOnlySet<Guid> Known, IReadOnlySet<Guid> Searchable);
+/// <param name="Titles">The current title of each known document.</param>
+public sealed record DocumentAvailability(IReadOnlySet<Guid> Known, IReadOnlySet<Guid> Searchable, IReadOnlyDictionary<Guid, string> Titles);

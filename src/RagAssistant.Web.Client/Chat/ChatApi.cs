@@ -23,6 +23,10 @@ public sealed class ChatApi(Func<HttpClient> httpClient) : IChatApi
     public Task<ApiResult<ConversationDetail>> GetConversationAsync(Guid conversationId, CancellationToken cancellationToken) =>
         DocumentsApi.SendAsync<ConversationDetail>(() => httpClient().GetAsync($"api/chat/conversations/{conversationId}", cancellationToken), cancellationToken);
 
+    public Task<ApiResult<ActivityView>> GetActivityAsync(Guid conversationId, Guid messageId, CancellationToken cancellationToken) =>
+        DocumentsApi.SendAsync<ActivityView>(
+            () => httpClient().GetAsync($"api/chat/conversations/{conversationId}/messages/{messageId}/activity", cancellationToken), cancellationToken);
+
     public Task<ApiResult<Done>> DeleteConversationAsync(Guid conversationId, CancellationToken cancellationToken) =>
         SendNoBodyAsync(() => httpClient().DeleteAsync($"api/chat/conversations/{conversationId}", cancellationToken), cancellationToken);
 
