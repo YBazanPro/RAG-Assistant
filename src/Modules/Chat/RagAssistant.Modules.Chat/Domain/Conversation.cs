@@ -18,5 +18,11 @@ internal sealed class Conversation
     /// <summary>Kept in sync with <see cref="Messages"/>, so the cap check needs no count query.</summary>
     public int MessageCount { get; set; }
 
+    /// <summary>The documents every question of this conversation searches; empty means the whole corpus (spec 015).</summary>
+    public Guid[] ScopeDocumentIds { get; set; } = [];
+
+    /// <summary>Tags a document must all carry; they narrow the chosen documents, or the whole corpus when none are chosen.</summary>
+    public string[] ScopeTags { get; set; } = [];
+
     public List<Message> Messages { get; } = [];
 }

@@ -39,6 +39,11 @@ internal sealed class RequestTrace
 
     public string[] FilterTags { get; set; } = [];
 
+    public Guid[] FilterDocumentIds { get; set; } = [];
+
+    /// <summary>Chosen documents retrieval could not use (archived, deleted, not indexed); spec 015.</summary>
+    public Guid[] UnavailableDocumentIds { get; set; } = [];
+
     public string? OtelTraceId { get; set; }
 
     /// <summary>Null when retrieval itself failed.</summary>

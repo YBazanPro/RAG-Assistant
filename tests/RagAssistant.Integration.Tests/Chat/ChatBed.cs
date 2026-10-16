@@ -62,6 +62,13 @@ public sealed class ChatBed : IAsyncDisposable
         return (seeded, ids);
     }
 
+    public async Task<(SeededDocument Document, Guid[] Passages)> AddAsync(SeedDocument document, params SeedPassage[] passages)
+    {
+        var seeded = await Seeder.AddDocumentAsync(document with { EmbeddingModel = RetrievalBed.Model });
+        var ids = await Seeder.AddEmbeddedPassagesAsync(seeded.VersionId, passages);
+        return (seeded, ids);
+    }
+
     public HttpClient ClientFor(string user) => App.CreateClientAs(Persona.KnowledgeSeeker, subject: user);
 
     public async Task<(HttpClient Client, Guid ConversationId)> NewConversationAsync(string? user = null)

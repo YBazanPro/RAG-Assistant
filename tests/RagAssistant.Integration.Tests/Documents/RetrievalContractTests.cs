@@ -137,6 +137,51 @@ public sealed class RetrievalContractTests(PostgresFixture postgres)
         await Assert.That(result.Value.Chunks.Select(c => c.PassageId).SequenceEqual(both)).IsTrue();
     }
 
+    // Spec 015, AC-2, AC-3
+    [Test]
+    public async Task Search_documentIds_restrictToThoseDocumentsAndTagsNarrowWithinThem()
+    {
+        await using var bed = await StartAsync(postgres);
+        var (a, aPassages) = await bed.AddAsync(new SeedDocument("A", "owner", Tags: ["hr"]), P(0.8));
+        var (b, _) = await bed.AddAsync(new SeedDocument("B", "owner"), P(0.9));
+        await bed.AddAsync(new SeedDocument("C", "owner", Tags: ["hr"]), P(0.95));
+
+        var onlyA = await bed.SearchAsync(filters: new SearchFilters(DocumentIds: [a.DocumentId]));
+        var aAndB = await bed.SearchAsync(filters: new SearchFilters(DocumentIds: [a.DocumentId, b.DocumentId]));
+        var narrowed = await bed.SearchAsync(filters: new SearchFilters(Tags: ["hr"], DocumentIds: [a.DocumentId, b.DocumentId]));
+
+        await Assert.That(onlyA.Value.Chunks.Select(c => c.PassageId).SequenceEqual(aPassages)).IsTrue();
+        await Assert.That(aAndB.Value.Chunks.Select(c => c.DocumentTitle).Order().SequenceEqual(["A", "B"])).IsTrue();
+        await Assert.That(narrowed.Value.Chunks.Select(c => c.DocumentId).SequenceEqual([a.DocumentId])).IsTrue();
+    }
+
+    // Spec 015: an empty list means "none of these", never "everything"
+    [Test]
+    public async Task Search_emptyDocumentIds_findsNothing()
+    {
+        await using var bed = await StartAsync(postgres);
+        await bed.AddAsync("A", P(0.9));
+
+        var result = await bed.SearchAsync(filters: new SearchFilters(DocumentIds: []));
+
+        await Assert.That(result.Value.Outcome).IsEqualTo(EvidenceOutcome.NoEvidence);
+        await Assert.That(result.Value.Chunks.Count).IsEqualTo(0);
+    }
+
+    // Spec 015, AC-6
+    [Test]
+    public async Task Catalog_separatesUnknownFromUnsearchableDocuments()
+    {
+        await using var bed = await StartAsync(postgres);
+        var (live, _) = await bed.AddAsync("Live", P(0.9));
+        var (archived, _) = await bed.AddAsync(new SeedDocument("Old", "owner", Archived: true), P(0.9));
+
+        var availability = await bed.CheckAsync([live.DocumentId, archived.DocumentId, Guid.NewGuid()]);
+
+        await Assert.That(availability.Known.Count).IsEqualTo(2);
+        await Assert.That(availability.Searchable.SequenceEqual([live.DocumentId])).IsTrue();
+    }
+
     [Test]
     public async Task Search_rareFilterMatch_iterativeScanFindsItBehindManyBetterPassages()
     {

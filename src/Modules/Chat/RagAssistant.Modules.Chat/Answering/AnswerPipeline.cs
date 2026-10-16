@@ -26,6 +26,7 @@ namespace RagAssistant.Modules.Chat.Answering;
 internal sealed partial class AnswerPipeline(
     ChatDbContext db,
     IDocumentSearch search,
+    IDocumentCatalog catalog,
     IChatClient chat,
     IOptions<GenerationOptions> generationOptions,
     IOptions<ChatRetrievalOptions> retrievalOptions,
@@ -115,7 +116,15 @@ internal sealed partial class AnswerPipeline(
         await events.WriteAsync(AnswerEvents.Item(AnswerEvents.RetrievalStartedType, new AnswerEvents.RetrievalStarted(query)), aborted);
 
         var retrievalStarted = clock.GetTimestamp();
-        var filters = new SearchFilters(answer.Language, answer.Tags.Length > 0 ? answer.Tags : null);
+        if (answer.DocumentIds.Length > 0)
+        {
+            // The scope only decides what is shown: retrieval itself already skips documents that are not active and indexed.
+            var availability = await catalog.CheckAsync(answer.DocumentIds, aborted);
+            attempt.UnavailableDocumentIds = [.. answer.DocumentIds.Where(id => !availability.Searchable.Contains(id))];
+        }
+
+        var filters = new SearchFilters(
+            answer.Language, answer.Tags.Length > 0 ? answer.Tags : null, answer.DocumentIds.Length > 0 ? answer.DocumentIds : null);
         var result = await search.SearchAsync(query, filters, retrievalOptions.Value.TopK, aborted);
         attempt.RetrievalMs = Milliseconds(retrievalStarted);
         if (result.IsFailure)
@@ -388,6 +397,8 @@ internal sealed partial class AnswerPipeline(
             QuestionText = answer.Question,
             FilterLanguage = answer.Language,
             FilterTags = answer.Tags,
+            FilterDocumentIds = answer.DocumentIds,
+            UnavailableDocumentIds = attempt.UnavailableDocumentIds,
             OtelTraceId = attempt.OtelTraceId,
             EvidenceOutcome = found?.Outcome.ToString(),
             MinScore = found?.Thresholds.MinScore,
@@ -460,6 +471,8 @@ internal sealed partial class AnswerPipeline(
         public string? OtelTraceId { get; } = otelTraceId;
 
         public SearchResult? Search { get; set; }
+
+        public Guid[] UnavailableDocumentIds { get; set; } = [];
 
         public AnswerStreamFilter? Filter { get; set; }
 

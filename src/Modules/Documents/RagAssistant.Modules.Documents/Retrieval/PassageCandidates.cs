@@ -10,7 +10,8 @@ namespace RagAssistant.Modules.Documents.Retrieval;
 
 /// <param name="Language">Already lowercased, or null.</param>
 /// <param name="Tags">Already normalized like import.</param>
-internal sealed record CandidateFilter(string? Language, IReadOnlyList<string> Tags);
+/// <param name="DocumentIds">Null for no restriction; an empty list matches no document (spec 015).</param>
+internal sealed record CandidateFilter(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid>? DocumentIds = null);
 
 /// <summary>The eligible-passage queries of retrieval (spec 011, eligibility and pipeline step 3).</summary>
 internal sealed class PassageCandidates(DocumentsDbContext db)
@@ -77,6 +78,12 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
         if (filter.Language is { } language)
         {
             documents = documents.Where(d => d.Language == language);
+        }
+
+        if (filter.DocumentIds is { } ids)
+        {
+            var wanted = ids.ToArray();
+            documents = documents.Where(d => wanted.Contains(d.Id));
         }
 
         foreach (var tag in filter.Tags)

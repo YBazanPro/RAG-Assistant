@@ -40,7 +40,7 @@ Combination: if `ScopeDocumentIds` is non-empty, only those documents are search
 
 `SearchFilters` (SharedKernel contract) gains `DocumentIds` (`IReadOnlyList<Guid>?`). `IDocumentSearch` applies it in the same query as the existing filters and still returns only active, indexed versions.
 
-Stale scope: a chosen document that is archived, deleted, or has no indexed version is silently excluded from retrieval. The conversation keeps the id; the scope chip shows "unavailable" and the activity panel lists it under "Left out". If every chosen document is unavailable and no tag is set, retrieval returns `NoEvidence` and the answer is refused as usual (no wider fallback: a scope never widens itself).
+Stale scope: a chosen document that is archived, deleted, or has no indexed version is silently excluded from retrieval. The conversation keeps the id; the scope chip shows "unavailable" and the activity panel lists it under "Left out". If every chosen document is unavailable, retrieval returns `NoEvidence` and the answer is refused as usual (no wider fallback: a scope never widens itself).
 
 The scope in force is copied to the request trace (`FilterDocumentIds` beside the existing `FilterTags`), so a stored answer shows the scope it used even after the conversation's scope changes. Changing the scope affects only later questions.
 
@@ -116,7 +116,7 @@ None. Retrieval keeps being reached only through `IDocumentSearch`; Chat never r
 - **AC-4** Given only tag `hr` is chosen, when a question is asked, then the whole corpus is searched filtered by that tag.
 - **AC-5** Given the scope was set before a follow-up, when the follow-up is asked, then the rewritten query is searched under the same scope.
 - **AC-6** Given a chosen document is archived, when a question is asked, then it is excluded, the chip shows "unavailable", and the activity lists it under "Left out".
-- **AC-7** Given every chosen document is unavailable and no tag is set, when a question is asked, then the answer is a refusal and no model call occurs.
+- **AC-7** Given every chosen document is unavailable (tags cannot widen a document scope), when a question is asked, then the answer is a refusal and no model call occurs.
 - **AC-8** Given the scope changes after an answer, when that answer's activity is opened, then it shows the scope the answer used.
 - **AC-9** Given `PUT scope` names an unknown document or one the caller cannot read, then the response is 400 and the scope is unchanged.
 - **AC-10** Given a user who is not the owner, when they call `PUT scope` or the activity endpoint, then the response is 404.

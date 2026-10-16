@@ -75,7 +75,7 @@ internal static class AcceptRetry
             await transaction.CommitAsync(cancellationToken);
 
             return new AcceptedAnswer(
-                conversation.Id, question.Id, answer.Id, conversation.OwnerSub, question.Text, question.FilterLanguage, question.FilterTags, answer.Attempts, question.Sequence);
+                conversation.Id, question.Id, answer.Id, conversation.OwnerSub, question.Text, question.FilterLanguage, question.FilterTags, question.FilterDocumentIds, answer.Attempts, question.Sequence);
         }
     }
 }

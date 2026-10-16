@@ -15,7 +15,8 @@ internal sealed class DocumentSearch(ModuleMediator mediator) : IDocumentSearch
         ArgumentNullException.ThrowIfNull(filters);
 
         var request = new SearchPassages.Query(
-            query, filters.Language, [.. filters.Tags ?? []], topK.ToString(CultureInfo.InvariantCulture), IncludeDiagnostics: false);
+            query, filters.Language, [.. filters.Tags ?? []], topK.ToString(CultureInfo.InvariantCulture), IncludeDiagnostics: false,
+            filters.DocumentIds);
         var run = await mediator.Send(request, cancellationToken);
         if (run.IsFailure)
         {

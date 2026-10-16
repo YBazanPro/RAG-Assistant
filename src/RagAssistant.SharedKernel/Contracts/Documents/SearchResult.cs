@@ -2,7 +2,8 @@ namespace RagAssistant.SharedKernel.Contracts.Documents;
 
 /// <param name="Language">Two letters; matched case-insensitively against the document language.</param>
 /// <param name="Tags">The document must carry all of them (normalized like import).</param>
-public sealed record SearchFilters(string? Language = null, IReadOnlyList<string>? Tags = null)
+/// <param name="DocumentIds">Null searches every document; a list (even an empty one) searches only those documents (spec 015).</param>
+public sealed record SearchFilters(string? Language = null, IReadOnlyList<string>? Tags = null, IReadOnlyList<Guid>? DocumentIds = null)
 {
     public static SearchFilters None { get; } = new();
 }

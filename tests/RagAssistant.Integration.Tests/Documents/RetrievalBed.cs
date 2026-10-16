@@ -68,5 +68,11 @@ public sealed class RetrievalBed : IAsyncDisposable
             .SearchAsync(query, filters ?? SearchFilters.None, topK, cancellationToken);
     }
 
+    public async Task<DocumentAvailability> CheckAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        await using var scope = App.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IDocumentCatalog>().CheckAsync(ids, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync() => await App.DisposeAsync();
 }
