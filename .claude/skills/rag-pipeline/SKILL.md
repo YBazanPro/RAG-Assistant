@@ -16,7 +16,7 @@ Spec 012 is the contract; this skill says where things live and what not to brea
 - **`AnswerPipeline`:** a producer task runs the stages and writes `SseItem<string>` into a channel. The stream reads the channel and adds a `heartbeat` whenever nothing was sent for `HeartbeatInterval`. Its `finally` awaits the producer, so the request scope (and its `DbContext`) outlives the final write after a disconnect.
 - **Stages:**
   1. `question.accepted`
-  2. `retrieval.started`
+  2. the follow-up rewrite (spec 014, below), then `retrieval.started {query}`
   3. `IDocumentSearch.SearchAsync`, then `retrieval.completed` with numbered sources
   4. `NoEvidence` → refuse without a model call
   5. otherwise build the prompt and stream it through the filter as `answer.delta` events
@@ -42,7 +42,21 @@ Spec 012 is the contract; this skill says where things live and what not to brea
 - `LowConfidence` adds `LowConfidenceInstruction`.
 - The user message is `Passages:` then, per chunk, `[n] Title — A › B (page 4)`, a newline, the text, a blank line; then `Question: …`. Lines end with `\n` on every platform. `DemoChatClient` parses this layout, so keep them in step.
 - **Bump `PromptVersion` whenever the wording changes;** it is recorded in every trace.
-- **No conversation history in the answer prompt.** Spec 014 sends history to the rewrite call only.
+- **No conversation history in the answer prompt.** Spec 014 sends history to the rewrite call only. The answer prompt gets the retrieval query as `Question:`, plus `The user wrote: …` when the rewrite changed it. `PromptVersion` 014.1.
+
+## Follow-up rewrite (spec 014)
+
+- **When:** the conversation has an earlier `complete` or `partial` answer (`FollowUpHistory.HasUsableAnswer`). Otherwise the question is used as is and no model call is made.
+- **History:** `FollowUpHistory.Build`: the last `Chat:FollowUp:HistoryExchanges` (3) exchanges before the current question, oldest first. A complete or partial answer contributes its text with `[n]` markers removed, cut to `MaxAnswerChars` (1,000); a refused, failed or cancelled one contributes only its question. History reaches the rewrite and nothing else, so a wrong earlier answer cannot leak into a grounded one.
+- **Call:** `chat.GetResponseAsync<RewriteResult>` (needs the `Microsoft.Extensions.AI` package, not only the Abstractions) with `PromptBuilder.BuildRewrite`, bounded by `RewriteTimeout` (10 s, below `Chat:Generation:TotalTimeout`; `FollowUpOptionsValidator` checks it). The last line of the prompt is `Current question: …`; the fakes parse it.
+- **Fallback:** a timeout, a model error or an invalid result (empty, over 1,000 characters, unparsable) uses the original question and records `RewriteFallbackReason` (`timeout`, `model_error`, `invalid`) on the trace. Only the caller's cancellation stops the answer. `RewriteUsed` is true only when the result was used.
+- **Stored:** the user message's `RetrievalQuery` (replaced on retry) and the trace's `RetrievalQuery`, `RewriteMs`, tokens and `RewritePromptVersion`. The history and the rewritten query are never logged at Information.
+- **Fakes:** `ScriptedChatClient.ScriptRewrite(q)` / `ScriptRewriteRaw(text)` / `ThrowOnRewrite()` / `HoldRewrite()` + `WaitUntilRewriteHeldAsync()` + `RewriteCancellationObserved`, and `RewriteCalls` (separate from `Calls`). Without a script it returns the current question unchanged. `DemoChatClient` does the same for a structured request.
+
+## Feedback and deletion (spec 014)
+
+- `Features/Feedback`: `PUT/DELETE …/rating`, `POST …/reports`. `FeedbackTarget` decides who may give feedback on what (owner; complete, partial or refused answers; else `chat.feedback_not_allowed`). Reports are limited by `Chat:Feedback:MaxReportsPerAnswer` under the conversation lock. A retry clears the answer's rating and reports.
+- `Features/DeleteConversation`: one `ExecuteDelete` of the conversation; the foreign keys cascade to messages, snapshots, ratings, reports and traces. It takes the same conversation lock as asking, so a second DELETE gets 404, and a live pending answer gives `chat.answer_in_progress`.
 
 ## Citations and the sentinel (`AnswerStreamFilter`)
 
@@ -78,7 +92,7 @@ Spec 012 is the contract; this skill says where things live and what not to brea
 - **Unit** (`tests/Modules/RagAssistant.Modules.Chat.Tests`): the filter, status rules, prompt, title.
 - **Integration** (`tests/RagAssistant.Integration.Tests/Chat`):
   - use `ChatBed`, which has its own database, scripted vectors ("budget" → axis 0, `RetrievalBed.P(score)`), `Sufficient` ≥ 0.7 and `LowConfidence` ≥ 0.5;
-  - `ScriptedChatClient` is the fake model: `Script(tokens…)`, `HoldBeforeFirstToken()` + `Release()`, `ThrowAfter(n)` (one shot), `Calls` (prompts received), `CancellationObserved`.
+  - `ScriptedChatClient` is the fake model (the rewrite calls are described above): `Script(tokens…)`, `HoldBeforeFirstToken()` + `Release()`, `ThrowAfter(n)` (one shot), `Calls` (prompts received), `CancellationObserved`.
   - The shared `RagAssistantAppFactory` registers one too, but its embedding model is unavailable, so use it only for pre-stream checks.
   - Read streams with `ChatBed.AskAsync`/`RetryAsync` (to the end) or `ChatBed.OpenAsync` + `LiveAnswer.ReadUntilAsync`/`DisconnectAsync`.
   - Give every user its own `sub`: `CreateClientAs(persona, subject: ChatRequests.NewUser())`.

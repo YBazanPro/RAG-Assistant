@@ -18,7 +18,10 @@
             <span class="feedback-error" role="alert">@_error</span>
         }
     </div>
-    <ReportIssueDialog Open="_reportOpen" Busy="_reporting" Error="@_reportError" OnSubmit="ReportAsync" OnCancel="CloseReport" />
+    @if (_dialogUsed)
+    {
+        <ReportIssueDialog Open="_reportOpen" Busy="_reporting" Error="@_reportError" OnSubmit="ReportAsync" OnCancel="CloseReport" />
+    }
 }
 
 @code {
@@ -27,6 +30,9 @@
     private bool _busy;
     private bool _reporting;
     private bool _reportOpen;
+
+    // The dialog is created on first use only: every answer would otherwise carry a hidden form.
+    private bool _dialogUsed;
     private bool _reported;
     private bool _limitReached;
     private string? _error;
@@ -79,6 +85,7 @@
     private void OpenReport()
     {
         _reportError = null;
+        _dialogUsed = true;
         _reportOpen = true;
     }
 

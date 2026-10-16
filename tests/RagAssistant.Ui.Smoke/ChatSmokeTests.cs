@@ -70,7 +70,7 @@ public sealed class ChatSmokeTests(BrowserFixture browser)
 
     private static async Task AskAsync(IPage page, string question)
     {
-        await page.Locator("fluent-textarea").ClickAsync();
+        await page.Locator("fluent-textarea[aria-label='Your question']").ClickAsync();
         await page.Keyboard.TypeAsync(question);
         await page.Keyboard.PressAsync("Enter");
     }
@@ -86,12 +86,12 @@ public sealed class ChatSmokeTests(BrowserFixture browser)
         var page = await OpenChatAsync();
 
         // Shift+Enter adds a line and sends nothing.
-        await page.Locator("fluent-textarea").ClickAsync();
+        await page.Locator("fluent-textarea[aria-label='Your question']").ClickAsync();
         await page.Keyboard.TypeAsync("first line");
         await page.Keyboard.PressAsync("Shift+Enter");
         await page.Keyboard.TypeAsync("second line");
         await Expect(page.Locator(".thread-question")).ToHaveCountAsync(0);
-        var typed = await page.Locator("fluent-textarea").EvaluateAsync<string>("e => e.value");
+        var typed = await page.Locator("fluent-textarea[aria-label='Your question']").EvaluateAsync<string>("e => e.value");
         await Assert.That(typed).Contains("\n");
         await page.Keyboard.PressAsync("Control+A");
         await page.Keyboard.PressAsync("Delete");
@@ -151,6 +151,45 @@ public sealed class ChatSmokeTests(BrowserFixture browser)
         await Expect(page.GetByText("Answer cancelled.")).ToBeVisibleAsync(new() { Timeout = AnswerTimeoutMs });
         await page.Button("Retry").ClickAsync();
         await Expect(page.Locator(".citation-list")).ToBeVisibleAsync(new() { Timeout = AnswerTimeoutMs });
+    }
+
+    // Spec 014, AC-20
+    [Test]
+    public async Task FollowUp_rateByKeyboard_thenDeleteTheConversationThroughTheConfirmDialog()
+    {
+        var run = await EnsureDocumentAsync();
+        var page = await OpenChatAsync();
+        var tag = Guid.NewGuid().ToString("N")[..8];
+
+        await AskAsync(page, $"What is the refund approval limit for the smoke group {run}? (ref {tag})");
+        await Expect(page.Locator(".citation-list")).ToBeVisibleAsync(new() { Timeout = AnswerTimeoutMs });
+        await Expect(page.Button("Send")).ToBeVisibleAsync(new() { Timeout = AnswerTimeoutMs });
+
+        // The follow-up refers back with "it"; the demo rewrite leaves the question as it is, so no "Searched for" line appears.
+        await AskAsync(page, $"And who signs off above it for the smoke group {run}? (ref {tag})");
+        await Expect(page.Locator(".thread-question")).ToHaveCountAsync(2, new() { Timeout = AnswerTimeoutMs });
+        await Expect(page.Locator(".answer-feedback")).ToHaveCountAsync(2, new() { Timeout = AnswerTimeoutMs });
+        await Expect(page.Button("Send")).ToBeVisibleAsync(new() { Timeout = AnswerTimeoutMs });
+        await Expect(page.Locator(".searched-for")).ToHaveCountAsync(0);
+
+        // Rate Helpful with the keyboard only.
+        var helpful = page.Locator(".answer-feedback").Last.Locator("fluent-button").First;
+        await helpful.FocusAsync();
+        await page.Keyboard.PressAsync("Enter");
+        await Expect(helpful).ToHaveAttributeAsync("aria-pressed", "true");
+
+        // Delete: the button opens the confirm dialog, Enter confirms, focus lands in the question box of a new chat.
+        await page.Locator(".delete-conversation").FocusAsync();
+        await page.Keyboard.PressAsync("Enter");
+        await page.WaitForDialogAsync("Delete conversation");
+        await page.Button("Delete").FocusAsync();
+        await page.Keyboard.PressAsync("Enter");
+        await page.WaitForDialogAsync("Delete conversation", open: false);
+
+        await Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("/chat$"));
+        await Expect(page.Locator(".conversation-link", new() { HasText = tag })).ToHaveCountAsync(0);
+        await Expect(page.Locator(".thread-question")).ToHaveCountAsync(0);
+        await Assert.That(await page.EvaluateAsync<string>("() => document.activeElement.tagName")).IsEqualTo("FLUENT-TEXTAREA");
     }
 
     // AC-23

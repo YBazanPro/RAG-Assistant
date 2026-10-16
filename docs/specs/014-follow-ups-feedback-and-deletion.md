@@ -1,6 +1,6 @@
 # Spec 014: Follow-up Questions, Feedback and Conversation Deletion
 
-**Status:** Approved (2026-10-15)
+**Status:** Implemented (2026-10-16). Approved 2026-10-15. `RewriteUsed` is true only when the rewrite result was used (a fallback leaves it false with a reason). The manual rewrite-quality check on the real chat model (the 012 calibration extension) is not done yet
 **Date:** 2026-10-15
 **Roadmap:** steps 3.5 and 3.6 ([roadmap](../roadmap.md)), plus conversation deletion moved here from spec 012 · **Builds on:** specs [012](012-chat-conversations-and-grounded-answers.md) (chat API, pipeline, traces), [013](013-chat-ui.md) (Chat UI) · **Decision records:** [ADR 0001](../adr/0001-ui-ai-streaming-stack.md), [ADR 0004](../adr/0004-document-versioning.md) (D4: users can delete their own conversations)
 
