@@ -29,6 +29,35 @@ public sealed class WebAppFactory : WebApplicationFactory<Program>, IAsyncInitia
         return Task.CompletedTask;
     }
 
+    // WebApplicationFactory records every client and derived factory in a plain List<T> and disposes them at the end. This
+    // factory is shared by test classes running in parallel, and concurrent adds can leave a null slot, which then throws a
+    // NullReferenceException from DisposeAsync at session teardown. So every add goes through this lock.
+    private readonly Lock _registration = new();
+
+    public new HttpClient CreateClient()
+    {
+        lock (_registration)
+        {
+            return base.CreateClient();
+        }
+    }
+
+    public new HttpClient CreateClient(WebApplicationFactoryClientOptions options)
+    {
+        lock (_registration)
+        {
+            return base.CreateClient(options);
+        }
+    }
+
+    public new WebApplicationFactory<Program> WithWebHostBuilder(Action<IWebHostBuilder> configuration)
+    {
+        lock (_registration)
+        {
+            return base.WithWebHostBuilder(configuration);
+        }
+    }
+
     public HttpClient CreateBrowser() =>
         CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
 
