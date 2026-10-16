@@ -1,6 +1,6 @@
 # Spec 012: Chat — Conversations and Grounded Answers
 
-**Status:** Approved (2026-10-15)
+**Status:** Implemented (2026-10-16). Approved 2026-10-15; chat model chosen by the calibration spike (see "Calibration")
 **Date:** 2026-10-15
 **Roadmap:** steps 3.1–3.3, plus the write side of 4.1 ([roadmap](../roadmap.md)) · **Builds on:** specs [002](002-shared-kernel-api-conventions.md), [004](004-identity.md), [008](008-browse-corpus-and-documents-ui.md) (paging), [011](011-retrieval.md) · **Decision records:** [ADR 0001](../adr/0001-ui-ai-streaming-stack.md), [ADR 0003](../adr/0003-model-provider.md), [ADR 0004](../adr/0004-document-versioning.md)
 
@@ -326,6 +326,37 @@ On an assistant message, `retryable` is derived from `errorCode` and is `null` u
   - criteria: valid `[n]` citations, use of the sentinel on off-corpus questions that still pass the floor, and time to first token on the dev machine;
   - record the chosen model, the questions and the observations in a **Calibration** section of this spec, and set the model in the AppHost.
   - The result stays provisional until Phase 5.
+
+### Calibration (2026-10-16, provisional until Phase 5)
+
+**Setup:**
+- The five `calibration` policies of spec 011, on the dev machine (Ollama 0.40.4).
+- Each question was searched through `GET /api/documents/search?tags=calibration`, then sent to Ollama `/api/chat` with the prompt of `PromptBuilder` 012.1 and `num_predict` 1,000.
+- Time to first token is measured from the request to the first content token, with the model already loaded.
+
+**Retrieval** (identical for every model):
+- 7 of the 8 on-corpus questions are `Sufficient` (best score 0.635–0.735); the phishing question is `LowConfidence` (0.586).
+- All 6 off-corpus questions are `NoEvidence`, so they are refused without a model call.
+- The sentinel was therefore probed separately: three questions that the budget passages do not answer (vacation days, laptop purchase, dress code) were sent with those passages.
+
+| Model | On-corpus answers with valid `[n]` | Factual errors | Sentinel on the 3 probes | First token |
+|---|---|---|---|---|
+| `qwen3:4b` | 4 of 8 (4 empty) | 0 | not measured | 20–43 s |
+| `llama3.2:3b` | **8 of 8** | **0** | 2 of 3 (third: one sentence, then the sentinel) | **3.5–5.2 s** |
+| `gemma3:4b` | 8 of 8 | 1 (the 7,000-euro exception was given to the CFO and executive committee, the rule above 10,000) | 3 of 3 | 5.2–6.5 s |
+
+- **`qwen3:4b`** thinks before it answers. The reasoning used up the output budget on four questions and delays every first token, so it is unusable without a thinking switch.
+- **Chosen: `llama3.2:3b`** (`ChatModel` in `AppHost.cs`). It is the only candidate with no factual error, it cites every answer, and it is the fastest.
+- When it writes text before the sentinel, the pipeline does not count a veto. The answer becomes `partial` with no citation, so the UI shows "not linked to any source" (spec 013); it is never `complete`.
+- **Through the real endpoint** (AppHost with `llama3.2:3b`, whole dev corpus, 5 questions):
+  - the traces show `FirstTokenMs` of 0.1–1.4 s with the model loaded, and 9.2 s for the first question after a restart (model load);
+  - refusals answer in under 0.1 s.
+  - Two weaknesses of the small model showed up:
+    - the 7,000-euro question was answered twice with only `[1]` (status `complete`, since a valid citation is all the rules ask for);
+    - the expense deadline was answered correctly but without a marker, so it was `partial`.
+  - Phase 5 should decide whether "markers only" needs a rule of its own.
+- **Time to first token** is within the 3 s target (ADR 0004 D3) once the model is loaded. A cold start exceeds it, and the direct Ollama runs above measured 3.5–5.2 s. It stays a measured target, recorded in `FirstTokenMs`.
+- **Phase 5 must re-measure** all of this on the golden dataset, including answer quality, the sentinel on in-domain gaps, and a GPU or hosted provider.
 
 ## Integrations
 
