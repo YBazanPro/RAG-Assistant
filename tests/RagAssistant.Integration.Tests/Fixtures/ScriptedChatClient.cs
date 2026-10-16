@@ -21,10 +21,41 @@ public sealed class ScriptedChatClient : IChatClient
     private TaskCompletionSource? _gate;
     private object? _throwAfter;
 
+    // The follow-up rewrite (spec 014) is a separate, non-streaming structured call, scripted on its own.
+    private readonly ConcurrentQueue<IReadOnlyList<ChatMessage>> _rewriteCalls = [];
+    private readonly ConcurrentQueue<string> _rewriteReplies = [];
+    private readonly TaskCompletionSource _rewriteHeld = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _rewriteCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource? _rewriteGate;
+    private bool _rewriteThrows;
+
     public IReadOnlyList<IReadOnlyList<ChatMessage>> Calls => [.. _calls];
 
     public int CallCount => _calls.Count;
 
+
+    /// <summary>Every rewrite prompt received, oldest first.</summary>
+    public IReadOnlyList<IReadOnlyList<ChatMessage>> RewriteCalls => [.. _rewriteCalls];
+
+    /// <summary>The next rewrite replies with this standalone question.</summary>
+    public void ScriptRewrite(string standaloneQuestion) =>
+        _rewriteReplies.Enqueue(System.Text.Json.JsonSerializer.Serialize(new { standaloneQuestion }));
+
+    /// <summary>The next rewrite replies with this raw text, for malformed answers.</summary>
+    public void ScriptRewriteRaw(string text) => _rewriteReplies.Enqueue(text);
+
+    /// <summary>Rewrite calls wait until <see cref="ReleaseRewrite"/> or cancellation.</summary>
+    public void HoldRewrite() => _rewriteGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task WaitUntilRewriteHeldAsync() => _rewriteHeld.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+    public void ReleaseRewrite() => _rewriteGate?.TrySetResult();
+
+    /// <summary>Completes when a rewrite call observed its cancellation token.</summary>
+    public Task RewriteCancellationObserved => _rewriteCancelled.Task;
+
+    /// <summary>Every following rewrite call throws a transport failure.</summary>
+    public void ThrowOnRewrite() => _rewriteThrows = true;
 
     /// <summary>The next reply streams these fragments, in order.</summary>
     public void Script(params string[] tokens) => _replies.Enqueue(tokens);
@@ -42,8 +73,46 @@ public sealed class ScriptedChatClient : IChatClient
     /// <summary>Completes when a call observed its cancellation token.</summary>
     public Task CancellationObserved => _cancelled.Task;
 
-    public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("The answer pipeline only streams.");
+    /// <summary>Only the follow-up rewrite uses this call; the answer itself streams. Without a script it returns the current question unchanged.</summary>
+    public async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var prompt = messages.ToList();
+        _rewriteCalls.Enqueue(prompt);
+
+        if (_rewriteGate is { } gate)
+        {
+            _rewriteHeld.TrySetResult();
+            try
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _rewriteCancelled.TrySetResult();
+                throw;
+            }
+        }
+
+        if (_rewriteThrows)
+        {
+            throw new HttpRequestException("Scripted rewrite failure.");
+        }
+
+        var text = _rewriteReplies.TryDequeue(out var scripted) ? scripted : Unchanged(prompt);
+        return new ChatResponse(new ChatMessage(ChatRole.Assistant, text))
+        {
+            ModelId = ModelId,
+            Usage = new UsageDetails { InputTokenCount = 50, OutputTokenCount = 10 },
+        };
+    }
+
+    private static string Unchanged(List<ChatMessage> prompt)
+    {
+        const string Marker = "Current question: ";
+        var user = prompt.Last(m => m.Role == ChatRole.User).Text;
+        var question = user[(user.LastIndexOf(Marker, StringComparison.Ordinal) + Marker.Length)..];
+        return System.Text.Json.JsonSerializer.Serialize(new { standaloneQuestion = question });
+    }
 
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,

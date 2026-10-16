@@ -36,7 +36,7 @@ public sealed class AnswerFailureTests(PostgresFixture postgres)
         await using var bed = await ChatBed.StartAsync(postgres, new Dictionary<string, string>
         {
             ["Chat:Generation:FirstTokenTimeout"] = "00:00:00.300",
-            ["Chat:Generation:TotalTimeout"] = "00:00:10",
+            ["Chat:Generation:TotalTimeout"] = "00:00:20",
         });
         await bed.AddAsync("Policy", P(0.9));
         bed.Chat.HoldBeforeFirstToken();

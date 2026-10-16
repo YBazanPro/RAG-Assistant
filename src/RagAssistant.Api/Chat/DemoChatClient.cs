@@ -20,6 +20,19 @@ internal sealed partial class DemoChatClient(TimeProvider clock) : IChatClient
     public async Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
+        // The follow-up rewrite (spec 014) is the only structured request: the demo returns the question unchanged.
+        if (options?.ResponseFormat is ChatResponseFormatJson)
+        {
+            const string Marker = "Current question: ";
+            var user = messages.LastOrDefault(m => m.Role == ChatRole.User)?.Text ?? string.Empty;
+            var at = user.LastIndexOf(Marker, StringComparison.Ordinal);
+            var question = at < 0 ? user : user[(at + Marker.Length)..];
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, System.Text.Json.JsonSerializer.Serialize(new { standaloneQuestion = question })))
+            {
+                ModelId = ModelId,
+            };
+        }
+
         var text = new StringBuilder();
         await foreach (var update in GetStreamingResponseAsync(messages, options, cancellationToken))
         {

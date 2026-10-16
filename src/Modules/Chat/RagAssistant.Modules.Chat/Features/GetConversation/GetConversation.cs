@@ -22,6 +22,7 @@ internal static class GetConversation
         string Text,
         DateTimeOffset CreatedAt,
         MessageFilters? Filters,
+        string? RetrievalQuery,
         Guid? ReplyToMessageId,
         string? Status,
         string? RefusalReason,
@@ -60,9 +61,9 @@ internal static class GetConversation
         private static MessageView ToView(Message m) => m.Role == MessageRole.User
             ? new MessageView(
                 m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, new MessageFilters(m.FilterLanguage, m.FilterTags),
-                null, null, null, null, null, null, null)
+                m.RetrievalQuery ?? m.Text, null, null, null, null, null, null, null)
             : new MessageView(
-                m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, null, m.ReplyToMessageId,
+                m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, null, null, m.ReplyToMessageId,
                 m.Status?.ToApi(),
                 m.RefusalReason?.ToApi(),
                 m.ErrorCode,

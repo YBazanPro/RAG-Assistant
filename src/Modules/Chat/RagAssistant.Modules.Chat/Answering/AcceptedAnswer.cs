@@ -9,4 +9,5 @@ internal sealed record AcceptedAnswer(
     string Question,
     string? Language,
     string[] Tags,
-    int Attempt);
+    int Attempt,
+    int UserSequence);

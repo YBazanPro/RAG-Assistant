@@ -87,7 +87,7 @@ public sealed class ConversationTests(RagAssistantAppFactory factory)
             "SELECT string_agg(table_name, ',' ORDER BY table_name) FROM information_schema.tables " +
             "WHERE table_schema = 'chat' AND table_name <> '__EFMigrationsHistory'");
 
-        await Assert.That(tables).IsEqualTo("citation_snapshots,conversations,messages,request_traces");
+        await Assert.That(tables).IsEqualTo("citation_snapshots,conversations,issue_reports,message_ratings,messages,request_traces");
         await Assert.That(await DocumentUploads.ScalarAsync<long>(Db, "SELECT count(*) FROM chat.\"__EFMigrationsHistory\""))
             .IsGreaterThanOrEqualTo(1L);
     }

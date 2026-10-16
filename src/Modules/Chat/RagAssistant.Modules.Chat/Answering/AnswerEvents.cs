@@ -20,7 +20,8 @@ internal static class AnswerEvents
 
     public sealed record QuestionAccepted(Guid ConversationId, Guid UserMessageId, Guid AssistantMessageId);
 
-    public sealed record RetrievalStarted;
+    /// <param name="Query">What retrieval searches for: the standalone question of a follow-up, or the question itself (spec 014).</param>
+    public sealed record RetrievalStarted(string Query);
 
     public sealed record Source(
         int Marker,

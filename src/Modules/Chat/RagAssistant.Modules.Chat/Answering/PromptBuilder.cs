@@ -13,12 +13,18 @@ namespace RagAssistant.Modules.Chat.Answering;
 internal static class PromptBuilder
 {
     /// <summary>Recorded in every trace; change it whenever the wording changes.</summary>
-    public const string PromptVersion = "012.1";
+    public const string PromptVersion = "014.1";
+
+    /// <summary>Recorded in the trace of every rewrite call; change it whenever the rewrite wording changes.</summary>
+    public const string RewritePromptVersion = "rw.014.1";
 
     public const string LowConfidenceInstruction =
         "The evidence may be incomplete. Answer only what the passages support, and say what they do not cover.";
 
-    public static IReadOnlyList<ChatMessage> Build(string question, IReadOnlyList<RetrievedChunk> chunks, EvidenceOutcome outcome, string sentinel)
+    /// <param name="question">The question the passages were retrieved for: the standalone question of a follow-up.</param>
+    /// <param name="originalWording">What the user typed, when that differs from <paramref name="question"/>.</param>
+    public static IReadOnlyList<ChatMessage> Build(
+        string question, IReadOnlyList<RetrievedChunk> chunks, EvidenceOutcome outcome, string sentinel, string? originalWording = null)
     {
         string[] rules =
         [
@@ -52,7 +58,45 @@ internal static class PromptBuilder
         }
 
         user.Append("Question: ").Append(question);
+        if (originalWording is not null && originalWording != question)
+        {
+            user.Append("\nThe user wrote: ").Append(originalWording);
+        }
+
         return [new ChatMessage(ChatRole.System, system), new ChatMessage(ChatRole.User, user.ToString())];
+    }
+
+    /// <summary>
+    /// The follow-up rewrite prompt (spec 014): the history resolves references, nothing more. The reply format is imposed by the
+    /// structured-output request (<see cref="RewriteResult"/>), not by this text.
+    /// </summary>
+    public static IReadOnlyList<ChatMessage> BuildRewrite(IReadOnlyList<Exchange> history, string question)
+    {
+        string[] rules =
+        [
+            "You rewrite the user's latest question into one standalone question for searching documents.",
+            "Rules:",
+            "- Use the conversation only to resolve references in the latest question, such as \"it\", \"that amount\" or \"they\".",
+            "- Keep the user's intent and wording as far as possible. Do not answer the question.",
+            "- Do not add facts from the earlier answers beyond what is needed to resolve a reference.",
+            "- If the latest question already stands alone, or starts a new topic, return it unchanged.",
+            "- Write the question in English.",
+        ];
+
+        var user = new StringBuilder("Conversation so far:\n\n");
+        foreach (var exchange in history)
+        {
+            user.Append("Question: ").Append(exchange.Question).Append('\n');
+            if (exchange.Answer is not null)
+            {
+                user.Append("Answer: ").Append(exchange.Answer).Append('\n');
+            }
+
+            user.Append('\n');
+        }
+
+        user.Append("Current question: ").Append(question);
+        return [new ChatMessage(ChatRole.System, string.Join('\n', rules)), new ChatMessage(ChatRole.User, user.ToString())];
     }
 
     private static string? Pages(RetrievedChunk chunk) => (chunk.PageStart, chunk.PageEnd) switch
@@ -62,3 +106,6 @@ internal static class PromptBuilder
         _ => null,
     };
 }
+
+/// <summary>The structured reply of the rewrite call.</summary>
+internal sealed record RewriteResult(string StandaloneQuestion);

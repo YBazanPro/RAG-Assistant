@@ -88,6 +88,7 @@ internal static class AcceptQuestion
                 Role = MessageRole.User,
                 Sequence = conversation.MessageCount + 1,
                 Text = question,
+                RetrievalQuery = question,
                 CreatedAt = now,
                 FilterLanguage = language,
                 FilterTags = tags,
@@ -113,7 +114,7 @@ internal static class AcceptQuestion
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            return new AcceptedAnswer(conversation.Id, userMessage.Id, answer.Id, conversation.OwnerSub, question, language, tags, answer.Attempts);
+            return new AcceptedAnswer(conversation.Id, userMessage.Id, answer.Id, conversation.OwnerSub, question, language, tags, answer.Attempts, userMessage.Sequence);
         }
     }
 }

@@ -9,6 +9,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Chat.Common;
+using RagAssistant.Modules.Chat.Features.AskQuestion;
 using RagAssistant.Modules.Chat.Domain;
 using RagAssistant.Modules.Chat.Options;
 using RagAssistant.Modules.Chat.Persistence;
@@ -28,6 +29,7 @@ internal sealed partial class AnswerPipeline(
     IChatClient chat,
     IOptions<GenerationOptions> generationOptions,
     IOptions<ChatRetrievalOptions> retrievalOptions,
+    IOptions<FollowUpOptions> followUpOptions,
     TimeProvider clock,
     ILogger<AnswerPipeline> logger)
 {
@@ -109,11 +111,12 @@ internal sealed partial class AnswerPipeline(
         await events.WriteAsync(
             AnswerEvents.Item(AnswerEvents.QuestionAcceptedType, new AnswerEvents.QuestionAccepted(answer.ConversationId, answer.UserMessageId, answer.AssistantMessageId)),
             aborted);
-        await events.WriteAsync(AnswerEvents.Item(AnswerEvents.RetrievalStartedType, new AnswerEvents.RetrievalStarted()), aborted);
+        var query = await RewriteAsync(attempt, aborted);
+        await events.WriteAsync(AnswerEvents.Item(AnswerEvents.RetrievalStartedType, new AnswerEvents.RetrievalStarted(query)), aborted);
 
         var retrievalStarted = clock.GetTimestamp();
         var filters = new SearchFilters(answer.Language, answer.Tags.Length > 0 ? answer.Tags : null);
-        var result = await search.SearchAsync(answer.Question, filters, retrievalOptions.Value.TopK, aborted);
+        var result = await search.SearchAsync(query, filters, retrievalOptions.Value.TopK, aborted);
         attempt.RetrievalMs = Milliseconds(retrievalStarted);
         if (result.IsFailure)
         {
@@ -145,12 +148,79 @@ internal sealed partial class AnswerPipeline(
         }
     }
 
+    /// <summary>
+    /// Turns a follow-up into a standalone retrieval query (spec 014). Any failure of the rewrite falls back to the original
+    /// question; only the caller's cancellation stops the answer.
+    /// </summary>
+    private async Task<string> RewriteAsync(Attempt attempt, CancellationToken aborted)
+    {
+        var answer = attempt.Answer;
+        attempt.RetrievalQuery = answer.Question;
+
+        var earlier = await db.Messages.AsNoTracking()
+            .Where(m => m.ConversationId == answer.ConversationId && m.Sequence < answer.UserSequence)
+            .ToListAsync(aborted);
+        if (!FollowUpHistory.HasUsableAnswer(earlier))
+        {
+            return answer.Question;
+        }
+
+        var options = followUpOptions.Value;
+        var history = FollowUpHistory.Build(earlier, options.HistoryExchanges, options.MaxAnswerChars);
+        var messages = PromptBuilder.BuildRewrite(history, answer.Question);
+        attempt.RewritePromptVersion = PromptBuilder.RewritePromptVersion;
+
+        var started = clock.GetTimestamp();
+        using var deadline = new CancellationTokenSource(options.RewriteTimeout, clock);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(aborted, deadline.Token);
+        try
+        {
+            var response = await chat.GetResponseAsync<RewriteResult>(messages, new ChatOptions { MaxOutputTokens = 300 }, useJsonSchemaResponseFormat: null, linked.Token);
+            attempt.RewriteMs = Milliseconds(started);
+            attempt.RewriteInputTokens = response.Usage?.InputTokenCount;
+            attempt.RewriteOutputTokens = response.Usage?.OutputTokenCount;
+
+            var standalone = response.TryGetResult(out var result) ? result.StandaloneQuestion?.Trim() : null;
+            if (string.IsNullOrEmpty(standalone) || standalone.Length > AcceptQuestion.MaxQuestionLength)
+            {
+                attempt.RewriteFallback = RewriteFallback.Invalid;
+                return answer.Question;
+            }
+
+            attempt.RewriteUsed = true;
+            attempt.RetrievalQuery = standalone;
+            return standalone;
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested && !aborted.IsCancellationRequested)
+        {
+            attempt.RewriteMs = Milliseconds(started);
+            attempt.RewriteFallback = RewriteFallback.Timeout;
+            LogRewriteFallback(logger, answer.AssistantMessageId, RewriteFallback.Timeout);
+            return answer.Question;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException && !aborted.IsCancellationRequested)
+        {
+            // The model answered, but not with a usable structure.
+            attempt.RewriteMs = Milliseconds(started);
+            attempt.RewriteFallback = RewriteFallback.Invalid;
+            LogRewriteFallback(logger, answer.AssistantMessageId, RewriteFallback.Invalid);
+            return answer.Question;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && !aborted.IsCancellationRequested)
+        {
+            attempt.RewriteMs = Milliseconds(started);
+            attempt.RewriteFallback = RewriteFallback.ModelError;
+            LogRewriteFallback(logger, answer.AssistantMessageId, RewriteFallback.ModelError);
+            return answer.Question;
+        }
+    }
+
     /// <returns>False when the model call failed; the answer is then already finalized as failed.</returns>
     private async Task<bool> GenerateAsync(Attempt attempt, ChannelWriter<SseItem<string>> events, CancellationToken aborted)
     {
         var found = attempt.Search!;
         var filter = attempt.Filter!;
-        var messages = PromptBuilder.Build(attempt.Answer.Question, found.Chunks, found.Outcome, Generation.Sentinel);
+        var messages = PromptBuilder.Build(attempt.RetrievalQuery!, found.Chunks, found.Outcome, Generation.Sentinel, attempt.Answer.Question);
         attempt.PromptVersion = PromptBuilder.PromptVersion;
         attempt.ChatModel = chat.GetService<ChatClientMetadata>()?.DefaultModelId ?? "unknown";
 
@@ -257,6 +327,13 @@ internal sealed partial class AnswerPipeline(
             message.Text = text ?? string.Empty;
             message.CompletedAt = now;
             message.PendingSince = null;
+            if (attempt.RewriteUsed || attempt.RetrievalQuery is not null)
+            {
+                await db.Messages
+                    .Where(m => m.Id == attempt.Answer.UserMessageId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(m => m.RetrievalQuery, attempt.RetrievalQuery), timeout.Token);
+            }
+
             message.Citations.Clear();
             message.Citations.AddRange(snapshots ?? []);
 
@@ -290,6 +367,13 @@ internal sealed partial class AnswerPipeline(
             UserMessageId = answer.UserMessageId,
             AssistantMessageId = answer.AssistantMessageId,
             Attempt = answer.Attempt,
+            RetrievalQuery = attempt.RetrievalQuery,
+            RewriteUsed = attempt.RewriteUsed,
+            RewriteFallbackReason = attempt.RewriteFallback,
+            RewriteMs = attempt.RewriteMs,
+            RewriteInputTokens = attempt.RewriteInputTokens,
+            RewriteOutputTokens = attempt.RewriteOutputTokens,
+            RewritePromptVersion = attempt.RewritePromptVersion,
             OwnerSub = answer.OwnerSub,
             QuestionText = answer.Question,
             FilterLanguage = answer.Language,
@@ -336,6 +420,9 @@ internal sealed partial class AnswerPipeline(
 
     private int Milliseconds(long since) => (int)Math.Min(clock.GetElapsedTime(since).TotalMilliseconds, int.MaxValue);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The follow-up rewrite fell back to the original question for answer {AssistantMessageId}: {Reason}")]
+    private static partial void LogRewriteFallback(ILogger logger, Guid assistantMessageId, RewriteFallback reason);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Retrieval failed with {Code} for answer {AssistantMessageId}")]
     private static partial void LogRetrievalFailed(ILogger logger, string code, Guid assistantMessageId);
 
@@ -371,6 +458,21 @@ internal sealed partial class AnswerPipeline(
         public int? FirstTokenMs { get; set; }
 
         public string? ChatModel { get; set; }
+
+        /// <summary>What retrieval searched for; null until the rewrite step has run.</summary>
+        public string? RetrievalQuery { get; set; }
+
+        public bool RewriteUsed { get; set; }
+
+        public RewriteFallback? RewriteFallback { get; set; }
+
+        public int? RewriteMs { get; set; }
+
+        public long? RewriteInputTokens { get; set; }
+
+        public long? RewriteOutputTokens { get; set; }
+
+        public string? RewritePromptVersion { get; set; }
 
         public string? PromptVersion { get; set; }
 
