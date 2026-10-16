@@ -15,6 +15,7 @@ public sealed class ChatAuthTests(RagAssistantAppFactory factory)
         yield return () => ("POST", "/api/chat/conversations");
         yield return () => ("GET", "/api/chat/conversations");
         yield return () => ("GET", $"/api/chat/conversations/{id}");
+        yield return () => ("DELETE", $"/api/chat/conversations/{id}");
         yield return () => ("POST", $"/api/chat/conversations/{id}/messages");
         yield return () => ("POST", $"/api/chat/conversations/{id}/messages/{message}/retry");
         yield return () => ("PUT", $"/api/chat/conversations/{id}/messages/{message}/rating");
