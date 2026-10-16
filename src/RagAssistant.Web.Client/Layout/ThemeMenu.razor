@@ -1,26 +1,36 @@
 @inject IThemeService Themes
 @inject IJSRuntime JS
 
-<div class="theme-toggle" role="group" aria-label="Theme">
-    @foreach (var option in Options)
-    {
-        <FluentButton Appearance="@(_mode == option.Mode ? ButtonAppearance.Primary : ButtonAppearance.Subtle)"
-                      aria-pressed="@(_mode == option.Mode ? "true" : "false")"
-                      OnClick="() => SelectAsync(option.Mode)">@option.Label</FluentButton>
-    }
-</div>
+<FluentButton Id="user-menu-button" Class="user-menu-button" Appearance="ButtonAppearance.Subtle"
+              aria-haspopup="menu">
+    <span class="user-name">@UserName</span> <span aria-hidden="true">▾</span>
+</FluentButton>
+
+<FluentMenu @ref="_menu" Trigger="user-menu-button" aria-label="User menu">
+    <FluentMenuList>
+        @foreach (var option in Options)
+        {
+            var mode = option.Mode;
+            <FluentMenuItem Role="MenuItemRole.Radio" Checked="@(_mode == mode)"
+                            CheckedChanged="@(isChecked => isChecked == true ? SelectAsync(mode) : Task.CompletedTask)">@option.Label</FluentMenuItem>
+        }
+    </FluentMenuList>
+</FluentMenu>
 
 @code {
     private const string StorageKey = "ragassistant.theme";
 
     private static readonly (ThemeMode Mode, string Label)[] Options =
     [
-        (ThemeMode.System, "System"),
-        (ThemeMode.Light, "Light"),
-        (ThemeMode.Dark, "Dark"),
+        (ThemeMode.System, "System theme"),
+        (ThemeMode.Light, "Light theme"),
+        (ThemeMode.Dark, "Dark theme"),
     ];
 
+    [Parameter, EditorRequired] public string UserName { get; set; } = "";
+
     private ThemeMode _mode = ThemeMode.System;
+    private FluentMenu? _menu;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -43,6 +53,12 @@
     {
         _mode = mode;
         await Themes.SetThemeAsync(mode);
+        if (_menu is not null)
+        {
+            // Radio items keep the popup open; a choice made should dismiss it.
+            await _menu.CloseMenuAsync();
+        }
+
         try
         {
             await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, mode.ToString());

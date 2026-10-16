@@ -1,7 +1,7 @@
 <AuthorizeView>
     <Authorized>
         <div class="user-section">
-            <span class="user-name">@DisplayName(context.User)</span>
+            <ThemeMenu UserName="@DisplayName(context.User)" />
             <form method="post" action="/bff/logout">
                 <AntiforgeryToken />
                 <FluentButton Type="ButtonType.Submit" Appearance="ButtonAppearance.Outline">Sign out</FluentButton>

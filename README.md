@@ -133,7 +133,7 @@ Dev-only users (the realm file is never deployed):
 | `owner` | `owner-dev` | Content Owner | `content-owner`, `knowledge-seeker` |
 | `maintainer` | `maintainer-dev` | System Maintainer | `maintainer`, `content-owner`, `knowledge-seeker` |
 
-Open the `web` link from the dashboard and sign in with one of these users (sign out first to switch: sign-out also ends the Keycloak session, so the next sign-in asks for credentials again). Only the maintainer sees the Admin page. The UI is English only and has a System / Light / Dark theme toggle.
+Open the `web` link from the dashboard and sign in with one of these users (sign out first to switch: sign-out also ends the Keycloak session, so the next sign-in asks for credentials again). Only the maintainer sees the Admin page. The UI is English only and has a System / Light / Dark theme choice in the menu on the user name.
 
 The browser only calls the Web, which forwards `/api/**` to the API with your access token (tokens never reach the browser). Every `/api` endpoint on the API requires a bearer token. To call the API directly, get a token by hand with the public dev client `ragassistant-dev` (password grant):
 
