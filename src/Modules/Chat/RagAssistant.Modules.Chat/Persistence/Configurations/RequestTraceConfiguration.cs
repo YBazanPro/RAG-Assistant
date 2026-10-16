@@ -1,0 +1,30 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using RagAssistant.Modules.Chat.Domain;
+
+namespace RagAssistant.Modules.Chat.Persistence.Configurations;
+
+internal sealed class RequestTraceConfiguration : IEntityTypeConfiguration<RequestTrace>
+{
+    public void Configure(EntityTypeBuilder<RequestTrace> builder)
+    {
+        builder.ToTable("request_traces");
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.Id).ValueGeneratedNever();
+        builder.Property(t => t.OwnerSub).HasMaxLength(200);
+        builder.Property(t => t.FilterLanguage).HasMaxLength(2);
+        builder.Property(t => t.OtelTraceId).HasMaxLength(32);
+        builder.Property(t => t.EvidenceOutcome).HasMaxLength(32);
+        builder.Property(t => t.EmbeddingModel).HasMaxLength(200);
+        builder.Property(t => t.ChatModel).HasMaxLength(200);
+        builder.Property(t => t.PromptVersion).HasMaxLength(32);
+        builder.Property(t => t.ErrorCode).HasMaxLength(100);
+        builder.Property(t => t.RetrievedPassages).HasColumnType("jsonb");
+
+        builder.HasIndex(t => new { t.AssistantMessageId, t.Attempt }).IsUnique();
+        builder.HasIndex(t => t.StartedAt);
+
+        // Deleting a conversation (spec 014) removes its traces too: they hold the question text.
+        builder.HasOne<Conversation>().WithMany().HasForeignKey(t => t.ConversationId).OnDelete(DeleteBehavior.Cascade);
+    }
+}

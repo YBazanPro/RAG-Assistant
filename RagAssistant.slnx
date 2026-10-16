@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Modules/Chat/RagAssistant.Modules.Chat/RagAssistant.Modules.Chat.csproj" />
     <Project Path="src/Modules/Documents/RagAssistant.Modules.Documents/RagAssistant.Modules.Documents.csproj" />
     <Project Path="src/RagAssistant.AppHost/RagAssistant.AppHost.csproj" />
     <Project Path="src/RagAssistant.Api/RagAssistant.Api.csproj" />
@@ -10,6 +11,7 @@
     <Project Path="src/RagAssistant.SharedKernel/RagAssistant.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Modules/RagAssistant.Modules.Chat.Tests/RagAssistant.Modules.Chat.Tests.csproj" />
     <Project Path="tests/Modules/RagAssistant.Modules.Documents.Tests/RagAssistant.Modules.Documents.Tests.csproj" />
     <Project Path="tests/RagAssistant.Integration.Tests/RagAssistant.Integration.Tests.csproj" />
     <Project Path="tests/RagAssistant.Web.Tests/RagAssistant.Web.Tests.csproj" />
