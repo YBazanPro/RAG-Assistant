@@ -14,7 +14,9 @@ public sealed record SeedDocument(
     DateTimeOffset? UpdatedAt = null,
     DateTimeOffset? IndexedAt = null,
     int Passages = 0,
-    string? EmbeddingModel = null);
+    string? EmbeddingModel = null,
+    string Visibility = "Shared",
+    string CreatedBy = "seed");
 
 /// <summary>A passage with its embedding, for retrieval tests (spec 011).</summary>
 public sealed record SeedPassage(string Text, float[] Embedding, int? PageStart = null, int? PageEnd = null, string[]? SectionPath = null);
@@ -34,11 +36,11 @@ public sealed class CorpusSeeder(NpgsqlDataSource db)
         await ExecuteAsync(
             """
             INSERT INTO documents.documents
-                (id, title, owner_name, language, tags, effective_date, status, latest_content_hash, created_at, created_by, updated_at, updated_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'seed', $9, 'seed')
+                (id, title, owner_name, language, tags, effective_date, status, latest_content_hash, created_at, created_by, updated_at, updated_by, visibility)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9, $10, $11)
             """,
             documentId, seed.Title, seed.Owner, seed.Language, seed.Tags ?? [], seed.EffectiveDate, seed.Archived ? "Archived" : "Active",
-            Guid.NewGuid().ToString("N"), updatedAt);
+            Guid.NewGuid().ToString("N"), updatedAt, seed.CreatedBy, seed.Visibility);
 
         var versionId = await AddVersionAsync(
             documentId, 1, seed.VersionStatus, makeActive: seed.VersionStatus == "Indexed", updatedAt, seed.IndexedAt ?? updatedAt, seed.Passages,

@@ -10,13 +10,13 @@ namespace RagAssistant.Modules.Documents.Retrieval;
 internal sealed class DocumentSearch(ModuleMediator mediator) : IDocumentSearch
 {
     public async Task<Result<SearchResult>> SearchAsync(
-        string query, SearchFilters filters, int topK, CancellationToken cancellationToken)
+        string query, SearchFilters filters, int topK, string viewerSub, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(filters);
 
         var request = new SearchPassages.Query(
             query, filters.Language, [.. filters.Tags ?? []], topK.ToString(CultureInfo.InvariantCulture), IncludeDiagnostics: false,
-            filters.DocumentIds);
+            filters.DocumentIds, viewerSub);
         var run = await mediator.Send(request, cancellationToken);
         if (run.IsFailure)
         {

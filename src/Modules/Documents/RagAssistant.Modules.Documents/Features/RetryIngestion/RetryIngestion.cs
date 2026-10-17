@@ -10,7 +10,7 @@ namespace RagAssistant.Modules.Documents.Features.RetryIngestion;
 
 internal static class RetryIngestion
 {
-    public sealed record Command(Guid DocumentId) : IRequest<Result<Response>>;
+    public sealed record Command(Guid DocumentId, string UserId) : IRequest<Result<Response>>;
 
     public sealed record Response(Guid DocumentId, Guid VersionId, Guid IngestionRunId, int Attempt, string Status);
 
@@ -22,6 +22,7 @@ internal static class RetryIngestion
         public async ValueTask<Result<Response>> Handle(Command command, CancellationToken cancellationToken)
         {
             var document = await db.Documents.AsNoTracking()
+                .ReadableBy(command.UserId)
                 .Where(d => d.Id == command.DocumentId)
                 .Select(d => new
                 {

@@ -19,7 +19,7 @@ internal static partial class ReprocessDocument
     {
         public async ValueTask<Result<NewVersionResponse>> Handle(Command command, CancellationToken cancellationToken)
         {
-            var guard = await NewVersionFlow.GuardAsync(db, command.DocumentId, cancellationToken);
+            var guard = await NewVersionFlow.GuardAsync(db, command.DocumentId, command.UserId, cancellationToken);
             if (guard.IsFailure)
             {
                 return Result.Failure<NewVersionResponse>(guard.Error);

@@ -20,7 +20,8 @@ public sealed record Citation(
     IReadOnlyList<string> SectionPath,
     int? PageStart,
     int? PageEnd,
-    string? Text)
+    string? Text,
+    bool DocumentReadable = true)
 {
     public static Citation FromSource(AnswerSource s) =>
         new(s.Marker, s.PassageId, s.DocumentId, Guid.Empty, s.VersionNumber, s.DocumentTitle, s.SectionPath, s.PageStart, s.PageEnd, null);

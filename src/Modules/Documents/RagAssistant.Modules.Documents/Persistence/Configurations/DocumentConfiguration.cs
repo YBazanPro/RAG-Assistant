@@ -22,8 +22,13 @@ internal sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.CreatedBy).HasMaxLength(128);
         builder.Property(d => d.UpdatedBy).HasMaxLength(128);
 
+        builder.Property(d => d.Visibility).HasDefaultValue(Visibility.Shared);
+
         builder.HasIndex(d => d.Tags).HasMethod("gin");
-        builder.HasIndex(d => d.LatestContentHash)
+        builder.HasIndex(d => new { d.Visibility, d.CreatedBy });
+        // Per owner: another user's private copy of the same file must not collide (spec 016). Duplicates across owners are
+        // refused by the handlers, which look only at documents the caller can read.
+        builder.HasIndex(d => new { d.LatestContentHash, d.CreatedBy })
             .IsUnique()
             .HasFilter("status = 'Active'")
             .HasDatabaseName(ActiveContentHashIndex);

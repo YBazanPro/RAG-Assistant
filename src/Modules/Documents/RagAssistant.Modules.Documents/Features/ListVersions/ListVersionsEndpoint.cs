@@ -1,3 +1,5 @@
+using RagAssistant.SharedKernel.Common.Security;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,8 +14,8 @@ public sealed class ListVersionsEndpoint : IEndpointGroup
     public void Map(RouteGroupBuilder api)
     {
         api.MapGroup("/documents")
-            .MapGet("/{documentId:guid}/versions", async (Guid documentId, ModuleMediator mediator, CancellationToken cancellationToken) =>
-                (await mediator.Send(new ListVersions.Query(documentId), cancellationToken)).ToHttpResult())
+            .MapGet("/{documentId:guid}/versions", async (Guid documentId, ClaimsPrincipal user, ModuleMediator mediator, CancellationToken cancellationToken) =>
+                (await mediator.Send(new ListVersions.Query(documentId, user.GetSubject()), cancellationToken)).ToHttpResult())
             .RequireAuthorization(PolicyNames.KnowledgeSeeker)
             .WithName("ListDocumentVersions")
             .Produces<ListVersions.Response>();

@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
+using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.SharedKernel.Contracts.Documents;
@@ -11,7 +12,11 @@ namespace RagAssistant.Modules.Documents.Retrieval;
 /// <param name="Language">Already lowercased, or null.</param>
 /// <param name="Tags">Already normalized like import.</param>
 /// <param name="DocumentIds">Null for no restriction; an empty list matches no document (spec 015).</param>
-internal sealed record CandidateFilter(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid>? DocumentIds = null);
+internal sealed record CandidateFilter(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid>? DocumentIds = null)
+{
+    /// <summary>Whose documents may be read (spec 016); set by the search handler from the caller, never from a request filter.</summary>
+    public required string ViewerSub { get; init; }
+}
 
 /// <summary>The eligible-passage queries of retrieval (spec 011, eligibility and pipeline step 3).</summary>
 internal sealed class PassageCandidates(DocumentsDbContext db)
@@ -75,6 +80,8 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
 
     private static IQueryable<Document> Filtered(IQueryable<Document> documents, CandidateFilter filter)
     {
+        documents = documents.ReadableBy(filter.ViewerSub);
+
         if (filter.Language is { } language)
         {
             documents = documents.Where(d => d.Language == language);

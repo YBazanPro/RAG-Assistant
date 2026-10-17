@@ -39,7 +39,7 @@
                         @foreach (var document in view.Scope.Documents)
                         {
                             <span class="activity-scope-document" data-available="@(document.Available ? "true" : "false")">
-                                @(document.Title ?? "Document")@(document.Available ? "" : " (left out: unavailable)")
+                                @(document.Title ?? "Document unavailable")@(document.Available ? "" : (document.Title is null ? " (left out)" : " (left out: unavailable)"))
                             </span>
                         }
                     </li>

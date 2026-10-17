@@ -6,6 +6,13 @@ internal enum DocumentStatus
     Archived,
 }
 
+/// <summary>Who can read a document (ADR 0009): everyone signed in, or only the user who imported it.</summary>
+internal enum Visibility
+{
+    Shared,
+    Private,
+}
+
 internal enum VersionStatus
 {
     Queued,

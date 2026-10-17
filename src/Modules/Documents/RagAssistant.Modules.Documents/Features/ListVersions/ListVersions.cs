@@ -9,7 +9,7 @@ namespace RagAssistant.Modules.Documents.Features.ListVersions;
 
 internal static class ListVersions
 {
-    public sealed record Query(Guid DocumentId) : IRequest<Result<Response>>;
+    public sealed record Query(Guid DocumentId, string ViewerSub) : IRequest<Result<Response>>;
 
     public sealed record RunItem(
         Guid Id,
@@ -33,7 +33,7 @@ internal static class ListVersions
         int? PassageCount,
         bool IsActive,
         DateTimeOffset CreatedAt,
-        string CreatedBy,
+        string? CreatedBy,
         DateTimeOffset? IndexedAt,
         RunItem[] Runs,
         int[]? PagesWithoutText);
@@ -45,8 +45,9 @@ internal static class ListVersions
         public async ValueTask<Result<Response>> Handle(Query query, CancellationToken cancellationToken)
         {
             var document = await db.Documents.AsNoTracking()
+                .ReadableBy(query.ViewerSub)
                 .Where(d => d.Id == query.DocumentId)
-                .Select(d => new { d.ActiveVersionId })
+                .Select(d => new { d.ActiveVersionId, d.CreatedBy })
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (document is null)
@@ -91,7 +92,7 @@ internal static class ListVersions
                 v.PassageCount,
                 v.Id == document.ActiveVersionId,
                 v.CreatedAt,
-                v.CreatedBy,
+                document.CreatedBy == query.ViewerSub || v.CreatedBy == query.ViewerSub ? v.CreatedBy : null,
                 v.IndexedAt,
                 [.. v.Runs.Select(r => new RunItem(
                     r.Id, r.Attempt, r.Status.ToApi(), r.Stage.ToApi(), r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt))],

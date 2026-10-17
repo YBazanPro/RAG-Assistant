@@ -36,13 +36,20 @@
         @if (Citation.Text is { } text)
         {
             <pre class="passage-text">@text</pre>
-            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="16" Wrap="true">
-                <a class="open-document-link" href="@CitationText.DocumentLink(Citation)">Open in document</a>
-                @if (Citation.PageStart is { } page)
-                {
-                    <a class="open-page-link" href="@CitationText.OriginalFileLink(Citation)" target="_blank" rel="noopener">@("Open page " + page)</a>
-                }
-            </FluentStack>
+            @if (Citation.DocumentReadable)
+            {
+                <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="16" Wrap="true">
+                    <a class="open-document-link" href="@CitationText.DocumentLink(Citation)">Open in document</a>
+                    @if (Citation.PageStart is { } page)
+                    {
+                        <a class="open-page-link" href="@CitationText.OriginalFileLink(Citation)" target="_blank" rel="noopener">@("Open page " + page)</a>
+                    }
+                </FluentStack>
+            }
+            else
+            {
+                <FluentText Block="true" Class="preview-unreadable">The document is no longer available to you. This is the passage as it was cited.</FluentText>
+            }
         }
         else
         {

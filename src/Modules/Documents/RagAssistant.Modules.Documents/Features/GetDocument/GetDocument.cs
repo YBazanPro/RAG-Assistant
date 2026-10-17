@@ -9,7 +9,7 @@ namespace RagAssistant.Modules.Documents.Features.GetDocument;
 
 internal static class GetDocument
 {
-    public sealed record Query(Guid DocumentId) : IRequest<Result<Response>>;
+    public sealed record Query(Guid DocumentId, string ViewerSub) : IRequest<Result<Response>>;
 
     public sealed record LatestVersion(
         Guid Id,
@@ -46,10 +46,12 @@ internal static class GetDocument
         LatestVersion? LatestVersion,
         LatestRun? LatestRun,
         DateTimeOffset CreatedAt,
-        string CreatedBy,
+        string? CreatedBy,
         DateTimeOffset UpdatedAt,
-        string UpdatedBy,
-        int Revision);
+        string? UpdatedBy,
+        int Revision,
+        string Visibility,
+        bool IsOwner);
 
     internal sealed class Handler(DocumentsDbContext db) : IRequestHandler<Query, Result<Response>>
     {
@@ -58,6 +60,7 @@ internal static class GetDocument
             // Projected so the version's Content column (up to the import limit) is never loaded.
             var row = await db.Documents
                 .AsNoTracking()
+                .ReadableBy(query.ViewerSub)
                 .Where(d => d.Id == query.DocumentId)
                 .Select(d => new
                 {
@@ -83,6 +86,7 @@ internal static class GetDocument
             }
 
             var d = row.Document;
+            var isOwner = d.IsOwner(query.ViewerSub);
             var latest = row.Latest is { } v
                 ? new LatestVersion(v.Id, v.Number, v.Status.ToApi(), v.SourceFormat.ToApi(), v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt, v.PagesWithoutText)
                 : null;
@@ -93,7 +97,10 @@ internal static class GetDocument
             return new Response(
                 d.Id, d.Title, d.OwnerName, d.Language, d.Tags, d.EffectiveDate, d.Source,
                 DocumentStatusRules.Derive(d.Status, row.Latest?.Status),
-                d.ActiveVersionId, latest, run, d.CreatedAt, d.CreatedBy, d.UpdatedAt, d.UpdatedBy, d.Revision);
+                d.ActiveVersionId, latest, run, d.CreatedAt,
+                // The raw sub is the access identity: only its owner gets it back (spec 016).
+                isOwner ? d.CreatedBy : null, d.UpdatedAt, isOwner || d.UpdatedBy == query.ViewerSub ? d.UpdatedBy : null, d.Revision,
+                d.Visibility.ToApi(), isOwner);
         }
 
         private sealed record VersionRow(

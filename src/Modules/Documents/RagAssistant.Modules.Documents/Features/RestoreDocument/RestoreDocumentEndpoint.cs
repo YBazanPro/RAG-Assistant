@@ -29,5 +29,5 @@ public sealed class RestoreDocumentEndpoint : IEndpointGroup
         DocumentsMetrics metrics,
         CancellationToken cancellationToken) =>
         await LifecycleResponses.DocumentOrProblemAsync(
-            await mediator.Send(new RestoreDocument.Command(documentId, user.GetSubject()), cancellationToken), http, mediator, metrics, cancellationToken);
+            await mediator.Send(new RestoreDocument.Command(documentId, user.GetSubject()), cancellationToken), user.GetSubject(), http, mediator, metrics, cancellationToken);
 }

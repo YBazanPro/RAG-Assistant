@@ -34,8 +34,14 @@ internal static class StreamIngestionEvents
         int? Total);
 
     /// <summary>The latest run of the latest version; the 404 has to be decided before the response becomes a stream.</summary>
-    public static async Task<Result<Target>> ResolveAsync(DocumentsDbContext db, Guid documentId, CancellationToken cancellationToken)
+    public static async Task<Result<Target>> ResolveAsync(DocumentsDbContext db, Guid documentId, string viewerSub, CancellationToken cancellationToken)
     {
+        // An unreadable document has no stream, exactly like an unknown id.
+        if (!await db.Documents.AsNoTracking().ReadableBy(viewerSub).AnyAsync(d => d.Id == documentId, cancellationToken))
+        {
+            return DocumentErrors.NotFound;
+        }
+
         var version = await db.Versions.AsNoTracking()
             .Where(v => v.DocumentId == documentId)
             .OrderByDescending(v => v.Number)

@@ -63,7 +63,8 @@ internal static class GetConversation
                 .Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(g => g.Key, g => g.Count, cancellationToken);
 
-            var availability = await catalog.CheckAsync(conversation.ScopeDocumentIds, cancellationToken);
+            var citedIds = conversation.Messages.SelectMany(m => m.Citations).Select(c => c.DocumentId).Distinct().ToArray();
+            var availability = await catalog.CheckAsync([.. conversation.ScopeDocumentIds, .. citedIds], query.UserId, cancellationToken);
             var scope = ConversationScope.From(conversation.ScopeDocumentIds, conversation.ScopeTags, availability);
 
             return new ConversationDetail(
@@ -71,11 +72,11 @@ internal static class GetConversation
                 conversation.Title,
                 conversation.CreatedAt,
                 conversation.LastActivityAt,
-                [.. conversation.Messages.Select(m => ToView(m, ratings, reportCounts))],
+                [.. conversation.Messages.Select(m => ToView(m, ratings, reportCounts, availability.Known))],
                 scope);
         }
 
-        private static MessageView ToView(Message m, Dictionary<Guid, FeedbackRating> ratings, Dictionary<Guid, int> reportCounts) => m.Role == MessageRole.User
+        private static MessageView ToView(Message m, Dictionary<Guid, FeedbackRating> ratings, Dictionary<Guid, int> reportCounts, IReadOnlySet<Guid> readable) => m.Role == MessageRole.User
             ? new MessageView(
                 m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, new MessageFilters(m.FilterLanguage, m.FilterTags),
                 m.RetrievalQuery ?? m.Text, null, null, null, null, null, null, null)
@@ -86,7 +87,7 @@ internal static class GetConversation
                 m.ErrorCode,
                 m.Status == AnswerStatus.Failed && m.ErrorCode is { } code ? ChatErrors.IsRetryable(code) : null,
                 m.CompletedAt,
-                [.. m.Citations.Select(CitationView.From)],
+                [.. m.Citations.Select(c => CitationView.From(c, readable.Contains(c.DocumentId)))],
                 ratings.TryGetValue(m.Id, out var rating) ? rating.ToApi() : null,
                 reportCounts.GetValueOrDefault(m.Id));
     }

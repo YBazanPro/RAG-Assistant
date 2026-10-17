@@ -5,7 +5,7 @@
     @foreach (var document in Scope.Documents)
     {
         <FluentBadge Class="scope-chip" data-available="@(document.Available ? "true" : "false")">
-            @(document.Title ?? "Document")@(document.Available ? "" : " (unavailable)")
+            @(document.Title ?? "Document unavailable")@(document.Available || document.Title is null ? "" : " (unavailable)")
         </FluentBadge>
     }
     @foreach (var tag in Scope.Tags)

@@ -26,7 +26,7 @@ internal static partial class UploadVersion
     {
         public async ValueTask<Result<NewVersionResponse>> Handle(Command command, CancellationToken cancellationToken)
         {
-            var guard = await NewVersionFlow.GuardAsync(db, command.DocumentId, cancellationToken);
+            var guard = await NewVersionFlow.GuardAsync(db, command.DocumentId, command.UserId, cancellationToken);
             if (guard.IsFailure)
             {
                 return Result.Failure<NewVersionResponse>(guard.Error);
@@ -46,7 +46,7 @@ internal static partial class UploadVersion
                 return DocumentErrors.DuplicateContent(command.DocumentId);
             }
 
-            if (await NewVersionFlow.FindOtherActiveWithHashAsync(db, command.DocumentId, accepted.Hash, cancellationToken) is { } other)
+            if (await NewVersionFlow.FindOtherActiveWithHashAsync(db, command.DocumentId, accepted.Hash, command.UserId, cancellationToken) is { } other)
             {
                 return DocumentErrors.DuplicateContent(other);
             }

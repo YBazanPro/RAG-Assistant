@@ -18,6 +18,10 @@
                   OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
                   Value="@(Query.Owner ?? "")" ValueChanged="@(v => ChangeAsync(Query with { Owner = Blank(v) }))" />
 
+    <FluentSelect Id="doc-visibility" Label="Visibility" TOption="FilterChoice" TValue="string" Items="VisibilityChoices"
+                  OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
+                  Value="@(Query.Visibility ?? "")" ValueChanged="@(v => ChangeAsync(Query with { Visibility = Blank(v) }))" />
+
     <FluentSelect Id="doc-tags" Label="Tags (all of)" TOption="FilterChoice" TValue="string" Multiple="true" Items="TagChoices"
                   OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)"
                   SelectedItems="@SelectedTags" SelectedItemsChanged="OnTagsChangedAsync" />
@@ -45,6 +49,13 @@
         new("processing", "Processing"),
         new("failed", "Failed"),
         new("archived", "Archived"),
+    ];
+
+    private static readonly FilterChoice[] VisibilityChoices =
+    [
+        new("", "All I can read"),
+        new("mine", "My private"),
+        new("shared", "Shared"),
     ];
 
     private string? _search;

@@ -1,3 +1,5 @@
+using RagAssistant.SharedKernel.Common.Security;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -24,10 +26,12 @@ public sealed class ListDocumentsEndpoint : IEndpointGroup
                 string? sort,
                 string? page,
                 string? pageSize,
+                string? visibility,
+                ClaimsPrincipal user,
                 ModuleMediator mediator,
                 CancellationToken cancellationToken) =>
                 (await mediator.Send(
-                    new ListDocuments.Query(q, status, language, owner, tags ?? [], effectiveFrom, effectiveTo, sort, page, pageSize),
+                    new ListDocuments.Query(q, status, language, owner, tags ?? [], effectiveFrom, effectiveTo, sort, page, pageSize, user.GetSubject(), visibility),
                     cancellationToken)).ToHttpResult())
             .RequireAuthorization(PolicyNames.KnowledgeSeeker)
             .WithName("ListDocuments")

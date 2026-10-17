@@ -70,19 +70,23 @@ internal static class GetActivity
                 return ChatErrors.ActivityNotFound;
             }
 
-            var availability = await catalog.CheckAsync(trace.FilterDocumentIds, cancellationToken);
+            var stored = JsonSerializer.Deserialize<List<RetrievedPassageTrace>>(trace.RetrievedPassages, TraceJson) ?? [];
+            var passageDocumentIds = stored.Where(p => p.DocumentId is not null).Select(p => p.DocumentId!.Value);
+            var availability = await catalog.CheckAsync([.. trace.FilterDocumentIds, .. passageDocumentIds], query.UserId, cancellationToken);
+
             var documents = trace.FilterDocumentIds
                 .Select(id => new ScopeDocument(
                     id,
                     availability.Titles.GetValueOrDefault(id),
                     availability.Searchable.Contains(id) && !trace.UnavailableDocumentIds.Contains(id)))
                 .ToList();
-
-            var stored = JsonSerializer.Deserialize<List<RetrievedPassageTrace>>(trace.RetrievedPassages, TraceJson) ?? [];
             var passages = stored
                 .OrderBy(p => p.Rank)
                 .Select(p => new PassageStep(
-                    p.Rank, p.Marker, p.Score, p.Cited, p.DocumentId, p.DocumentTitle, p.VersionNumber, p.SectionPath ?? [], p.PageStart, p.PageEnd))
+                    p.Rank, p.Marker, p.Score, p.Cited, p.DocumentId,
+                    // A cited passage was authorised when the answer was given and keeps its snapshot title; the others
+                    // show a title only while the viewer can still read the document (spec 016).
+                    p.Cited || (p.DocumentId is { } id && availability.Known.Contains(id)) ? p.DocumentTitle : null, p.VersionNumber, p.SectionPath ?? [], p.PageStart, p.PageEnd))
                 .ToList();
 
             return new ActivityView(

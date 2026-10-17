@@ -114,6 +114,20 @@ public class CitationComponentTests
         await Assert.That(cut.Find("a.open-page-link").GetAttribute("href")).IsEqualTo($"api/documents/{citation.DocumentId}/versions/3/file#page=4");
     }
 
+    // Spec 016, AC-28
+    [Test]
+    public async Task SourcePreview_ofADocumentTheViewerCanNoLongerRead_showsTheSnapshotWithoutLinks()
+    {
+        await using var ctx = ChatTestData.NewContext(out _, out _);
+
+        var cut = ctx.Render<SourcePreview>(p => p.Add(c => c.Citation, ChatTestData.Citation() with { DocumentReadable = false }));
+
+        await Assert.That(cut.Find("pre").TextContent).IsEqualTo("Exceptions above 5000 need approval.");
+        await Assert.That(cut.FindAll("a.open-document-link").Count).IsEqualTo(0);
+        await Assert.That(cut.FindAll("a.open-page-link").Count).IsEqualTo(0);
+        await Assert.That(cut.Markup).Contains("no longer available to you");
+    }
+
     [Test]
     public async Task SourcePreview_whileStreaming_saysThePassageComesLater()
     {

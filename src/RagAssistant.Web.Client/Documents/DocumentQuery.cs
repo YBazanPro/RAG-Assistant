@@ -9,6 +9,8 @@ public sealed record DocumentQuery
 
     public static readonly string[] Sorts = ["title", "-title", "updated", "-updated", "effectiveDate", "-effectiveDate"];
 
+    public static readonly string[] Visibilities = ["mine", "shared"];
+
     public const string DefaultSort = "-updated";
     public const int MaxSearchLength = 200;
     public const int MaxTags = 20;
@@ -21,6 +23,9 @@ public sealed record DocumentQuery
 
     public string? Owner { get; init; }
 
+    /// <summary><c>mine</c> (my private documents) or <c>shared</c>; null for everything I can read (spec 016).</summary>
+    public string? Visibility { get; init; }
+
     public string[] Tags { get; init; } = [];
 
     public string? EffectiveFrom { get; init; }
@@ -32,13 +37,13 @@ public sealed record DocumentQuery
     public int Page { get; init; } = 1;
 
     public bool HasFilters =>
-        !string.IsNullOrEmpty(Q) || Status is not null || Language is not null || Owner is not null
+        !string.IsNullOrEmpty(Q) || Status is not null || Language is not null || Owner is not null || Visibility is not null
         || Tags.Length > 0 || EffectiveFrom is not null || EffectiveTo is not null;
 
     /// <summary>Builds a query from raw URL values, dropping every invalid one so a hand-edited URL still shows a list.</summary>
     public static DocumentQuery FromRaw(
         string? q, string? status, string? language, string? owner, IEnumerable<string>? tags,
-        string? effectiveFrom, string? effectiveTo, string? sort, string? page)
+        string? effectiveFrom, string? effectiveTo, string? sort, string? page, string? visibility = null)
     {
         var from = ValidDate(effectiveFrom);
         var to = ValidDate(effectiveTo);
@@ -55,6 +60,7 @@ public sealed record DocumentQuery
             Status = status is not null && Statuses.Contains(status) ? status : null,
             Language = language is { Length: 2 } && language.All(char.IsAsciiLetter) ? language.ToLowerInvariant() : null,
             Owner = string.IsNullOrWhiteSpace(owner) ? null : owner,
+            Visibility = visibility is not null && Visibilities.Contains(visibility) ? visibility : null,
             Tags = [.. (tags ?? []).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t.Trim().ToLowerInvariant()).Distinct().Take(MaxTags)],
             EffectiveFrom = from,
             EffectiveTo = to,
@@ -84,6 +90,11 @@ public sealed record DocumentQuery
         if (Owner is not null)
         {
             yield return new("owner", Owner);
+        }
+
+        if (Visibility is not null)
+        {
+            yield return new("visibility", Visibility);
         }
 
         foreach (var tag in Tags)

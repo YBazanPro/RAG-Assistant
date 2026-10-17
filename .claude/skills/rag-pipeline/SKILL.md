@@ -17,7 +17,7 @@ Spec 012 is the contract; this skill says where things live and what not to brea
 - **Stages:**
   1. `question.accepted`
   2. the follow-up rewrite (spec 014, below), then `retrieval.started {query}`
-  3. `IDocumentSearch.SearchAsync` under the scope (below), then `retrieval.completed` with numbered sources (each with its `score`), the `scope`, the `leftOut` documents, the thresholds and `retrievalMs`
+  3. `IDocumentSearch.SearchAsync` under the scope (below) and for the conversation owner's `sub` (spec 016: private documents of others never enter retrieval; retries use the owner too), then `retrieval.completed` with numbered sources (each with its `score`), the `scope`, the `leftOut` documents, the thresholds and `retrievalMs`
   4. `NoEvidence` → refuse without a model call
   5. otherwise build the prompt and stream it through the filter as `answer.delta` events
   6. one finalize transaction (message, snapshots, trace), then `answer.completed`
@@ -34,7 +34,7 @@ Spec 012 is the contract; this skill says where things live and what not to brea
 
 - **Scope** is stored on the conversation (`ScopeDocumentIds`, `ScopeTags`, set by `PUT …/scope`). `AcceptQuestion` copies it onto the user message (`FilterDocumentIds`, `FilterTags`); a request's own `tags` replace the scope tags for that question. Retry reads the filters back from the user message, so a retried answer keeps its scope.
   - Documents narrow first, tags (all-of, like spec 011) narrow within them. `SearchFilters.DocumentIds`: null means no restriction, an empty list means nothing, so a scope whose documents are all gone refuses instead of widening.
-  - `IDocumentCatalog.CheckAsync` says which chosen documents exist, are searchable and what they are called. The pipeline only uses it to record `UnavailableDocumentIds`; retrieval skips unavailable documents by itself.
+  - `IDocumentCatalog.CheckAsync` (given the viewer's `sub`; a document the viewer cannot read looks like an unknown id, with no title) says which chosen documents exist, are searchable and what they are called. The pipeline only uses it to record `UnavailableDocumentIds`; retrieval skips unavailable documents by itself.
 - **Activity** is read from the trace of the latest attempt (`GET …/messages/{id}/activity`): question, rewrite, scope, retrieval (passages with scores, thresholds, outcome), answer. `RetrievedPassageTrace` carries document id, title, version, section and pages so no lookup is needed; it never holds passage text. The live panel is built from the stream events, the stored one from this endpoint.
 - Adding a field to `retrieval.completed` or the trace: update `AnswerEvents`, `Trace(...)`, `GetActivity`, the client `Models.cs` and `LiveAnswer.ToActivity`, and keep the activity free of prompt text, passage text and token counts (AC-14).
 

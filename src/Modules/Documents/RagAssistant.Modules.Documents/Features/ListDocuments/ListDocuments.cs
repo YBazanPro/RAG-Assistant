@@ -17,6 +17,8 @@ internal static class ListDocuments
 
     private static readonly string[] Statuses = ["active", "queued", "processing", "failed", "archived"];
 
+    private static readonly string[] Visibilities = ["shared", "private", "mine"];
+
     private static readonly string[] Sorts = ["title", "-title", "updated", "-updated", "effectiveDate", "-effectiveDate"];
 
     // Raw strings on purpose: a malformed value must surface as a validation.failed field error (AC-7).
@@ -30,7 +32,9 @@ internal static class ListDocuments
         string? EffectiveTo,
         string? Sort,
         string? Page,
-        string? PageSize) : IRequest<Result<Page<DocumentSummary>>>;
+        string? PageSize,
+        string ViewerSub,
+        string? Visibility = null) : IRequest<Result<Page<DocumentSummary>>>;
 
     public sealed record DocumentSummary(
         Guid Id,
@@ -44,7 +48,9 @@ internal static class ListDocuments
         int? LatestVersionNumber,
         int? PassageCount,
         DateTimeOffset LastActivityAt,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        string Visibility,
+        bool IsOwner);
 
     public sealed class Validator : AbstractValidator<Query>
     {
@@ -87,6 +93,9 @@ internal static class ListDocuments
             RuleFor(x => x.Sort)
                 .Must(v => string.IsNullOrWhiteSpace(v) || Sorts.Contains(v))
                 .WithMessage($"'sort' must be one of: {string.Join(", ", Sorts)}.");
+            RuleFor(x => x.Visibility)
+                .Must(v => string.IsNullOrWhiteSpace(v) || Visibilities.Contains(v))
+                .WithMessage($"'visibility' must be one of: {string.Join(", ", Visibilities)}.");
         }
     }
 
@@ -100,6 +109,7 @@ internal static class ListDocuments
             // One query: the latest and active version facts are correlated subqueries, never loaded entities.
             var rows = db.Documents
                 .AsNoTracking()
+                .ReadableBy(query.ViewerSub)
                 .Select(d => new
                 {
                     Doc = d,
@@ -128,6 +138,14 @@ internal static class ListDocuments
             rows = string.IsNullOrEmpty(status)
                 ? rows.Where(x => x.Status != "archived")
                 : rows.Where(x => x.Status == status);
+
+            var viewer = query.ViewerSub;
+            rows = query.Visibility?.Trim() switch
+            {
+                "shared" => rows.Where(x => x.Doc.Visibility == Visibility.Shared),
+                "private" or "mine" => rows.Where(x => x.Doc.Visibility == Visibility.Private && x.Doc.CreatedBy == viewer),
+                _ => rows,
+            };
 
             var title = query.Q?.Trim();
             if (!string.IsNullOrEmpty(title))
@@ -183,7 +201,8 @@ internal static class ListDocuments
                 .Take(pageSize)
                 .Select(x => new DocumentSummary(
                     x.Doc.Id, x.Doc.Title, x.Doc.OwnerName, x.Doc.Language, x.Doc.Tags, x.Doc.EffectiveDate, x.Status,
-                    x.ActiveNumber, x.LatestNumber, x.PassageCount, x.LastActivity, x.Doc.CreatedAt))
+                    x.ActiveNumber, x.LatestNumber, x.PassageCount, x.LastActivity, x.Doc.CreatedAt,
+                    x.Doc.Visibility == Visibility.Private ? "private" : "shared", x.Doc.CreatedBy == viewer))
                 .ToListAsync(cancellationToken);
 
             return new Page<DocumentSummary>(items, page, pageSize, total);

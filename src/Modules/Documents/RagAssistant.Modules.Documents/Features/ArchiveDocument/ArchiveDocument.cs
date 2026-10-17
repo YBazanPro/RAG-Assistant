@@ -21,6 +21,7 @@ internal static partial class ArchiveDocument
 
             // Conditional on Status only, so a running ingestion (which writes ActiveVersionId) and a metadata edit (Revision) are untouched.
             var changed = await db.Documents
+                .ReadableBy(command.UserId)
                 .Where(d => d.Id == command.DocumentId && d.Status == DocumentStatus.Active)
                 .ExecuteUpdateAsync(
                     s => s.SetProperty(d => d.Status, DocumentStatus.Archived)
@@ -29,7 +30,7 @@ internal static partial class ArchiveDocument
                     cancellationToken);
             if (changed == 0)
             {
-                return await db.Documents.AnyAsync(d => d.Id == command.DocumentId, cancellationToken)
+                return await db.Documents.ReadableBy(command.UserId).AnyAsync(d => d.Id == command.DocumentId, cancellationToken)
                     ? DocumentErrors.AlreadyArchived
                     : DocumentErrors.NotFound;
             }

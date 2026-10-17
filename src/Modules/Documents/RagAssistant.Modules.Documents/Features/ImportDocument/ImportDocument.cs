@@ -29,14 +29,21 @@ internal static partial class ImportDocument
         string? Source,
         int FileCount,
         UploadedFile? File,
-        string UserId) : IRequest<Result<Response>>;
+        string UserId,
+        string? Visibility = null) : IRequest<Result<Response>>;
 
     public sealed record Response(Guid DocumentId, Guid VersionId, int VersionNumber, Guid IngestionRunId, string Status);
 
     public sealed class Validator : AbstractValidator<Command>
     {
-        public Validator() =>
+        public Validator()
+        {
             this.AddMetadataRules(c => c.Title, c => c.OwnerName, c => c.Language, c => c.Tags, c => c.EffectiveDate, c => c.Source);
+
+            RuleFor(c => c.Visibility)
+                .Must(v => DocumentAccess.TryParseVisibility(v, out _))
+                .WithMessage("Visibility must be 'shared' or 'private'.");
+        }
     }
 
     internal sealed partial class Handler(
@@ -58,7 +65,7 @@ internal static partial class ImportDocument
 
             var accepted = intake.Value;
             var hash = accepted.Hash;
-            var existingId = await FindActiveDuplicateAsync(hash, cancellationToken);
+            var existingId = await FindActiveDuplicateAsync(hash, command.UserId, cancellationToken);
             if (existingId is not null)
             {
                 return Duplicate(existingId);
@@ -67,6 +74,7 @@ internal static partial class ImportDocument
             // The blob goes in place before the row that references it; a failure after this leaves an unreferenced file, which is harmless.
             var storageKey = accepted.Staged is null ? null : await accepted.Staged.CommitAsync(cancellationToken);
 
+            _ = DocumentAccess.TryParseVisibility(command.Visibility, out var visibility); // the validator already accepted it
             var now = clock.GetUtcNow();
             var document = new Document
             {
@@ -77,6 +85,7 @@ internal static partial class ImportDocument
                 Tags = DocumentMetadata.NormalizeTags(command.Tags),
                 Source = string.IsNullOrWhiteSpace(command.Source) ? null : command.Source.Trim(),
                 Status = DocumentStatus.Active,
+                Visibility = visibility ?? Visibility.Shared,
                 LatestContentHash = hash,
                 CreatedAt = now,
                 CreatedBy = command.UserId,
@@ -135,7 +144,7 @@ internal static partial class ImportDocument
             {
                 // A concurrent import of the same content won the race between the check above and this insert.
                 db.ChangeTracker.Clear();
-                return Duplicate(await FindActiveDuplicateAsync(hash, cancellationToken));
+                return Duplicate(await FindActiveDuplicateAsync(hash, command.UserId, cancellationToken));
             }
 
             // After commit: if the process dies before this line the run is still Queued in the table and startup recovery picks it up.
@@ -145,8 +154,9 @@ internal static partial class ImportDocument
             return new Response(document.Id, version.Id, version.Number, run.Id, "queued");
         }
 
-        private Task<Guid?> FindActiveDuplicateAsync(string hash, CancellationToken cancellationToken) =>
+        private Task<Guid?> FindActiveDuplicateAsync(string hash, string viewerSub, CancellationToken cancellationToken) =>
             db.Documents
+                .ReadableBy(viewerSub)
                 .Where(d => d.Status == DocumentStatus.Active && d.LatestContentHash == hash)
                 .Select(d => (Guid?)d.Id)
                 .FirstOrDefaultAsync(cancellationToken);

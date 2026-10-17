@@ -1,0 +1,12 @@
+@* Private documents are marked in text and with a glyph; shared ones, the usual case, stay unmarked to keep lists quiet (spec 016). *@
+@if (Visibility == "private")
+{
+    <FluentBadge Appearance="BadgeAppearance.Outline" Class="visibility-badge" data-visibility="private" title="Only the person who imported it can read it">
+        <span class="status-icon" aria-hidden="true">🔒</span>
+        <span>Private</span>
+    </FluentBadge>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Visibility { get; set; } = "shared";
+}

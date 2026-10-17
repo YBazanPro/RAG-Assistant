@@ -11,7 +11,7 @@ namespace RagAssistant.Modules.Documents.Common;
 internal static class LifecycleResponses
 {
     public static async Task<IResult> DocumentOrProblemAsync(
-        Result<Guid> result, HttpContext http, ModuleMediator mediator, DocumentsMetrics metrics, CancellationToken cancellationToken)
+        Result<Guid> result, string viewerSub, HttpContext http, ModuleMediator mediator, DocumentsMetrics metrics, CancellationToken cancellationToken)
     {
         if (result.IsFailure)
         {
@@ -19,7 +19,7 @@ internal static class LifecycleResponses
             return result.ToHttpResult();
         }
 
-        var document = await mediator.Send(new GetDocument.Query(result.Value), cancellationToken);
+        var document = await mediator.Send(new GetDocument.Query(result.Value, viewerSub), cancellationToken);
         if (document.IsSuccess)
         {
             http.Response.Headers[HeaderNames.ETag] = DocumentETag.Format(document.Value.Revision);

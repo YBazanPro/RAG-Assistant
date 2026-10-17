@@ -45,7 +45,8 @@ public sealed class DocumentEditTests(PostgresFixture postgres)
         await Assert.That(json.GetProperty("source").GetString()).IsEqualTo("intranet");
         await Assert.That(json.GetProperty("updatedBy").GetString()).IsEqualTo("test-Maintainer");
         await Assert.That(json.GetProperty("updatedAt").GetDateTimeOffset()).IsGreaterThan(before.GetProperty("updatedAt").GetDateTimeOffset());
-        await Assert.That(json.GetProperty("createdBy").GetString()).IsEqualTo("test-ContentOwner");
+        // The raw sub of the importer goes only to the importer (spec 016).
+        await Assert.That(json.GetProperty("createdBy").ValueKind).IsEqualTo(JsonValueKind.Null);
         await Assert.That(json.GetProperty("createdAt").GetDateTimeOffset()).IsEqualTo(before.GetProperty("createdAt").GetDateTimeOffset());
         await Assert.That(await CountAsync(app, "document_versions", doc.DocumentId)).IsEqualTo(versions);
         await Assert.That(await CountAsync(app, "passages", doc.DocumentId)).IsEqualTo(passages);

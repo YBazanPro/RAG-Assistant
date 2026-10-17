@@ -163,7 +163,9 @@ Order inside the phase matters: **the refusal path first.** It needs no LLM, pro
 
 | 3.7 | ✅ **Scope, activity panel, layout** ([spec 015](specs/015-chat-scope-activity-and-layout.md), implemented) *(added 2026-10-16)* | Per-conversation scope (documents + tags), an activity panel per answer (live and from the stored trace), wider chat page with distinct user and assistant messages. | KnowledgeSeeker |
 
-Proposed alongside: [ADR 0009](adr/0009-document-visibility.md), private and shared documents without tenants (accepted 2026-10-16; its spec is not written yet).
+| 3.8 | ✅ **Private and shared documents** ([spec 016](specs/016-private-and-shared-documents.md), implemented) *(added 2026-10-16)* | `Visibility` on documents, owner-only private content enforced inside the Documents module on every read path and in `IDocumentSearch`/`IDocumentCatalog`; import and edit choice, badge in the list. | ContentOwner / KnowledgeSeeker |
+
+Decision record: [ADR 0009](adr/0009-document-visibility.md), private and shared documents without tenants (accepted 2026-10-16).
 
 **Kit:** `/spec`, `/plan`, `/tdd`, `resilience` (provider calls), `error-handling`. **Extra:** `technology-selection` (dotnet-ai) when wiring the provider from D1; `author-component`, `coordinate-components`, `use-js-interop` (auto-scroll, copy reference) for the UI.
 **Tests:** fake `IChatClient` that streams scripted tokens and citation markers. Assert the **event sequence** and the persisted snapshot.

@@ -1,3 +1,5 @@
+using RagAssistant.SharedKernel.Common.Security;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -18,9 +20,10 @@ public sealed class ListPassagesEndpoint : IEndpointGroup
                 string? page,
                 string? pageSize,
                 string? focus,
+                ClaimsPrincipal user,
                 ModuleMediator mediator,
                 CancellationToken cancellationToken) =>
-                (await mediator.Send(new ListPassages.Query(documentId, number, page, pageSize, focus), cancellationToken)).ToHttpResult())
+                (await mediator.Send(new ListPassages.Query(documentId, number, page, pageSize, focus, user.GetSubject()), cancellationToken)).ToHttpResult())
             .RequireAuthorization(PolicyNames.KnowledgeSeeker)
             .WithName("ListDocumentPassages")
             .Produces<ListPassages.Response>();

@@ -16,7 +16,9 @@ public sealed record DocumentSummary(
     int? LatestVersionNumber,
     int? PassageCount,
     DateTimeOffset LastActivityAt,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string Visibility = "shared",
+    bool IsOwner = false);
 
 public sealed record FacetValue(string Value, int Count);
 
@@ -57,10 +59,12 @@ public sealed record DocumentInfo(
     LatestVersionInfo? LatestVersion,
     RunInfo? LatestRun,
     DateTimeOffset CreatedAt,
-    string CreatedBy,
+    string? CreatedBy,
     DateTimeOffset UpdatedAt,
-    string UpdatedBy,
-    int Revision = 0);
+    string? UpdatedBy,
+    int Revision = 0,
+    string Visibility = "shared",
+    bool IsOwner = false);
 
 public sealed record VersionItem(
     Guid Id,
@@ -73,7 +77,7 @@ public sealed record VersionItem(
     int? PassageCount,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    string CreatedBy,
+    string? CreatedBy,
     DateTimeOffset? IndexedAt,
     RunInfo[] Runs,
     int[]? PagesWithoutText = null);
@@ -127,7 +131,7 @@ public sealed record IngestionStageEvent(
 }
 
 /// <param name="EffectiveDate">Raw <c>yyyy-MM-dd</c> text or null.</param>
-public sealed record MetadataUpdate(string Title, string OwnerName, string Language, string[] Tags, string? EffectiveDate, string? Source);
+public sealed record MetadataUpdate(string Title, string OwnerName, string Language, string[] Tags, string? EffectiveDate, string? Source, string? Visibility = null);
 
 /// <summary>A failed API call. <see cref="Status"/> is 0 when the API could not be reached at all.</summary>
 public sealed record ApiError(

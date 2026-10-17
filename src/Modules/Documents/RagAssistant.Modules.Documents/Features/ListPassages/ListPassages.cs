@@ -13,7 +13,7 @@ internal static class ListPassages
     public const int MaxPageSize = 100;
 
     // Raw strings on purpose, as in ListDocuments: malformed values are validation.failed field errors.
-    public sealed record Query(Guid DocumentId, int Number, string? Page, string? PageSize, string? Focus)
+    public sealed record Query(Guid DocumentId, int Number, string? Page, string? PageSize, string? Focus, string ViewerSub)
         : IRequest<Result<Response>>;
 
     public sealed record PassageItem(
@@ -53,6 +53,7 @@ internal static class ListPassages
         public async ValueTask<Result<Response>> Handle(Query query, CancellationToken cancellationToken)
         {
             var document = await db.Documents.AsNoTracking()
+                .ReadableBy(query.ViewerSub)
                 .Where(d => d.Id == query.DocumentId)
                 .Select(d => new { d.ActiveVersionId })
                 .FirstOrDefaultAsync(cancellationToken);

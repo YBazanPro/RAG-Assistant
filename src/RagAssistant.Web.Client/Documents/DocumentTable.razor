@@ -4,6 +4,7 @@
     <TemplateColumn ColumnId="title" Title="Title" Sortable="true" SortBy="KeepOrder" IsDefaultSortColumn="@IsSorted("title")"
                     InitialSortDirection="@InitialDirection("title")">
         <FluentLink Href="@($"documents/{context.Id}")" title="@context.Title">@context.Title</FluentLink>
+        <VisibilityBadge Visibility="@context.Visibility" />
     </TemplateColumn>
     <TemplateColumn Title="Status">
         <DocumentStatusBadge Status="@context.Status" />

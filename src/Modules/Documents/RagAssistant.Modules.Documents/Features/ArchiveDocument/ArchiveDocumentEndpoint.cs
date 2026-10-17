@@ -29,5 +29,5 @@ public sealed class ArchiveDocumentEndpoint : IEndpointGroup
         DocumentsMetrics metrics,
         CancellationToken cancellationToken) =>
         await LifecycleResponses.DocumentOrProblemAsync(
-            await mediator.Send(new ArchiveDocument.Command(documentId, user.GetSubject()), cancellationToken), http, mediator, metrics, cancellationToken);
+            await mediator.Send(new ArchiveDocument.Command(documentId, user.GetSubject()), cancellationToken), user.GetSubject(), http, mediator, metrics, cancellationToken);
 }

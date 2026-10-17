@@ -91,6 +91,8 @@ else
 
     [SupplyParameterFromQuery(Name = "owner")] public string? Owner { get; set; }
 
+    [SupplyParameterFromQuery(Name = "visibility")] public string? Visibility { get; set; }
+
     [SupplyParameterFromQuery(Name = "tags")] public string[]? Tags { get; set; }
 
     [SupplyParameterFromQuery(Name = "effectiveFrom")] public string? EffectiveFrom { get; set; }
@@ -103,7 +105,7 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        _query = DocumentQuery.FromRaw(Q, Status, Language, Owner, Tags, EffectiveFrom, EffectiveTo, Sort, PageNumber);
+        _query = DocumentQuery.FromRaw(Q, Status, Language, Owner, Tags, EffectiveFrom, EffectiveTo, Sort, PageNumber, Visibility);
         if (_started && _query.ToQueryString() != _loadedKey)
         {
             await LoadListAsync(showLoading: false);

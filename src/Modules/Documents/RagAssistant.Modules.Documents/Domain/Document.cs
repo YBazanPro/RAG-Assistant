@@ -19,6 +19,9 @@ internal sealed class Document
 
     public DocumentStatus Status { get; set; }
 
+    /// <summary>Shared: every signed-in user; Private: only <see cref="CreatedBy"/> (ADR 0009). Changed only by the owner.</summary>
+    public Visibility Visibility { get; set; } = Visibility.Shared;
+
     /// <summary>The indexed version that is currently retrievable; null until the first version is indexed.</summary>
     public Guid? ActiveVersionId { get; set; }
 

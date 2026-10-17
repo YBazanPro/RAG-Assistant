@@ -18,7 +18,7 @@ internal static partial class DownloadVersionFile
 
     public static readonly Error FileMissing = Error.NotFound("documents.file_missing", "The original file is no longer available.");
 
-    public sealed record Query(Guid DocumentId, int Number) : IRequest<Result<Response>>;
+    public sealed record Query(Guid DocumentId, int Number, string ViewerSub) : IRequest<Result<Response>>;
 
     /// <summary>Exactly one of <paramref name="Stream"/> and <paramref name="Text"/> is set. The caller owns the stream.</summary>
     public sealed record Response(string FileName, string ContentType, bool Inline, Stream? Stream, byte[]? Text);
@@ -28,7 +28,7 @@ internal static partial class DownloadVersionFile
     {
         public async ValueTask<Result<Response>> Handle(Query query, CancellationToken cancellationToken)
         {
-            if (!await db.Documents.AsNoTracking().AnyAsync(d => d.Id == query.DocumentId, cancellationToken))
+            if (!await db.Documents.AsNoTracking().ReadableBy(query.ViewerSub).AnyAsync(d => d.Id == query.DocumentId, cancellationToken))
             {
                 return DocumentErrors.NotFound;
             }

@@ -42,6 +42,7 @@
             </MetaRow>
             <MetaRow Label="Effective date">@(Document.EffectiveDate is { } date ? Formatting.Date(date) : "—")</MetaRow>
             <MetaRow Label="Source">@(string.IsNullOrWhiteSpace(Document.Source) ? "—" : Document.Source)</MetaRow>
+            <MetaRow Label="Visibility">@(Document.Visibility == "private" ? "Private: only the person who imported it can read it" : "Shared: everyone who signs in can read it")</MetaRow>
             @if (Document.LatestVersion is { } latest)
             {
                 <MetaRow Label="File">
@@ -68,6 +69,14 @@
                               Value="@ParseDate(_effectiveDate)" ValueChanged="@(d => _effectiveDate = d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" />
             <FluentTextInput Id="md-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="Saving"
                              @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
+            @if (Document.IsOwner)
+            {
+                <VisibilityChoice @bind-Value="_visibility" Disabled="Saving" Name="md-visibility" />
+            }
+            else
+            {
+                <FluentText Class="field-hint">Only the person who imported this document can change who can read it.</FluentText>
+            }
             <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8">
                 <FluentButton Appearance="ButtonAppearance.Primary" Disabled="Saving" OnClick="SaveAsync">
                     @if (Saving)
@@ -80,8 +89,8 @@
             </FluentStack>
         }
 
-        <MetaRow Label="Created"><time title="@Formatting.UtcTooltip(Document.CreatedAt)">@Formatting.Local(Document.CreatedAt)</time> by @Document.CreatedBy</MetaRow>
-        <MetaRow Label="Updated"><time title="@Formatting.UtcTooltip(Document.UpdatedAt)">@Formatting.Local(Document.UpdatedAt)</time> by @Document.UpdatedBy</MetaRow>
+        <MetaRow Label="Created"><time title="@Formatting.UtcTooltip(Document.CreatedAt)">@Formatting.Local(Document.CreatedAt)</time> @(Document.CreatedBy is null ? "" : " by " + Document.CreatedBy)</MetaRow>
+        <MetaRow Label="Updated"><time title="@Formatting.UtcTooltip(Document.UpdatedAt)">@Formatting.Local(Document.UpdatedAt)</time> @(Document.UpdatedBy is null ? "" : " by " + Document.UpdatedBy)</MetaRow>
 
         @if (CanEdit && !IsEditing)
         {
@@ -91,6 +100,14 @@
         }
     </FluentStack>
 </FluentCard>
+
+@* Only present while it is asked, so a page with its own confirm dialog still finds that one first. *@
+@if (_confirmVisibility)
+{
+    <ConfirmDialog Open="true" Title="@(_visibility == "private" ? "Make private" : "Share with everyone")"
+                   Message="@(_visibility == "private" ? "Other people will no longer find this document or get answers from it. Answers they already received keep their citations." : "Everyone who signs in will be able to search and read it.")"
+                   ConfirmLabel="@(_visibility == "private" ? "Make private" : "Share")" OnConfirm="ConfirmVisibilityAsync" OnCancel="CancelVisibility" />
+}
 
 @code {
     private enum Mode { View, Editing, Saving, Conflict }
@@ -102,6 +119,8 @@
     private string? _tags = "";
     private string? _effectiveDate;
     private string? _source;
+    private string _visibility = "shared";
+    private bool _confirmVisibility;
     private string? _formError;
     private bool _saved;
     private Dictionary<string, string[]> _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
@@ -137,6 +156,7 @@
         _tags = string.Join(", ", Document.Tags);
         _effectiveDate = Document.EffectiveDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         _source = Document.Source;
+        _visibility = Document.Visibility;
         _formError = null;
         _saved = false;
         _fieldErrors = new(StringComparer.OrdinalIgnoreCase);
@@ -207,11 +227,32 @@
             return;
         }
 
+        // Changing who can read a document is announced before it happens (spec 016).
+        if (Document.IsOwner && _visibility != Document.Visibility)
+        {
+            _confirmVisibility = true;
+            return;
+        }
+
+        await SaveConfirmedAsync();
+    }
+
+    private void CancelVisibility() => _confirmVisibility = false;
+
+    private async Task ConfirmVisibilityAsync()
+    {
+        _confirmVisibility = false;
+        await SaveConfirmedAsync();
+    }
+
+    private async Task SaveConfirmedAsync()
+    {
         _formError = null;
         _mode = Mode.Saving;
         var update = new MetadataUpdate(
             (_title ?? "").Trim(), (_owner ?? "").Trim(), (_language ?? "").Trim(), ParseTags(),
-            string.IsNullOrWhiteSpace(_effectiveDate) ? null : _effectiveDate, string.IsNullOrWhiteSpace(_source) ? null : _source.Trim());
+            string.IsNullOrWhiteSpace(_effectiveDate) ? null : _effectiveDate, string.IsNullOrWhiteSpace(_source) ? null : _source.Trim(),
+            Document.IsOwner ? _visibility : null);
 
         var result = await Api.UpdateAsync(Document.Id, Document.Revision, update, CancellationToken.None);
         if (result.IsSuccess)
@@ -232,6 +273,9 @@
         {
             case { Status: 401 }:
                 _ = OnSessionExpired.InvokeAsync();
+                break;
+            case { Status: 403, Code: "documents.visibility_owner_only" }:
+                _formError = "Only the person who imported this document can change who can read it.";
                 break;
             case { Status: 403 }:
                 _formError = "You are not allowed to edit documents.";

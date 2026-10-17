@@ -42,7 +42,7 @@ internal static class SetScope
             }
 
             var documentIds = (command.DocumentIds ?? []).Distinct().ToArray();
-            var availability = await catalog.CheckAsync(documentIds, cancellationToken);
+            var availability = await catalog.CheckAsync(documentIds, command.UserId, cancellationToken);
             var unknown = documentIds.Where(id => !availability.Known.Contains(id)).ToArray();
             if (unknown.Length > 0)
             {

@@ -32,7 +32,8 @@ public sealed class GetDocumentTests(RagAssistantAppFactory factory)
         await Assert.That(body.GetProperty("ownerName").GetString()).IsEqualTo("Finance");
         await Assert.That(body.GetProperty("status").GetString()).IsEqualTo("queued");
         await Assert.That(body.GetProperty("activeVersionId").ValueKind).IsEqualTo(JsonValueKind.Null);
-        await Assert.That(body.GetProperty("createdBy").GetString()).IsEqualTo("test-ContentOwner");
+        // The raw sub of the importer goes only to the importer (spec 016).
+        await Assert.That(body.GetProperty("createdBy").ValueKind).IsEqualTo(JsonValueKind.Null);
 
         var latest = body.GetProperty("latestVersion");
         await Assert.That(latest.GetProperty("id").GetGuid()).IsEqualTo(versionId);

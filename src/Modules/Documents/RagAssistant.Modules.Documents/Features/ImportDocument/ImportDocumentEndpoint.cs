@@ -45,7 +45,8 @@ public sealed class ImportDocumentEndpoint : IEndpointGroup
             Source: form?.Field("source"),
             FileCount: form?.FileCount ?? 0,
             File: form?.File,
-            UserId: user.GetSubject());
+            UserId: user.GetSubject(),
+            Visibility: form?.Field("visibility"));
 
         var result = await mediator.Send(command, cancellationToken);
         if (result.IsFailure)

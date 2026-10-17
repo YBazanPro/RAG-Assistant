@@ -1,3 +1,5 @@
+using RagAssistant.SharedKernel.Common.Security;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -25,12 +27,13 @@ public sealed class StreamIngestionEventsEndpoint : IEndpointGroup
     private static async Task<IResult> StreamAsync(
         Guid documentId,
         [FromHeader(Name = "Last-Event-ID")] string? lastEventId,
+        ClaimsPrincipal user,
         DocumentsDbContext db,
         IOptions<IngestionOptions> options,
         TimeProvider clock,
         CancellationToken cancellationToken)
     {
-        var target = await StreamIngestionEvents.ResolveAsync(db, documentId, cancellationToken);
+        var target = await StreamIngestionEvents.ResolveAsync(db, documentId, user.GetSubject(), cancellationToken);
         return target.ToHttpResult(t => TypedResults.ServerSentEvents(
             StreamIngestionEvents.ReadAsync(db, options.Value, clock, t, StreamIngestionEvents.ParseLastEventId(lastEventId), cancellationToken)));
     }

@@ -51,6 +51,7 @@
                                  @bind-Value="_tags" Message="@Error("tags")" MessageCondition="@(_ => Error("tags") is not null)" MessageState="MessageState.Error" />
                 <FluentDatePicker TValue="DateTime?" Id="up-effective" Label="Effective date" Disabled="_busy"
                                   Value="@ParseDate(_effectiveDate)" ValueChanged="@(d => _effectiveDate = d?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" />
+                <VisibilityChoice @bind-Value="_visibility" Disabled="_busy" Name="up-visibility" />
                 <FluentTextInput Id="up-source" Label="Source" MaxLength="500" Immediate="true" ImmediateDelay="0" Disabled="_busy"
                                  @bind-Value="_source" Message="@Error("source")" MessageCondition="@(_ => Error("source") is not null)" MessageState="MessageState.Error" />
                 }
@@ -105,6 +106,7 @@
     private string? _tags = "";
     private string? _effectiveDate;
     private string? _source;
+    private string _visibility = "shared";
     private string? _fileError;
     private string? _formError;
     private Guid? _duplicateId;
@@ -241,6 +243,7 @@
             new("title", (_title ?? "").Trim()),
             new("ownerName", (_owner ?? "").Trim()),
             new("language", (_language ?? "").Trim()),
+            new("visibility", _visibility),
         };
         fields.AddRange(ParseTags().Select(tag => new KeyValuePair<string, string>("tags", tag)));
         if (!string.IsNullOrWhiteSpace(_effectiveDate))

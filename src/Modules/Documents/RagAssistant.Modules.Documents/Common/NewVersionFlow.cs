@@ -17,9 +17,10 @@ internal static class NewVersionFlow
     internal sealed record Source(
         string? Content, string? StorageKey, string Hash, SourceFormat Format, string FileName, string? ContentType, int SizeBytes, string? NewLatestHash);
 
-    public static async Task<Result<Guard>> GuardAsync(DocumentsDbContext db, Guid documentId, CancellationToken cancellationToken)
+    public static async Task<Result<Guard>> GuardAsync(DocumentsDbContext db, Guid documentId, string viewerSub, CancellationToken cancellationToken)
     {
         var row = await db.Documents.AsNoTracking()
+            .ReadableBy(viewerSub)
             .Where(d => d.Id == documentId)
             .Select(d => new
             {
@@ -49,8 +50,9 @@ internal static class NewVersionFlow
     }
 
     public static async Task<Guid?> FindOtherActiveWithHashAsync(
-        DocumentsDbContext db, Guid documentId, string hash, CancellationToken cancellationToken) =>
+        DocumentsDbContext db, Guid documentId, string hash, string viewerSub, CancellationToken cancellationToken) =>
         await db.Documents.AsNoTracking()
+            .ReadableBy(viewerSub)
             .Where(d => d.Id != documentId && d.Status == DocumentStatus.Active && d.LatestContentHash == hash)
             .Select(d => (Guid?)d.Id)
             .FirstOrDefaultAsync(cancellationToken);
@@ -133,7 +135,7 @@ internal static class NewVersionFlow
         catch (Exception ex) when (UniqueViolations.IsActiveContentHash(ex))
         {
             db.ChangeTracker.Clear();
-            return DocumentErrors.DuplicateContent(await FindOtherActiveWithHashAsync(db, documentId, source.Hash, cancellationToken));
+            return DocumentErrors.DuplicateContent(await FindOtherActiveWithHashAsync(db, documentId, source.Hash, userId, cancellationToken));
         }
 
         // After commit: if the process dies before this line the run is still Queued in the table and startup recovery picks it up.

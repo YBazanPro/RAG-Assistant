@@ -119,13 +119,13 @@ internal sealed partial class AnswerPipeline(
         if (answer.DocumentIds.Length > 0)
         {
             // The scope only decides what is shown: retrieval itself already skips documents that are not active and indexed.
-            var availability = await catalog.CheckAsync(answer.DocumentIds, aborted);
+            var availability = await catalog.CheckAsync(answer.DocumentIds, answer.OwnerSub, aborted);
             attempt.UnavailableDocumentIds = [.. answer.DocumentIds.Where(id => !availability.Searchable.Contains(id))];
         }
 
         var filters = new SearchFilters(
             answer.Language, answer.Tags.Length > 0 ? answer.Tags : null, answer.DocumentIds.Length > 0 ? answer.DocumentIds : null);
-        var result = await search.SearchAsync(query, filters, retrievalOptions.Value.TopK, aborted);
+        var result = await search.SearchAsync(query, filters, retrievalOptions.Value.TopK, answer.OwnerSub, aborted);
         attempt.RetrievalMs = Milliseconds(retrievalStarted);
         if (result.IsFailure)
         {
@@ -324,7 +324,7 @@ internal sealed partial class AnswerPipeline(
         await FinalizeAsync(attempt, status, reason, null, text, snapshots);
         await events.WriteAsync(AnswerEvents.Item(
             AnswerEvents.AnswerCompletedType,
-            new AnswerEvents.AnswerCompleted(status.ToApi(), reason?.ToApi(), [.. snapshots.Select(CitationView.From)])));
+            new AnswerEvents.AnswerCompleted(status.ToApi(), reason?.ToApi(), [.. snapshots.Select(s => CitationView.From(s))])));
     }
 
     private async Task FailAsync(Attempt attempt, string code, ChannelWriter<SseItem<string>> events)

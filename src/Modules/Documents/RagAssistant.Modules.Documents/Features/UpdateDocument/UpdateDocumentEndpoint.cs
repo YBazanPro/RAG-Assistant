@@ -13,7 +13,7 @@ namespace RagAssistant.Modules.Documents.Features.UpdateDocument;
 
 public sealed class UpdateDocumentEndpoint : IEndpointGroup
 {
-    public sealed record Body(string? Title, string? OwnerName, string? Language, string[]? Tags, string? EffectiveDate, string? Source);
+    public sealed record Body(string? Title, string? OwnerName, string? Language, string[]? Tags, string? EffectiveDate, string? Source, string? Visibility = null);
 
     public void Map(RouteGroupBuilder api)
     {
@@ -35,9 +35,9 @@ public sealed class UpdateDocumentEndpoint : IEndpointGroup
     {
         var expected = DocumentETag.TryParse(http.Request.Headers[HeaderNames.IfMatch].ToString(), out var revision) ? revision : (int?)null;
         var command = new UpdateDocument.Command(
-            documentId, expected, body.Title, body.OwnerName, body.Language, body.Tags, body.EffectiveDate, body.Source, user.GetSubject());
+            documentId, expected, body.Title, body.OwnerName, body.Language, body.Tags, body.EffectiveDate, body.Source, user.GetSubject(), body.Visibility);
 
         return await LifecycleResponses.DocumentOrProblemAsync(
-            await mediator.Send(command, cancellationToken), http, mediator, metrics, cancellationToken);
+            await mediator.Send(command, cancellationToken), user.GetSubject(), http, mediator, metrics, cancellationToken);
     }
 }

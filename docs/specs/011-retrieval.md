@@ -127,7 +127,7 @@ The margins are small: 0.528 against 0.574 at the floor. Phase 5 must re-measure
 public interface IDocumentSearch
 {
     /// <summary>Ranked evidence for a question. Never throws for an unavailable model: returns retrieval.embedding_unavailable.</summary>
-    Task<Result<SearchResult>> SearchAsync(string query, SearchFilters filters, int topK, CancellationToken cancellationToken);
+    Task<Result<SearchResult>> SearchAsync(string query, SearchFilters filters, int topK, string viewerSub, CancellationToken cancellationToken);
 }
 
 public sealed record SearchFilters(string? Language = null, IReadOnlyList<string>? Tags = null)

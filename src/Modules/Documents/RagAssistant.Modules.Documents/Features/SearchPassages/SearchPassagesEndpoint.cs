@@ -1,9 +1,11 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using RagAssistant.Modules.Documents.Retrieval;
 using RagAssistant.Security;
 using RagAssistant.SharedKernel.Common.Extensions;
+using RagAssistant.SharedKernel.Common.Security;
 using RagAssistant.SharedKernel.Contracts.Documents;
 using ModuleMediator = RagAssistant.Modules.Documents.Generated.Mediator;
 
@@ -20,9 +22,10 @@ public sealed class SearchPassagesEndpoint : IEndpointGroup
                 string? language,
                 string[]? tags,
                 string? topK,
+                ClaimsPrincipal user,
                 ModuleMediator mediator,
                 CancellationToken cancellationToken) =>
-                (await mediator.Send(new SearchPassages.Query(q, language, tags ?? [], topK, IncludeDiagnostics: true), cancellationToken))
+                (await mediator.Send(new SearchPassages.Query(q, language, tags ?? [], topK, IncludeDiagnostics: true, ViewerSub: user.GetSubject()), cancellationToken))
                     .ToHttpResult(run => TypedResults.Ok(SearchDiagnostics.From(run))))
             .RequireAuthorization(PolicyNames.Maintainer)
             .WithName("SearchPassages")

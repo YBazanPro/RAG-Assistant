@@ -106,18 +106,28 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("character varying(128)")
                         .HasColumnName("updated_by");
 
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Shared")
+                        .HasColumnName("visibility");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ActiveVersionId");
 
-                    b.HasIndex("LatestContentHash")
+                    b.HasIndex("Tags");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Tags"), "gin");
+
+                    b.HasIndex("LatestContentHash", "CreatedBy")
                         .IsUnique()
                         .HasDatabaseName("ux_documents_active_content_hash")
                         .HasFilter("status = 'Active'");
 
-                    b.HasIndex("Tags");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Tags"), "gin");
+                    b.HasIndex("Visibility", "CreatedBy");
 
                     b.ToTable("documents", "documents");
                 });

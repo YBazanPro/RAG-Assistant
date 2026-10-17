@@ -1,3 +1,4 @@
+using RagAssistant.Modules.Documents.Domain;
 using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
@@ -22,12 +23,19 @@ internal static partial class UpdateDocument
         IReadOnlyList<string>? Tags,
         string? EffectiveDate,
         string? Source,
-        string UserId) : IRequest<Result<Guid>>;
+        string UserId,
+        string? Visibility = null) : IRequest<Result<Guid>>;
 
     public sealed class Validator : AbstractValidator<Command>
     {
-        public Validator() =>
+        public Validator()
+        {
             this.AddMetadataRules(c => c.Title, c => c.OwnerName, c => c.Language, c => c.Tags, c => c.EffectiveDate, c => c.Source);
+
+            RuleFor(c => c.Visibility)
+                .Must(v => DocumentAccess.TryParseVisibility(v, out _))
+                .WithMessage("Visibility must be 'shared' or 'private'.");
+        }
     }
 
     internal sealed partial class Handler(
@@ -43,7 +51,7 @@ internal static partial class UpdateDocument
                 return DocumentErrors.PreconditionRequired;
             }
 
-            var document = await db.Documents.FirstOrDefaultAsync(d => d.Id == command.DocumentId, cancellationToken);
+            var document = await db.Documents.ReadableBy(command.UserId).FirstOrDefaultAsync(d => d.Id == command.DocumentId, cancellationToken);
             if (document is null)
             {
                 return DocumentErrors.NotFound;
@@ -52,6 +60,18 @@ internal static partial class UpdateDocument
             if (document.Revision != expected)
             {
                 return DocumentErrors.EditConflict(document.Revision);
+            }
+
+            _ = DocumentAccess.TryParseVisibility(command.Visibility, out var visibility);
+            if (visibility is { } requested && requested != document.Visibility)
+            {
+                if (!document.IsOwner(command.UserId))
+                {
+                    return DocumentErrors.VisibilityOwnerOnly;
+                }
+
+                document.Visibility = requested;
+                LogVisibilityChanged(logger, document.Id, requested);
             }
 
             document.Title = command.Title!.Trim();
@@ -86,6 +106,9 @@ internal static partial class UpdateDocument
             LogUpdated(logger, document.Id, document.Revision);
             return document.Id;
         }
+
+        [LoggerMessage(Level = LogLevel.Information, Message = "Document {DocumentId} is now {Visibility}")]
+        private static partial void LogVisibilityChanged(ILogger logger, Guid documentId, Visibility visibility);
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Updated metadata of document {DocumentId} to revision {Revision}")]
         private static partial void LogUpdated(ILogger logger, Guid documentId, int revision);

@@ -14,6 +14,9 @@ public sealed class RetrievalBed : IAsyncDisposable
     public const string Model = "bge-m3";
     public const string Query = "budget exception threshold";
 
+    /// <summary>Somebody who owns none of the seeded documents (they are imported by <c>seed</c>).</summary>
+    public const string Viewer = "test-viewer";
+
     private static readonly Dictionary<string, string> DefaultSettings = new()
     {
         ["Documents:Retrieval:MinScore"] = "0.5",
@@ -61,17 +64,17 @@ public sealed class RetrievalBed : IAsyncDisposable
         AddAsync(new SeedDocument(title, "owner"), passages);
 
     public async Task<Result<SearchResult>> SearchAsync(
-        string query = Query, SearchFilters? filters = null, int topK = 8, CancellationToken cancellationToken = default)
+        string query = Query, SearchFilters? filters = null, int topK = 8, string viewer = Viewer, CancellationToken cancellationToken = default)
     {
         await using var scope = App.Services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IDocumentSearch>()
-            .SearchAsync(query, filters ?? SearchFilters.None, topK, cancellationToken);
+            .SearchAsync(query, filters ?? SearchFilters.None, topK, viewer, cancellationToken);
     }
 
-    public async Task<DocumentAvailability> CheckAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    public async Task<DocumentAvailability> CheckAsync(IReadOnlyCollection<Guid> ids, string viewer = Viewer, CancellationToken cancellationToken = default)
     {
         await using var scope = App.Services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IDocumentCatalog>().CheckAsync(ids, cancellationToken);
+        return await scope.ServiceProvider.GetRequiredService<IDocumentCatalog>().CheckAsync(ids, viewer, cancellationToken);
     }
 
     public async ValueTask DisposeAsync() => await App.DisposeAsync();

@@ -22,6 +22,7 @@ internal static partial class RestoreDocument
             try
             {
                 changed = await db.Documents
+                    .ReadableBy(command.UserId)
                     .Where(d => d.Id == command.DocumentId && d.Status == DocumentStatus.Archived)
                     .ExecuteUpdateAsync(
                         s => s.SetProperty(d => d.Status, DocumentStatus.Active)
@@ -34,6 +35,7 @@ internal static partial class RestoreDocument
                 // Another active document has this content: the partial unique index is the guard (spec 009).
                 var hash = await db.Documents.Where(d => d.Id == command.DocumentId).Select(d => d.LatestContentHash).SingleAsync(cancellationToken);
                 var existing = await db.Documents
+                    .ReadableBy(command.UserId)
                     .Where(d => d.Status == DocumentStatus.Active && d.LatestContentHash == hash)
                     .Select(d => (Guid?)d.Id)
                     .FirstOrDefaultAsync(cancellationToken);
@@ -42,7 +44,7 @@ internal static partial class RestoreDocument
 
             if (changed == 0)
             {
-                return await db.Documents.AnyAsync(d => d.Id == command.DocumentId, cancellationToken)
+                return await db.Documents.ReadableBy(command.UserId).AnyAsync(d => d.Id == command.DocumentId, cancellationToken)
                     ? DocumentErrors.NotArchived
                     : DocumentErrors.NotFound;
             }

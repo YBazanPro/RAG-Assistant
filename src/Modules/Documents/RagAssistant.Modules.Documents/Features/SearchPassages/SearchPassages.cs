@@ -20,7 +20,7 @@ internal static partial class SearchPassages
 
     /// <param name="TopK">Raw text, so a malformed value surfaces as a field error; empty means <c>DefaultTopK</c>.</param>
     /// <param name="IncludeDiagnostics">Also counts documents skipped for a model mismatch; only the endpoint needs it.</param>
-    public sealed record Query(string? Q, string? Language, string[] Tags, string? TopK, bool IncludeDiagnostics, IReadOnlyList<Guid>? DocumentIds = null)
+    public sealed record Query(string? Q, string? Language, string[] Tags, string? TopK, bool IncludeDiagnostics, IReadOnlyList<Guid>? DocumentIds = null, string? ViewerSub = null)
         : IRequest<Result<SearchRun>>;
 
     /// <param name="SkippedForModelMismatch">Null unless diagnostics were requested.</param>
@@ -52,6 +52,10 @@ internal static partial class SearchPassages
                     || (int.TryParse(v, NumberStyles.None, CultureInfo.InvariantCulture, out var k) && k >= 1 && k <= maxTopK))
                 .WithMessage($"'topK' must be a whole number from 1 to {maxTopK}.");
 
+            RuleFor(x => x.ViewerSub)
+                .Must(v => !string.IsNullOrWhiteSpace(v))
+                .WithMessage("A viewer is required.");
+
             RuleFor(x => x.Language)
                 .Must(v => string.IsNullOrWhiteSpace(v) || (v.Trim().Length == 2 && v.Trim().All(char.IsAsciiLetter)))
                 .WithMessage("'language' must be two letters.");
@@ -78,7 +82,10 @@ internal static partial class SearchPassages
             var filter = new CandidateFilter(
                 string.IsNullOrWhiteSpace(query.Language) ? null : query.Language.Trim().ToLowerInvariant(),
                 DocumentMetadata.NormalizeTags(query.Tags.Where(t => !string.IsNullOrWhiteSpace(t))),
-                query.DocumentIds);
+                query.DocumentIds)
+            {
+                ViewerSub = query.ViewerSub!,
+            };
             var thresholds = new EvidenceThresholds(settings.MinScore, settings.ConfidentScore, settings.DuplicateOverlap);
 
             using var activity = DocumentsTelemetry.Source.StartActivity("documents.search");

@@ -6,6 +6,9 @@ internal static class DocumentErrors
 {
     public static readonly Error NotFound = Error.NotFound("documents.not_found", "The document was not found.");
 
+    public static readonly Error VisibilityOwnerOnly =
+        Error.Forbidden("documents.visibility_owner_only", "Only the person who imported a document can change who can read it.");
+
     public static readonly Error VersionNotFound = Error.NotFound("documents.version_not_found", "The version was not found.");
 
     public static readonly Error PassageNotFound = Error.NotFound("documents.passage_not_found", "The passage was not found in this version.");

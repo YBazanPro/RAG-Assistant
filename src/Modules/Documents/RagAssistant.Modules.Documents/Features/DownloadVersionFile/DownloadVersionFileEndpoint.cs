@@ -1,3 +1,5 @@
+using RagAssistant.SharedKernel.Common.Security;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -24,10 +26,11 @@ public sealed class DownloadVersionFileEndpoint : IEndpointGroup
         Guid documentId,
         int number,
         HttpContext http,
+        ClaimsPrincipal user,
         ModuleMediator mediator,
         CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new DownloadVersionFile.Query(documentId, number), cancellationToken);
+        var result = await mediator.Send(new DownloadVersionFile.Query(documentId, number, user.GetSubject()), cancellationToken);
         return result.ToHttpResult(file =>
         {
             var headers = http.Response.Headers;
