@@ -1,4 +1,4 @@
-using RagAssistant.Modules.Documents.Domain;
+using RagAssistant.Modules.Documents.Ingestion.Extraction;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 
@@ -10,7 +10,7 @@ internal sealed class ChunkerTests
         new() { MaxTokens = max, OverlapTokens = overlap, MinTokens = min };
 
     private static IReadOnlyList<ChunkedPassage> Markdown(string content, ChunkingOptions? options = null) =>
-        Chunker.Chunk(content, SourceFormat.Markdown, options ?? Options());
+        Chunker.Chunk(MarkdownSourceExtractor.Parse(content), options ?? Options());
 
     private static string Paragraphs(int count, string prefix = "paragraph number") =>
         string.Join("\n\n", Enumerable.Range(1, count).Select(n => $"{prefix} {n} has several words"));
@@ -20,7 +20,7 @@ internal sealed class ChunkerTests
     {
         var text = "first paragraph of the file\n\nsecond paragraph of the file\n\nthird paragraph of the file";
 
-        var passages = Chunker.Chunk(text, SourceFormat.PlainText, Options(max: 10, overlap: 1));
+        var passages = Chunker.Chunk(PlainTextSourceExtractor.Parse(text), Options(max: 10, overlap: 1));
 
         await Assert.That(passages.Count).IsEqualTo(3);
         await Assert.That(passages.All(p => p.SectionPath.Length == 0)).IsTrue();
@@ -32,7 +32,7 @@ internal sealed class ChunkerTests
     [Test]
     public async Task Chunk_plainTextWithHashLines_doesNotTreatThemAsHeadings()
     {
-        var passages = Chunker.Chunk("# not a heading\nbody", SourceFormat.PlainText, Options());
+        var passages = Chunker.Chunk(PlainTextSourceExtractor.Parse("# not a heading\nbody"), Options());
 
         await Assert.That(passages.Count).IsEqualTo(1);
         await Assert.That(passages[0].SectionPath.Length).IsEqualTo(0);
@@ -230,7 +230,7 @@ internal sealed class ChunkerTests
     {
         var line = string.Join(' ', Enumerable.Repeat("word", 60));
 
-        var passages = Chunker.Chunk(line, SourceFormat.PlainText, Options(max: 20, overlap: 2));
+        var passages = Chunker.Chunk(PlainTextSourceExtractor.Parse(line), Options(max: 20, overlap: 2));
 
         await Assert.That(passages.Count).IsGreaterThan(2);
         await Assert.That(passages.All(p => p.TokenEstimate <= 20)).IsTrue();
@@ -240,7 +240,7 @@ internal sealed class ChunkerTests
     [Test]
     public async Task Chunk_lineWithoutWhitespace_splitsAtTheLimit()
     {
-        var passages = Chunker.Chunk(new string('x', 200), SourceFormat.PlainText, Options(max: 10, overlap: 1));
+        var passages = Chunker.Chunk(PlainTextSourceExtractor.Parse(new string('x', 200)), Options(max: 10, overlap: 1));
 
         await Assert.That(passages.Count).IsGreaterThan(4);
         await Assert.That(passages.All(p => p.TokenEstimate <= 10)).IsTrue();
@@ -294,7 +294,7 @@ internal sealed class ChunkerTests
     [Test]
     public async Task Chunk_passage_hasCharCountAndTokenEstimate()
     {
-        var passages = Chunker.Chunk("abcde", SourceFormat.PlainText, Options());
+        var passages = Chunker.Chunk(PlainTextSourceExtractor.Parse("abcde"), Options());
 
         await Assert.That(passages[0].CharCount).IsEqualTo(5);
         await Assert.That(passages[0].TokenEstimate).IsEqualTo(2);

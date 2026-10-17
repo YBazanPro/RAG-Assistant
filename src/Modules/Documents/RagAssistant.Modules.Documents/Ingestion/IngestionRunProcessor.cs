@@ -7,9 +7,7 @@ using Pgvector;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
-using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
-using RagAssistant.Modules.Documents.Storage;
 
 namespace RagAssistant.Modules.Documents.Ingestion;
 
@@ -23,9 +21,7 @@ internal sealed partial class IngestionRunProcessor(
     IOptions<ChunkingOptions> chunking,
     IOptions<IngestionOptions> ingestion,
     IOptions<EmbeddingOptions> embeddingOptions,
-    IOptions<PdfOptions> pdfOptions,
-    IOriginalFileStore store,
-    IPdfTextExtractor pdfExtractor,
+    IEnumerable<ISourceExtractor> extractors,
     DocumentsMetrics metrics,
     TimeProvider clock,
     ILogger<IngestionRunProcessor> logger)
@@ -33,8 +29,6 @@ internal sealed partial class IngestionRunProcessor(
     private const string UnexpectedMessage = "Unexpected error; see logs";
 
     private sealed record VersionInput(Guid DocumentId, int Number, string? Content, string? StorageKey, SourceFormat Format);
-
-    private sealed record Extracted(string? Text, PdfExtraction? Pdf);
 
     public async Task ProcessAsync(Guid runId, CancellationToken cancellationToken)
     {
@@ -72,9 +66,7 @@ internal sealed partial class IngestionRunProcessor(
                 stage,
                 () =>
                 {
-                    var chunks = extracted.Pdf is { } pdf
-                        ? Chunker.Chunk(pdf.Blocks, chunking.Value)
-                        : Chunker.Chunk(extracted.Text!, version.Format, chunking.Value);
+                    var chunks = Chunker.Chunk(extracted, chunking.Value);
                     return chunks.Count == 0
                         ? throw new IngestionException(IngestionErrorCodes.NoPassages, "The document has no indexable text.")
                         : (chunks, $"{chunks.Count} passages");
@@ -131,54 +123,36 @@ internal sealed partial class IngestionRunProcessor(
         }
     }
 
-    private async Task<(Extracted Result, string Summary)> ExtractAsync(VersionInput version, Guid runId, Guid versionId, CancellationToken cancellationToken)
+    private async Task<(SourceDocument Result, string Summary)> ExtractAsync(VersionInput version, Guid runId, Guid versionId, CancellationToken cancellationToken)
     {
-        if (version.Format != SourceFormat.Pdf)
-        {
-            var text = version.Content ?? throw new InvalidOperationException("The version has no text content.");
-            return (new Extracted(text, null), $"{text.Length} characters");
-        }
+        var extractor = extractors.SingleOrDefault(e => e.Format == version.Format)
+            ?? throw new InvalidOperationException($"No extractor is registered for {version.Format}.");
 
-        var key = version.StorageKey ?? throw new InvalidOperationException("The PDF version has no storage key.");
-        await using var stream = store.OpenRead(key)
-            ?? throw new IngestionException(IngestionErrorCodes.FileMissing, "The original file is missing from the store.");
-
-        using var timeout = new CancellationTokenSource(pdfOptions.Value.ExtractionTimeout, clock);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
-        // The extractor runs on another thread; its page counts go through a channel so only this flow touches the DbContext.
-        var pages = Channel.CreateUnbounded<(int Done, int Total)>();
-        var writer = WriteExtractionProgressAsync(pages.Reader, runId, cancellationToken);
-        var started = clock.GetTimestamp();
-        PdfExtraction pdf;
-        var work = Task.Run(() => pdfExtractor.Extract(stream, (done, total) => pages.Writer.TryWrite((done, total)), linked.Token), linked.Token);
+        // Extractors may report progress from another thread; it goes through a channel so only this flow touches the DbContext.
+        var progress = Channel.CreateUnbounded<(int Done, int Total)>();
+        var writer = WriteExtractionProgressAsync(progress.Reader, runId, cancellationToken);
+        SourceExtraction extraction;
         try
         {
-            // The parser checks the token between pages only; waiting on the token as well frees the run even inside one slow call.
-            pdf = await work.WaitAsync(linked.Token);
-        }
-        catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-        {
-            _ = work.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
-            metrics.PdfExtractionFailed(clock.GetElapsedTime(started));
-            throw new IngestionException(IngestionErrorCodes.ExtractionTimeout, "Extracting the text took too long.");
-        }
-        catch (IngestionException)
-        {
-            metrics.PdfExtractionFailed(clock.GetElapsedTime(started));
-            throw;
+            extraction = await extractor.ExtractAsync(
+                new VersionSource(version.Content, version.StorageKey),
+                (done, total) => progress.Writer.TryWrite((done, total)),
+                cancellationToken);
         }
         finally
         {
-            pages.Writer.TryComplete();
+            progress.Writer.TryComplete();
             await writer;
         }
 
-        metrics.PdfExtracted(pdf.PageCount, clock.GetElapsedTime(started));
+        if (extraction.PagesWithoutText is { } pages)
+        {
+            int[]? withoutText = pages.Length == 0 ? null : pages;
+            await db.Versions.Where(v => v.Id == versionId)
+                .ExecuteUpdateAsync(s => s.SetProperty(v => v.PagesWithoutText, withoutText), cancellationToken);
+        }
 
-        int[]? withoutText = pdf.PagesWithoutText.Length == 0 ? null : pdf.PagesWithoutText;
-        await db.Versions.Where(v => v.Id == versionId)
-            .ExecuteUpdateAsync(s => s.SetProperty(v => v.PagesWithoutText, withoutText), cancellationToken);
-        return (new Extracted(null, pdf), $"{pdf.PageCount} pages, {pdf.PagesWithoutText.Length} without text, {pdf.MarginLinesRemoved} margin lines removed");
+        return (extraction.Document, extraction.Summary);
     }
 
     private async Task WriteExtractionProgressAsync(ChannelReader<(int Done, int Total)> reader, Guid runId, CancellationToken cancellationToken)

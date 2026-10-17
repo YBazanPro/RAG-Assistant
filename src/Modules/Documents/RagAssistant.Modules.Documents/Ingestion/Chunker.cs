@@ -1,6 +1,4 @@
 using System.Text;
-using System.Text.RegularExpressions;
-using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
 
 namespace RagAssistant.Modules.Documents.Ingestion;
@@ -13,41 +11,20 @@ internal sealed record ChunkedPassage(int Position, string[] SectionPath, int Se
 }
 
 /// <summary>
-/// Heading-aware chunking of Markdown and plain text (spec 007). Pure: string in, passages out.
+/// Heading-aware chunking (spec 007, spec 010) of the <see cref="SourceDocument"/> any extractor produces. Pure: document in, passages out;
+/// it never looks at the source format.
 /// Sizes are measured in characters internally; a passage of at most <c>MaxTokens</c> estimated tokens has at most <c>4 * MaxTokens</c> characters.
 /// </summary>
-internal static partial class Chunker
+internal static class Chunker
 {
     private const int CharsPerToken = 4;
     private const string BlockSeparator = "\n\n";
 
     public static int EstimateTokens(int chars) => (chars + CharsPerToken - 1) / CharsPerToken;
 
-    public static IReadOnlyList<ChunkedPassage> Chunk(string content, SourceFormat format, ChunkingOptions options)
-    {
-        var markdown = format == SourceFormat.Markdown;
-        var sections = markdown ? ParseMarkdown(content) : [new Section([], null, ParseBlocks(content.Split('\n'), markdown: false))];
-        return Assemble(sections, options);
-    }
+    public static IReadOnlyList<ChunkedPassage> Chunk(SourceDocument document, ChunkingOptions options) => Assemble(document.Sections, options);
 
-    /// <summary>Chunks the paragraphs of an extracted PDF (spec 010); every passage records the first and last page of its text.</summary>
-    public static IReadOnlyList<ChunkedPassage> Chunk(IReadOnlyList<SourceBlock> blocks, ChunkingOptions options)
-    {
-        var sections = new List<Section>();
-        foreach (var block in blocks.Where(b => !string.IsNullOrWhiteSpace(b.Text)))
-        {
-            if (sections.Count == 0 || !sections[^1].Path.AsSpan().SequenceEqual(block.SectionPath))
-            {
-                sections.Add(new Section(block.SectionPath, null, []));
-            }
-
-            sections[^1].Blocks.Add(new Block(BlockKind.Paragraph, [.. block.Text.Split('\n')], block.Page));
-        }
-
-        return Assemble(sections, options);
-    }
-
-    private static List<ChunkedPassage> Assemble(List<Section> sections, ChunkingOptions options)
+    private static List<ChunkedPassage> Assemble(IReadOnlyList<SourceSection> sections, ChunkingOptions options)
     {
         var limits = new Limits(options.MaxTokens * CharsPerToken, options.OverlapTokens * CharsPerToken);
 
@@ -69,20 +46,6 @@ internal static partial class Chunker
 
         public int Continuation => Math.Max(Max - Reserve, 1);
     }
-
-    private enum BlockKind
-    {
-        Paragraph,
-        Code,
-        Table,
-    }
-
-    private sealed record Block(BlockKind Kind, List<string> Lines, int Page = 0)
-    {
-        public string Text => string.Join('\n', Lines);
-    }
-
-    private sealed record Section(string[] Path, string? HeadingLine, List<Block> Blocks);
 
     private sealed class Draft(string[] path, string text, int section, string? heading, bool noOverlap)
     {
@@ -107,133 +70,7 @@ internal static partial class Chunker
 
     private static int FirstPage(int a, int b) => a == 0 ? b : b == 0 ? a : Math.Min(a, b);
 
-    private static List<Section> ParseMarkdown(string content)
-    {
-        var sections = new List<Section>();
-        var chain = new List<(int Level, string Title)>();
-        var path = Array.Empty<string>();
-        string? heading = null;
-        var body = new List<string>();
-        (char Char, int Length)? fence = null;
-
-        void Close() => sections.Add(new Section(path, heading, ParseBlocks(body, markdown: true)));
-
-        foreach (var line in content.Split('\n'))
-        {
-            if (fence is { } open)
-            {
-                body.Add(line);
-                if (ClosesFence(line, open))
-                {
-                    fence = null;
-                }
-
-                continue;
-            }
-
-            if (TryOpenFence(line, out var opened))
-            {
-                fence = opened;
-                body.Add(line);
-                continue;
-            }
-
-            var match = AtxHeading().Match(line);
-            if (!match.Success)
-            {
-                body.Add(line);
-                continue;
-            }
-
-            Close();
-            var level = match.Groups[1].Length;
-            chain.RemoveAll(h => h.Level >= level);
-            chain.Add((level, match.Groups[2].Value.Trim()));
-            path = [.. chain.Select(h => h.Title)];
-            heading = line.TrimEnd();
-            body = [];
-        }
-
-        Close();
-        return sections;
-    }
-
-    private static List<Block> ParseBlocks(IReadOnlyList<string> lines, bool markdown)
-    {
-        var blocks = new List<Block>();
-        var paragraph = new List<string>();
-
-        void FlushParagraph()
-        {
-            if (paragraph.Count > 0)
-            {
-                blocks.Add(new Block(BlockKind.Paragraph, paragraph));
-                paragraph = [];
-            }
-        }
-
-        for (var i = 0; i < lines.Count; i++)
-        {
-            var line = lines[i];
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                FlushParagraph();
-                continue;
-            }
-
-            if (markdown && TryOpenFence(line, out var fence))
-            {
-                FlushParagraph();
-                var code = new List<string> { line };
-                while (++i < lines.Count)
-                {
-                    code.Add(lines[i]);
-                    if (ClosesFence(lines[i], fence))
-                    {
-                        break;
-                    }
-                }
-
-                blocks.Add(new Block(BlockKind.Code, code));
-                continue;
-            }
-
-            if (markdown && IsTableLine(line))
-            {
-                FlushParagraph();
-                var table = new List<string> { line };
-                while (i + 1 < lines.Count && IsTableLine(lines[i + 1]))
-                {
-                    table.Add(lines[++i]);
-                }
-
-                blocks.Add(new Block(BlockKind.Table, table));
-                continue;
-            }
-
-            paragraph.Add(line);
-        }
-
-        FlushParagraph();
-        return blocks;
-    }
-
-    private static bool IsTableLine(string line) => line.TrimStart().StartsWith('|');
-
-    private static bool TryOpenFence(string line, out (char Char, int Length) fence)
-    {
-        var match = FenceOpen().Match(line);
-        fence = match.Success ? (match.Groups[1].Value[0], match.Groups[1].Length) : default;
-        return match.Success;
-    }
-
-    private static bool ClosesFence(string line, (char Char, int Length) fence)
-    {
-        var trimmed = line.Trim();
-        return trimmed.Length >= fence.Length && trimmed.All(c => c == fence.Char);
-    }
-
-    private static void Pack(Section section, int index, Limits limits, List<Draft> drafts)
+    private static void Pack(SourceSection section, int index, Limits limits, List<Draft> drafts)
     {
         var count = 0;
         var current = new StringBuilder();
@@ -248,7 +85,7 @@ internal static partial class Chunker
             count++;
         }
 
-        void Take(Block block)
+        void Take(SourceBlock block)
         {
             currentStart = FirstPage(currentStart, block.Page);
             currentEnd = Math.Max(currentEnd, block.Page);
@@ -298,15 +135,15 @@ internal static partial class Chunker
         Flush();
     }
 
-    private static List<string> Split(Block block, Func<int, int> budgetFor)
+    private static List<string> Split(SourceBlock block, Func<int, int> budgetFor)
     {
         switch (block.Kind)
         {
             case BlockKind.Code when block.Lines.Count >= 2:
                 {
                     var open = block.Lines[0];
-                    TryOpenFence(open, out var fence);
-                    var closed = ClosesFence(block.Lines[^1], fence);
+                    MarkdownSyntax.TryOpenFence(open, out var fence);
+                    var closed = MarkdownSyntax.ClosesFence(block.Lines[^1], fence);
                     var close = closed ? block.Lines[^1] : new string(fence.Char, fence.Length);
                     var inner = block.Lines.Skip(1).Take(block.Lines.Count - (closed ? 2 : 1)).ToList();
                     var overhead = open.Length + close.Length + 2;
@@ -320,7 +157,7 @@ internal static partial class Chunker
 
             case BlockKind.Table:
                 {
-                    var headerCount = block.Lines.Count > 1 && TableSeparator().IsMatch(block.Lines[1]) ? 2 : 1;
+                    var headerCount = block.Lines.Count > 1 && MarkdownSyntax.TableSeparator().IsMatch(block.Lines[1]) ? 2 : 1;
                     var header = string.Join('\n', block.Lines.Take(headerCount));
                     var rows = block.Lines.Skip(headerCount).ToList();
                     var overhead = header.Length + 1;
@@ -465,7 +302,7 @@ internal static partial class Chunker
 
             var tail = Tail(drafts[i - 1].Text, limits.Overlap);
             // A tail that cuts into a code fence or a table would start the passage with unbalanced syntax; no overlap is better.
-            if (tail.Length > 0 && !StructuralLine().IsMatch(tail))
+            if (tail.Length > 0 && !MarkdownSyntax.StructuralLine().IsMatch(tail))
             {
                 drafts[i].Text = $"{tail}\n{drafts[i].Text}";
                 // The prefix is the end of the previous passage, so its page counts too (approximated by that passage's last page).
@@ -520,16 +357,4 @@ internal static partial class Chunker
 
         return result;
     }
-
-    [GeneratedRegex(@"^\s*(`{3,}|~{3,}|\|)", RegexOptions.Multiline)]
-    private static partial Regex StructuralLine();
-
-    [GeneratedRegex(@"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")]
-    private static partial Regex AtxHeading();
-
-    [GeneratedRegex(@"^ {0,3}(`{3,}|~{3,})")]
-    private static partial Regex FenceOpen();
-
-    [GeneratedRegex(@"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")]
-    private static partial Regex TableSeparator();
 }
