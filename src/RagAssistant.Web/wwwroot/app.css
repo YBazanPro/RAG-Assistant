@@ -770,3 +770,11 @@ html, body {
 .activity-panel {
     margin-top: 4px;
 }
+
+/* The Fluent library injects "body { height: 100dvh; overflow: hidden }" at runtime, which stops every page taller than the
+   window from scrolling. The more specific selector wins whatever the injection order. */
+html > body {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+}

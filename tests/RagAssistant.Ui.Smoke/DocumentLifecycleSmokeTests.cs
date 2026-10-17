@@ -12,6 +12,21 @@ public sealed class DocumentLifecycleSmokeTests(BrowserFixture browser)
 {
     private const int IngestionTimeoutMs = 90_000;
 
+    // The Fluent library injects "body { height: 100dvh; overflow: hidden }"; app.css must keep long pages scrollable.
+    [Test]
+    public async Task Documents_pageTallerThanTheWindow_scrolls()
+    {
+        var page = await browser.SignInAsync();
+        await page.SetViewportSizeAsync(1280, 300);
+        await page.GotoAsync($"{browser.BaseUrl}/documents");
+        await Expect(page.Locator("table").First).ToBeVisibleAsync(new() { Timeout = 30_000 });
+
+        await page.Mouse.MoveAsync(600, 200);
+        await page.Mouse.WheelAsync(0, 800);
+
+        await Expect(page.Locator("html")).Not.ToHaveJSPropertyAsync("scrollTop", 0);
+    }
+
     [Test]
     public async Task Import_dialog_escapeClosesAndCancelRestoresFocus()
     {

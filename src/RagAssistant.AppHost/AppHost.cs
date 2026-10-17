@@ -35,6 +35,9 @@ var keycloak = builder.AddKeycloak("keycloak", port: 8180)
 var ollama = builder.AddOllama("ollama")
     .WithImageTag(OllamaImageTag)
     .WithDataVolume("ragassistant-ollama-models")
+    // Ollama unloads an idle model after 5 minutes by default, and loading bge-m3 again made the first question after a pause
+    // spend 5 to 12 seconds in retrieval. Keep the models in memory.
+    .WithEnvironment("OLLAMA_KEEP_ALIVE", "24h")
     .WithLifetime(ContainerLifetime.Persistent);
 var embeddings = ollama.AddModel("embeddings", EmbeddingModel);
 
