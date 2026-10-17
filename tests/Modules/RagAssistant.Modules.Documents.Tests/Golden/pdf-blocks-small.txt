@@ -1,0 +1,62 @@
+#0 path= ordinal=0 pages=1-1 chars=32 tokens=8
+Front matter before any heading.
+<<<
+#1 path=One ordinal=0 pages=1-1 chars=36 tokens=9
+Chapter one opens on the first page.
+<<<
+#2 path=One ordinal=1 pages=1-1 chars=234 tokens=59
+one opens on the first page.
+alpha0 alpha1 alpha2 alpha3 alpha4 alpha5 alpha6 alpha7 alpha8 alpha9 alpha10 alpha11 alpha12 alpha13 alpha14 alpha15 alpha16 alpha17 alpha18 alpha19 alpha20 alpha21 alpha22 alpha23 alpha24 alpha25 alpha26
+<<<
+#3 path=One ordinal=2 pages=1-1 chars=239 tokens=60
+alpha23 alpha24 alpha25 alpha26
+alpha27 alpha28 alpha29 alpha30 alpha31 alpha32 alpha33 alpha34 alpha35 alpha36 alpha37 alpha38 alpha39 alpha40 alpha41 alpha42 alpha43 alpha44 alpha45 alpha46 alpha47 alpha48 alpha49 alpha50 alpha51 alpha52
+<<<
+#4 path=One ordinal=3 pages=1-2 chars=124 tokens=31
+alpha49 alpha50 alpha51 alpha52
+alpha53 alpha54 alpha55 alpha56 alpha57 alpha58 alpha59
+
+A paragraph
+with a kept line break.
+<<<
+#5 path=One/Detail ordinal=0 pages=3-3 chars=234 tokens=59
+beta0 beta1 beta2 beta3 beta4 beta5 beta6 beta7 beta8 beta9 beta10 beta11 beta12 beta13 beta14 beta15 beta16 beta17 beta18 beta19 beta20 beta21 beta22 beta23 beta24 beta25 beta26 beta27 beta28 beta29 beta30 beta31 beta32 beta33 beta34
+<<<
+#6 path=One/Detail ordinal=1 pages=3-3 chars=230 tokens=58
+beta31 beta32 beta33 beta34
+beta35 beta36 beta37 beta38 beta39 beta40 beta41 beta42 beta43 beta44 beta45 beta46 beta47 beta48 beta49 beta50 beta51 beta52 beta53 beta54 beta55 beta56 beta57 beta58 beta59 beta60 beta61 beta62 beta63
+<<<
+#7 path=One/Detail ordinal=2 pages=3-3 chars=230 tokens=58
+beta60 beta61 beta62 beta63
+beta64 beta65 beta66 beta67 beta68 beta69 beta70 beta71 beta72 beta73 beta74 beta75 beta76 beta77 beta78 beta79 beta80 beta81 beta82 beta83 beta84 beta85 beta86 beta87 beta88 beta89 beta90 beta91 beta92
+<<<
+#8 path=One/Detail ordinal=3 pages=3-3 chars=228 tokens=57
+beta89 beta90 beta91 beta92
+beta93 beta94 beta95 beta96 beta97 beta98 beta99 beta100 beta101 beta102 beta103 beta104 beta105 beta106 beta107 beta108 beta109 beta110 beta111 beta112 beta113 beta114 beta115 beta116 beta117 beta118
+<<<
+#9 path=One/Detail ordinal=4 pages=3-3 chars=239 tokens=60
+beta115 beta116 beta117 beta118
+beta119 beta120 beta121 beta122 beta123 beta124 beta125 beta126 beta127 beta128 beta129 beta130 beta131 beta132 beta133 beta134 beta135 beta136 beta137 beta138 beta139 beta140 beta141 beta142 beta143 beta144
+<<<
+#10 path=One/Detail ordinal=5 pages=3-3 chars=239 tokens=60
+beta141 beta142 beta143 beta144
+beta145 beta146 beta147 beta148 beta149 beta150 beta151 beta152 beta153 beta154 beta155 beta156 beta157 beta158 beta159 beta160 beta161 beta162 beta163 beta164 beta165 beta166 beta167 beta168 beta169 beta170
+<<<
+#11 path=One/Detail ordinal=6 pages=3-3 chars=239 tokens=60
+beta167 beta168 beta169 beta170
+beta171 beta172 beta173 beta174 beta175 beta176 beta177 beta178 beta179 beta180 beta181 beta182 beta183 beta184 beta185 beta186 beta187 beta188 beta189 beta190 beta191 beta192 beta193 beta194 beta195 beta196
+<<<
+#12 path=One/Detail ordinal=7 pages=3-3 chars=55 tokens=14
+beta193 beta194 beta195 beta196
+beta197 beta198 beta199
+<<<
+#13 path=One ordinal=4 pages=4-6 chars=56 tokens=14
+Back in chapter one after the detail.
+
+Tiny.
+
+Also tiny.
+<<<
+#14 path=One ordinal=5 pages=7-7 chars=229 tokens=58
+gamma0 gamma1 gamma2 gamma3 gamma4 gamma5 gamma6 gamma7 gamma8 gamma9 gamma10 gamma11 gamma12 gamma13 gamma14 gamma15 gamma16 gamma17 gamma18 gamma19 gamma20 gamma21 gamma22 gamma23 gamma24 gamma25 gamma26 gamma27 gamma28 gamma29
+<<<

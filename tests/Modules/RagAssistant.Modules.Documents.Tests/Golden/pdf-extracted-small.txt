@@ -1,0 +1,41 @@
+#0 path= ordinal=0 pages=1-2 chars=209 tokens=53
+The quarterly budget review covers travel expenses. Approvals above the limit need a second signature.
+
+Equipment purchases follow the procurement policy. Every purchase above the threshold needs three quotes.
+<<<
+#1 path= ordinal=1 pages=2-3 chars=234 tokens=59
+threshold needs three quotes.
+Line 1 of a long page about expense categories and limits. Line 2 of a long page about expense categories and limits. Line 3 of a long page about expense categories and limits. Line 4 of a long page about
+<<<
+#2 path= ordinal=2 pages=3-3 chars=235 tokens=59
+Line 4 of a long page about
+expense categories and limits. Line 5 of a long page about expense categories and limits. Line 6 of a long page about expense categories and limits. Line 7 of a long page about expense categories and limits.
+<<<
+#3 path= ordinal=3 pages=3-3 chars=237 tokens=60
+expense categories and limits.
+Line 8 of a long page about expense categories and limits. Line 9 of a long page about expense categories and limits. Line 10 of a long page about expense categories and limits. Line 11 of a long page about
+<<<
+#4 path= ordinal=4 pages=3-3 chars=231 tokens=58
+Line 11 of a long page about
+expense categories and limits. Line 12 of a long page about expense categories and limits. Line 13 of a long page about expense categories and limits. Line 14 of a long page about expense categories and
+<<<
+#5 path= ordinal=5 pages=3-3 chars=234 tokens=59
+about expense categories and
+limits. Line 15 of a long page about expense categories and limits. Line 16 of a long page about expense categories and limits. Line 17 of a long page about expense categories and limits. Line 18 of a long
+<<<
+#6 path= ordinal=6 pages=3-3 chars=228 tokens=57
+and limits. Line 18 of a long
+page about expense categories and limits. Line 19 of a long page about expense categories and limits. Line 20 of a long page about expense categories and limits. Line 21 of a long page about expense
+<<<
+#7 path= ordinal=7 pages=3-3 chars=239 tokens=60
+21 of a long page about expense
+categories and limits. Line 22 of a long page about expense categories and limits. Line 23 of a long page about expense categories and limits. Line 24 of a long page about expense categories and limits. Line
+<<<
+#8 path= ordinal=8 pages=3-3 chars=231 tokens=58
+categories and limits. Line
+25 of a long page about expense categories and limits. Line 26 of a long page about expense categories and limits. Line 27 of a long page about expense categories and limits. Line 28 of a long page about
+<<<
+#9 path= ordinal=9 pages=3-3 chars=179 tokens=45
+Line 28 of a long page about
+expense categories and limits. Line 29 of a long page about expense categories and limits. Line 30 of a long page about expense categories and limits.
+<<<
