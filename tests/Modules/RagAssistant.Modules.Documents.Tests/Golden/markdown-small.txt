@@ -1,0 +1,221 @@
+#0 path= ordinal=0 pages=--- chars=25 tokens=7
+Intro before any heading.
+<<<
+#1 path=Guide ordinal=0 pages=--- chars=18 tokens=5
+Short guide intro.
+<<<
+#2 path=Guide/Setup ordinal=0 pages=--- chars=232 tokens=58
+Setup paragraph 1 explains one more step of the installation in plain words.
+
+Setup paragraph 2 explains one more step of the installation in plain words.
+
+Setup paragraph 3 explains one more step of the installation in plain words.
+<<<
+#3 path=Guide/Setup ordinal=1 pages=--- chars=187 tokens=47
+the installation in plain words.
+Setup paragraph 4 explains one more step of the installation in plain words.
+
+Setup paragraph 5 explains one more step of the installation in plain words.
+<<<
+#4 path=Guide/Setup ordinal=2 pages=--- chars=187 tokens=47
+the installation in plain words.
+Setup paragraph 6 explains one more step of the installation in plain words.
+
+Setup paragraph 7 explains one more step of the installation in plain words.
+<<<
+#5 path=Guide/Setup ordinal=3 pages=--- chars=234 tokens=59
+the installation in plain words.
+Setup paragraph 8 explains one more step of the installation in plain words.
+
+Setup paragraph 9 explains one more step of the installation in plain words.
+
+## Setup
+A second section with the same path.
+<<<
+#6 path=Guide/Empty/Child ordinal=0 pages=--- chars=93 tokens=24
+Child body under a heading without body.
+
+```bash
+# not a heading
+echo first
+
+echo second
+```
+<<<
+#7 path=Guide/Empty/Child ordinal=1 pages=--- chars=203 tokens=51
+```
+line 1 of a long code block
+line 2 of a long code block
+line 3 of a long code block
+line 4 of a long code block
+line 5 of a long code block
+line 6 of a long code block
+line 7 of a long code block
+```
+<<<
+#8 path=Guide/Empty/Child ordinal=2 pages=--- chars=179 tokens=45
+```
+line 8 of a long code block
+line 9 of a long code block
+line 10 of a long code block
+line 11 of a long code block
+line 12 of a long code block
+line 13 of a long code block
+```
+<<<
+#9 path=Guide/Empty/Child ordinal=3 pages=--- chars=181 tokens=46
+```
+line 14 of a long code block
+line 15 of a long code block
+line 16 of a long code block
+line 17 of a long code block
+line 18 of a long code block
+line 19 of a long code block
+```
+<<<
+#10 path=Guide/Empty/Child ordinal=4 pages=--- chars=181 tokens=46
+```
+line 20 of a long code block
+line 21 of a long code block
+line 22 of a long code block
+line 23 of a long code block
+line 24 of a long code block
+line 25 of a long code block
+```
+<<<
+#11 path=Guide/Empty/Child ordinal=5 pages=--- chars=181 tokens=46
+```
+line 26 of a long code block
+line 27 of a long code block
+line 28 of a long code block
+line 29 of a long code block
+line 30 of a long code block
+line 31 of a long code block
+```
+<<<
+#12 path=Guide/Empty/Child ordinal=6 pages=--- chars=181 tokens=46
+```
+line 32 of a long code block
+line 33 of a long code block
+line 34 of a long code block
+line 35 of a long code block
+line 36 of a long code block
+line 37 of a long code block
+```
+<<<
+#13 path=Guide/Empty/Child ordinal=7 pages=--- chars=94 tokens=24
+```
+line 38 of a long code block
+line 39 of a long code block
+line 40 of a long code block
+```
+<<<
+#14 path=Guide/Empty/Child ordinal=8 pages=--- chars=193 tokens=49
+| Name | Value |
+|------|-------|
+| row 1 | value 1 |
+| row 2 | value 2 |
+| row 3 | value 3 |
+| row 4 | value 4 |
+| row 5 | value 5 |
+| row 6 | value 6 |
+| row 7 | value 7 |
+| row 8 | value 8 |
+<<<
+#15 path=Guide/Empty/Child ordinal=9 pages=--- chars=207 tokens=52
+| Name | Value |
+|------|-------|
+| row 9 | value 9 |
+| row 10 | value 10 |
+| row 11 | value 11 |
+| row 12 | value 12 |
+| row 13 | value 13 |
+| row 14 | value 14 |
+| row 15 | value 15 |
+| row 16 | value 16 |
+<<<
+#16 path=Guide/Empty/Child ordinal=10 pages=--- chars=187 tokens=47
+| Name | Value |
+|------|-------|
+| row 17 | value 17 |
+| row 18 | value 18 |
+| row 19 | value 19 |
+| row 20 | value 20 |
+| row 21 | value 21 |
+| row 22 | value 22 |
+| row 23 | value 23 |
+<<<
+#17 path=Guide/Empty/Child ordinal=11 pages=--- chars=187 tokens=47
+| Name | Value |
+|------|-------|
+| row 24 | value 24 |
+| row 25 | value 25 |
+| row 26 | value 26 |
+| row 27 | value 27 |
+| row 28 | value 28 |
+| row 29 | value 29 |
+| row 30 | value 30 |
+<<<
+#18 path=Guide/Empty/Child ordinal=12 pages=--- chars=187 tokens=47
+| Name | Value |
+|------|-------|
+| row 31 | value 31 |
+| row 32 | value 32 |
+| row 33 | value 33 |
+| row 34 | value 34 |
+| row 35 | value 35 |
+| row 36 | value 36 |
+| row 37 | value 37 |
+<<<
+#19 path=Guide/Empty/Child ordinal=13 pages=--- chars=99 tokens=25
+| Name | Value |
+|------|-------|
+| row 38 | value 38 |
+| row 39 | value 39 |
+| row 40 | value 40 |
+<<<
+#20 path=Guide/Empty/Child ordinal=14 pages=--- chars=207 tokens=52
+word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31
+<<<
+#21 path=Guide/Empty/Child ordinal=15 pages=--- chars=230 tokens=58
+word28 word29 word30 word31
+word32 word33 word34 word35 word36 word37 word38 word39 word40 word41 word42 word43 word44 word45 word46 word47 word48 word49 word50 word51 word52 word53 word54 word55 word56 word57 word58 word59 word60
+<<<
+#22 path=Guide/Empty/Child ordinal=16 pages=--- chars=230 tokens=58
+word57 word58 word59 word60
+word61 word62 word63 word64 word65 word66 word67 word68 word69 word70 word71 word72 word73 word74 word75 word76 word77 word78 word79 word80 word81 word82 word83 word84 word85 word86 word87 word88 word89
+<<<
+#23 path=Guide/Empty/Child ordinal=17 pages=--- chars=233 tokens=59
+word86 word87 word88 word89
+word90 word91 word92 word93 word94 word95 word96 word97 word98 word99 word100 word101 word102 word103 word104 word105 word106 word107 word108 word109 word110 word111 word112 word113 word114 word115 word116
+<<<
+#24 path=Guide/Empty/Child ordinal=18 pages=--- chars=239 tokens=60
+word113 word114 word115 word116
+word117 word118 word119 word120 word121 word122 word123 word124 word125 word126 word127 word128 word129 word130 word131 word132 word133 word134 word135 word136 word137 word138 word139 word140 word141 word142
+<<<
+#25 path=Guide/Empty/Child ordinal=19 pages=--- chars=95 tokens=24
+word139 word140 word141 word142
+word143 word144 word145 word146 word147 word148 word149 word150
+<<<
+#26 path=Guide/Empty/Child ordinal=20 pages=--- chars=239 tokens=60
+word147 word148 word149 word150
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+<<<
+#27 path=Guide/Empty/Child ordinal=21 pages=--- chars=93 tokens=24
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+<<<
+#28 path=Appendix ordinal=0 pages=--- chars=7 tokens=2
+short a
+<<<
+#29 path=Appendix/Notes ordinal=0 pages=--- chars=74 tokens=19
+short b
+
+## More
+short c
+#NoSpace is a paragraph
+Setext title
+============
+<<<
+#30 path=Closing ordinal=0 pages=--- chars=11 tokens=3
+Last words.
+<<<
