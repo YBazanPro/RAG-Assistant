@@ -62,6 +62,14 @@ var api = builder.AddProject<Projects.RagAssistant_Api>("api")
     .WaitFor(database)
     .WaitFor(keycloak)
     .WaitForCompletion(migrations);
+// A request's detail in /admin links to its trace in the Aspire dashboard (spec 017). The dashboard is served on the AppHost's own
+// first https address; without one the admin page shows the trace id only.
+var dashboardUrl = (builder.Configuration["ASPNETCORE_URLS"] ?? "").Split(';').FirstOrDefault(u => u.StartsWith("https://", StringComparison.Ordinal));
+if (dashboardUrl is not null)
+{
+    api.WithEnvironment("Admin__TraceUrlTemplate", $"{dashboardUrl.TrimEnd('/')}/traces/detail/{{traceId}}");
+}
+
 if (chat is null)
 {
     api.WithEnvironment("Chat__Provider", "Demo");

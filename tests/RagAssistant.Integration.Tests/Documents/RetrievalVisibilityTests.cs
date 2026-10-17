@@ -91,6 +91,21 @@ public sealed class RetrievalVisibilityTests(PostgresFixture postgres)
         await Assert.That(asOwner.Titles[secret.DocumentId]).IsEqualTo("Secret");
     }
 
+    // Spec 017, AC-21
+    [Test]
+    public async Task SharedTitles_returnsSharedDocumentsOnlyAndNothingThatRevealsPrivateOrUnknownIds()
+    {
+        await using var bed = await StartAsync(postgres);
+        var (secret, _) = await bed.AddAsync(Private("Secret"), P(0.9));
+        var (shared, _) = await bed.AddAsync("Shared", P(0.9));
+
+        var titles = await bed.SharedTitlesAsync([secret.DocumentId, shared.DocumentId, Guid.NewGuid()]);
+
+        await Assert.That(titles.Count).IsEqualTo(1);
+        await Assert.That(titles[shared.DocumentId]).IsEqualTo("Shared");
+        await Assert.That(titles.ContainsKey(secret.DocumentId)).IsFalse();
+    }
+
     // AC-15
     [Test]
     public async Task Contracts_rejectAnEmptyViewer()

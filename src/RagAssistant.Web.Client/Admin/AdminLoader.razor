@@ -1,0 +1,93 @@
+@typeparam TValue
+@implements IDisposable
+
+@* One admin tab's data: fetched once after the first interactive render (prerendering calls no API), reloaded on demand. A tab that
+   fails shows its own error and retry; the other tabs are unaffected (spec 017). *@
+@if (_state == LoadState.Loading)
+{
+    <LoadingState Label="@($"Loading {Label}")" />
+}
+else if (_state == LoadState.SessionExpired)
+{
+    <SignInRequired />
+}
+else if (_state == LoadState.Failed)
+{
+    <ErrorState Title="@($"{Label} could not be loaded")" Message="@_errorMessage" Retry="ReloadAsync" />
+}
+else
+{
+    <FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+        <div class="admin-toolbar">
+            <FluentButton Appearance="ButtonAppearance.Outline" OnClick="RefreshAsync" aria-label="@($"Refresh {Label}")">Refresh</FluentButton>
+            @Toolbar
+        </div>
+        @ChildContent(_value!)
+    </FluentStack>
+}
+
+@code {
+    private enum LoadState { Loading, Loaded, Failed, SessionExpired }
+
+    private LoadState _state = LoadState.Loading;
+    private TValue? _value;
+    private string _errorMessage = "";
+    private readonly CancellationTokenSource _lifetime = new();
+
+    /// <summary>Lower-case name of the data, used in the loading text, the refresh label and the error title ("requests").</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+
+    [Parameter, EditorRequired] public Func<CancellationToken, Task<ApiResult<TValue>>> Load { get; set; } = default!;
+
+    [Parameter, EditorRequired] public RenderFragment<TValue> ChildContent { get; set; } = default!;
+
+    /// <summary>Extra controls beside the refresh button.</summary>
+    [Parameter] public RenderFragment? Toolbar { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await FetchAsync(showLoading: false);
+        }
+    }
+
+    /// <summary>Loads again without replacing the content by a spinner (filters, paging).</summary>
+    public Task RefreshAsync() => FetchAsync(showLoading: false);
+
+    private Task ReloadAsync() => FetchAsync(showLoading: true);
+
+    private async Task FetchAsync(bool showLoading)
+    {
+        if (showLoading)
+        {
+            _state = LoadState.Loading;
+            StateHasChanged();
+        }
+
+        var result = await Load(_lifetime.Token);
+        if (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            _value = result.Value;
+            _state = LoadState.Loaded;
+        }
+        else if (result.Error!.IsUnauthenticated)
+        {
+            _state = LoadState.SessionExpired;
+        }
+        else
+        {
+            _errorMessage = result.Error.Status == 0 ? "The server could not be reached." : result.Error.Message;
+            _state = LoadState.Failed;
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose() => _lifetime.Cancel();
+}

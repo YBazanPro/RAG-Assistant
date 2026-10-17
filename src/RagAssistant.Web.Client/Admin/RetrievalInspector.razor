@@ -1,0 +1,270 @@
+@implements IAsyncDisposable
+@inject IAdminApi Api
+@inject IThreadScroller Scroller
+
+@* The maintainers' side panel (spec 017): one request's decisions, no answer text and no passage text. Esc and Close return focus to the row. *@
+<aside @ref="_element" class="request-panel" tabindex="-1" role="complementary" aria-label="Request details" @onkeydown="OnKeyDown">
+    <FluentStack HorizontalAlignment="HorizontalAlignment.SpaceBetween" VerticalAlignment="VerticalAlignment.Center">
+        <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold">Request</FluentText>
+        <FluentButton Appearance="ButtonAppearance.Transparent" OnClick="CloseAsync" aria-label="Close request details">Close</FluentButton>
+    </FluentStack>
+
+    @if (_state == LoadState.Loading)
+    {
+        <LoadingState Label="Loading request" />
+    }
+    else if (_state == LoadState.NotFound)
+    {
+        <EmptyState Title="This request no longer exists" Description="Its owner may have deleted the conversation." />
+    }
+    else if (_state == LoadState.SessionExpired)
+    {
+        <SignInRequired />
+    }
+    else if (_state == LoadState.Failed)
+    {
+        <ErrorState Title="The request could not be loaded" Message="@_errorMessage" Retry="LoadAsync" />
+    }
+    else if (_detail is { } d)
+    {
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="16">
+            @if (d.TitlesUnavailable)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false">Document titles could not be loaded.</FluentMessageBar>
+            }
+
+            <section aria-labelledby="inspector-question">
+                <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-question">Question</FluentText>
+                <FluentText Block="true" Class="inspector-question">@d.Question.Text</FluentText>
+                <MetaRow Label="Owner"><OwnerSub Sub="@d.OwnerSub" /></MetaRow>
+                <MetaRow Label="Started"><time datetime="@d.StartedAt.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(d.StartedAt)">@Formatting.Local(d.StartedAt)</time></MetaRow>
+                <MetaRow Label="Attempt">@d.Attempt</MetaRow>
+                @if (d.Question.Language is not null)
+                {
+                    <MetaRow Label="Language filter">@d.Question.Language</MetaRow>
+                }
+                @if (d.Question.Tags.Count > 0)
+                {
+                    <MetaRow Label="Tag filter">@string.Join(", ", d.Question.Tags)</MetaRow>
+                }
+                @foreach (var document in d.Question.Documents)
+                {
+                    <MetaRow Label="Scoped document">
+                        @(document.Title ?? "Private or unavailable document")
+                        @if (d.Question.UnavailableDocumentIds.Contains(document.Id))
+                        {
+                            <span class="admin-hint"> (not searchable)</span>
+                        }
+                    </MetaRow>
+                }
+            </section>
+
+            <section aria-labelledby="inspector-rewrite">
+                <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-rewrite">Rewrite</FluentText>
+                <MetaRow Label="Used">@(d.Rewrite.Used ? "yes" : "no")</MetaRow>
+                <MetaRow Label="Retrieval query">@(d.Rewrite.RetrievalQuery ?? "Not recorded")</MetaRow>
+                @if (d.Rewrite.FallbackReason is not null)
+                {
+                    <MetaRow Label="Fell back to the question">@d.Rewrite.FallbackReason</MetaRow>
+                }
+                <MetaRow Label="Time">@AdminFormat.Ms(d.Rewrite.Ms)</MetaRow>
+                <MetaRow Label="Tokens">@Tokens(d.Rewrite.InputTokens, d.Rewrite.OutputTokens)</MetaRow>
+                <MetaRow Label="Prompt version">@(d.Rewrite.PromptVersion ?? "—")</MetaRow>
+            </section>
+
+            <section aria-labelledby="inspector-retrieval">
+                <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-retrieval">Retrieval</FluentText>
+                <MetaRow Label="Evidence">@(d.Retrieval.EvidenceOutcome ?? "retrieval failed")</MetaRow>
+                <MetaRow Label="Thresholds">minimum @AdminFormat.Score(d.Retrieval.MinScore), confident @AdminFormat.Score(d.Retrieval.ConfidentScore), duplicate overlap @AdminFormat.Score(d.Retrieval.DuplicateOverlap)</MetaRow>
+                <MetaRow Label="Best score">@AdminFormat.Score(d.Retrieval.BestScore)</MetaRow>
+                <MetaRow Label="Embedding model">@(d.Retrieval.EmbeddingModel ?? "—")</MetaRow>
+                <MetaRow Label="Time">@AdminFormat.Ms(d.Retrieval.Ms)</MetaRow>
+                @if (d.Retrieval.Passages.Count == 0)
+                {
+                    <FluentText Block="true">No passage was kept.</FluentText>
+                }
+                else
+                {
+                    <ol class="inspector-passages" aria-label="Kept passages">
+                        @foreach (var passage in d.Retrieval.Passages)
+                        {
+                            <li class="@(passage.Cited ? "inspector-passage cited" : "inspector-passage")">
+                                <span class="inspector-rank">#@passage.Rank</span>
+                                <span class="inspector-score">@AdminFormat.Score(passage.Score)</span>
+                                <span class="inspector-title">@(passage.DocumentTitle ?? "Private or unavailable document")</span>
+                                @if (passage.SectionPath.Count > 0)
+                                {
+                                    <span class="admin-hint">@string.Join(" › ", passage.SectionPath)</span>
+                                }
+                                @if (passage.VersionNumber is { } version)
+                                {
+                                    <FluentBadge Appearance="BadgeAppearance.Outline">v@(version)</FluentBadge>
+                                }
+                                @if (passage.PageStart is { } start)
+                                {
+                                    <FluentBadge Appearance="BadgeAppearance.Outline">@Formatting.PageLabel(start, passage.PageEnd ?? start)</FluentBadge>
+                                }
+                                @if (passage.Cited)
+                                {
+                                    <FluentBadge Appearance="BadgeAppearance.Tint" Color="BadgeColor.Success"><span aria-hidden="true">✓ </span>cited [@passage.Marker]</FluentBadge>
+                                }
+                                <code class="admin-hint" title="Passage id">@passage.PassageId</code>
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
+
+            <section aria-labelledby="inspector-generation">
+                <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-generation">Generation</FluentText>
+                <MetaRow Label="Model">@(d.Generation.ChatModel ?? "not called")</MetaRow>
+                <MetaRow Label="Prompt version">@(d.Generation.PromptVersion ?? "—")</MetaRow>
+                <MetaRow Label="Tokens">@Tokens(d.Generation.InputTokens, d.Generation.OutputTokens)</MetaRow>
+                <MetaRow Label="Sentinel hit">@(d.Generation.SentinelHit ? "yes" : "no")</MetaRow>
+                <MetaRow Label="Markers removed">@d.Generation.StrippedMarkerCount</MetaRow>
+                <MetaRow Label="First token">@AdminFormat.Ms(d.Generation.FirstTokenMs)</MetaRow>
+                <MetaRow Label="Total">@AdminFormat.Ms(d.Generation.TotalMs)</MetaRow>
+            </section>
+
+            <section aria-labelledby="inspector-result">
+                <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-result">Result</FluentText>
+                <MetaRow Label="Status">@d.Result.FinalStatus</MetaRow>
+                @if (d.Result.RefusalReason is not null)
+                {
+                    <MetaRow Label="Refusal reason">@d.Result.RefusalReason</MetaRow>
+                }
+                @if (d.Result.ErrorCode is not null)
+                {
+                    <MetaRow Label="Error"><code>@d.Result.ErrorCode</code></MetaRow>
+                }
+            </section>
+
+            <section aria-labelledby="inspector-feedback">
+                <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-feedback">Feedback</FluentText>
+                @if (d.Feedback.Rating is null && d.Feedback.Reports.Count == 0)
+                {
+                    <FluentText Block="true">None.</FluentText>
+                }
+                else
+                {
+                    @if (d.Feedback.Rating is not null)
+                    {
+                        <MetaRow Label="Rating">@d.Feedback.Rating</MetaRow>
+                    }
+                    @foreach (var report in d.Feedback.Reports)
+                    {
+                        <MetaRow Label="Report">@report.Category@(report.Comment is null ? "" : $": {report.Comment}")</MetaRow>
+                    }
+                }
+            </section>
+
+            <section aria-labelledby="inspector-trace">
+                <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-trace">Telemetry trace</FluentText>
+                @if (d.OtelTraceId is null)
+                {
+                    <FluentText Block="true">No trace id was recorded.</FluentText>
+                }
+                else
+                {
+                    <MetaRow Label="Trace id"><code>@d.OtelTraceId</code></MetaRow>
+                    @if (d.TraceUrl is not null)
+                    {
+                        <a class="open-trace-link" href="@d.TraceUrl" target="_blank" rel="noopener noreferrer">Open the trace</a>
+                    }
+                }
+            </section>
+        </FluentStack>
+    }
+</aside>
+
+@code {
+    private enum LoadState { Loading, Loaded, NotFound, Failed, SessionExpired }
+
+    private ElementReference _element;
+    private LoadState _state = LoadState.Loading;
+    private RequestDetail? _detail;
+    private string _errorMessage = "";
+    private Guid _loadedId;
+    private readonly CancellationTokenSource _lifetime = new();
+
+    [Parameter, EditorRequired] public Guid RequestId { get; set; }
+
+    /// <summary>Called when the panel closes; the page removes the request from the URL.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>The element that opened the panel; it gets focus back on close.</summary>
+    [Parameter] public string? ReturnFocusId { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The fetch waits for the first interactive render (prerendering calls no API); a different request reloads.
+        if (firstRender)
+        {
+            await _element.FocusAsync();
+        }
+
+        if (_loadedId != RequestId)
+        {
+            _loadedId = RequestId;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _state = LoadState.Loading;
+        StateHasChanged();
+        var result = await Api.GetRequestAsync(RequestId, _lifetime.Token);
+        if (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (result.IsSuccess)
+        {
+            _detail = result.Value;
+            _state = LoadState.Loaded;
+        }
+        else if (result.Error!.IsUnauthenticated)
+        {
+            _state = LoadState.SessionExpired;
+        }
+        else if (result.Error.IsNotFound)
+        {
+            _state = LoadState.NotFound;
+        }
+        else
+        {
+            _errorMessage = result.Error.Status == 0 ? "The server could not be reached." : result.Error.Message;
+            _state = LoadState.Failed;
+        }
+
+        StateHasChanged();
+    }
+
+    private static string Tokens(long? input, long? output) =>
+        input is null && output is null ? "not reported" : $"{input?.ToString() ?? "?"} in, {output?.ToString() ?? "?"} out";
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CloseAsync();
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        await OnClose.InvokeAsync();
+        if (ReturnFocusId is not null)
+        {
+            await Scroller.FocusAsync(ReturnFocusId, CancellationToken.None);
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _lifetime.Cancel();
+        return ValueTask.CompletedTask;
+    }
+}

@@ -1,0 +1,115 @@
+@inject IAdminApi Api
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="24">
+    <section aria-labelledby="corpus-health-title">
+        <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold" id="corpus-health-title">Corpus health</FluentText>
+        <AdminLoader TValue="DocumentsHealth" Label="corpus health" Load="Api.GetHealthAsync">
+            <ChildContent Context="health">
+                <div class="admin-grid">
+                    <FluentCard Class="admin-stat">
+                        <FluentText Block="true" Weight="TextWeight.Bold">Documents</FluentText>
+                        <MetaRow Label="Active, shared">@health.Documents.ActiveShared</MetaRow>
+                        <MetaRow Label="Active, private">@health.Documents.ActivePrivate</MetaRow>
+                        <MetaRow Label="Archived, shared">@health.Documents.ArchivedShared</MetaRow>
+                        <MetaRow Label="Archived, private">@health.Documents.ArchivedPrivate</MetaRow>
+                    </FluentCard>
+                    <FluentCard Class="admin-stat">
+                        <FluentText Block="true" Weight="TextWeight.Bold">Versions</FluentText>
+                        <MetaRow Label="Indexed">@health.Versions.Indexed</MetaRow>
+                        <MetaRow Label="Queued">@health.Versions.Queued</MetaRow>
+                        <MetaRow Label="Processing">@health.Versions.Processing</MetaRow>
+                        <MetaRow Label="Failed">@health.Versions.Failed</MetaRow>
+                        <MetaRow Label="Superseded">@health.Versions.Superseded</MetaRow>
+                    </FluentCard>
+                    <FluentCard Class="admin-stat">
+                        <FluentText Block="true" Weight="TextWeight.Bold">Attention</FluentText>
+                        <MetaRow Label="Waiting to index">@(health.OldestPendingSeconds is { } age ? $"oldest {AdminFormat.Duration(age)}" : "nothing waiting")</MetaRow>
+                        <MetaRow Label="Stale documents">@health.StaleShared <span class="admin-hint">(shared, not updated for @health.StaleAfterDays days)</span></MetaRow>
+                    </FluentCard>
+                </div>
+            </ChildContent>
+        </AdminLoader>
+    </section>
+
+    <section aria-labelledby="chat-summary-title">
+        <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold" id="chat-summary-title">Chat activity</FluentText>
+        <AdminLoader @ref="_summary" TValue="ChatSummary" Label="chat activity" Load="LoadSummaryAsync">
+            <Toolbar>
+                <div role="group" aria-label="Time window" class="admin-window">
+                    @foreach (var window in Windows)
+                    {
+                        <FluentButton Appearance="@(window == _window ? ButtonAppearance.Primary : ButtonAppearance.Outline)"
+                                      aria-pressed="@(window == _window ? "true" : "false")" OnClick="@(() => SelectWindowAsync(window))">@window</FluentButton>
+                    }
+                </div>
+            </Toolbar>
+            <ChildContent Context="summary">
+                @if (summary.Requests == 0)
+                {
+                    <EmptyState Title="No requests in this window" Description="Questions asked in the chosen period will be summarised here." />
+                }
+                else
+                {
+                    <div class="admin-grid">
+                        <FluentCard Class="admin-stat">
+                            <FluentText Block="true" Weight="TextWeight.Bold">Requests</FluentText>
+                            <MetaRow Label="Total">@summary.Requests</MetaRow>
+                            @foreach (var (status, count) in summary.ByStatus.OrderByDescending(s => s.Value))
+                            {
+                                <MetaRow Label="@status">@count</MetaRow>
+                            }
+                            <MetaRow Label="Refusal rate">@AdminFormat.Percent(summary.RefusalRate)</MetaRow>
+                            <MetaRow Label="Rated badly or reported">@summary.NegativeFeedback</MetaRow>
+                        </FluentCard>
+                        <FluentCard Class="admin-stat">
+                            <FluentText Block="true" Weight="TextWeight.Bold">Speed</FluentText>
+                            <MetaRow Label="First token, median">@AdminFormat.Ms(summary.FirstTokenMs.P50)</MetaRow>
+                            <MetaRow Label="First token, p95">@AdminFormat.Ms(summary.FirstTokenMs.P95)</MetaRow>
+                            <MetaRow Label="Total, median">@AdminFormat.Ms(summary.TotalMs.P50)</MetaRow>
+                            <MetaRow Label="Total, p95">@AdminFormat.Ms(summary.TotalMs.P95)</MetaRow>
+                        </FluentCard>
+                        <FluentCard Class="admin-stat">
+                            <FluentText Block="true" Weight="TextWeight.Bold">Evidence</FluentText>
+                            @foreach (var (outcome, count) in summary.ByEvidenceOutcome.OrderByDescending(s => s.Value))
+                            {
+                                <MetaRow Label="@outcome">@count</MetaRow>
+                            }
+                        </FluentCard>
+                        <FluentCard Class="admin-stat">
+                            <FluentText Block="true" Weight="TextWeight.Bold">Errors by stage</FluentText>
+                            @if (summary.Errors.Count == 0)
+                            {
+                                <FluentText Block="true">No errors.</FluentText>
+                            }
+                            else
+                            {
+                                @foreach (var error in summary.Errors)
+                                {
+                                    <MetaRow Label="@error.Stage"><code>@error.ErrorCode</code> × @error.Count</MetaRow>
+                                }
+                            }
+                        </FluentCard>
+                    </div>
+                }
+            </ChildContent>
+        </AdminLoader>
+    </section>
+</FluentStack>
+
+@code {
+    private static readonly string[] Windows = ["24h", "7d", "30d"];
+
+    private AdminLoader<ChatSummary>? _summary;
+    private string _window = "7d";
+
+    private Task<ApiResult<ChatSummary>> LoadSummaryAsync(CancellationToken cancellationToken) => Api.GetSummaryAsync(_window, cancellationToken);
+
+    private async Task SelectWindowAsync(string window)
+    {
+        _window = window;
+        if (_summary is not null)
+        {
+            await _summary.RefreshAsync();
+        }
+    }
+}

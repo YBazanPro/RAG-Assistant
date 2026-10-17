@@ -778,3 +778,109 @@ html > body {
     min-height: 100dvh;
     overflow: auto;
 }
+
+/* Administration (spec 017) */
+.admin-layout {
+    display: block;
+}
+
+.admin-layout.with-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+    gap: 16px;
+    align-items: start;
+}
+
+.admin-main {
+    min-width: 0;
+}
+
+.admin-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-window {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.admin-stat {
+    padding: 12px;
+}
+
+.admin-hint {
+    color: var(--colorNeutralForeground3);
+    font-size: var(--fontSizeBase200);
+}
+
+.admin-filters {
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: var(--borderRadiusMedium);
+    padding: 8px 12px;
+}
+
+.request-panel {
+    position: sticky;
+    top: 8px;
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: var(--borderRadiusMedium);
+    background: var(--colorNeutralBackground1);
+    padding: 12px;
+}
+
+.request-panel:focus-visible {
+    outline: 2px solid var(--colorStrokeFocus2);
+    outline-offset: 2px;
+}
+
+.inspector-question {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.inspector-passages {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+}
+
+.inspector-passage {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    border: 1px solid var(--colorNeutralStroke2);
+    border-radius: var(--borderRadiusMedium);
+    padding: 4px 8px;
+    margin-bottom: 4px;
+}
+
+.inspector-passage.cited {
+    border-color: var(--colorBrandStroke1);
+}
+
+.inspector-passage code {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 1023px) {
+    .admin-layout.with-panel {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .request-panel {
+        position: static;
+        max-height: none;
+    }
+}

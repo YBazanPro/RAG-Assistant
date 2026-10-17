@@ -1,0 +1,62 @@
+@inject IAdminApi Api
+
+@* Metadata only: a maintainer sees that a private document exists and who owns it, never its content (ADR 0009, spec 017). *@
+<AdminLoader @ref="_loader" TValue="PagedResult<PrivateDocumentItem>" Label="private documents" Load="LoadAsync">
+    <ChildContent Context="result">
+        <FluentText Block="true" Class="admin-hint">Titles, owners and status only. The content of a private document is visible to its owner alone.</FluentText>
+        @if (result.TotalCount == 0)
+        {
+            <EmptyState Title="No private documents" Description="Documents imported as private will be listed here." />
+        }
+        else
+        {
+            <FluentDataGrid TGridItem="PrivateDocumentItem" Items="@result.Items.AsQueryable()" ItemKey="@(d => d.DocumentId)" ShowHover="true" MultiLine="true"
+                            aria-label="@($"Private documents, {result.TotalCount} results")" GridTemplateColumns="3fr 1.5fr 1fr 1fr 1.2fr 1.2fr">
+                <TemplateColumn Title="Title"><span>@context.Title</span> <VisibilityBadge Visibility="private" /></TemplateColumn>
+                <TemplateColumn Title="Owner"><span title="@context.OwnerSub">@AdminFormat.ShortSub(context.OwnerSub)</span></TemplateColumn>
+                <TemplateColumn Title="Status"><DocumentStatusBadge Status="@context.Status" /></TemplateColumn>
+                <TemplateColumn Title="Latest version">@(context.LatestVersionStatus ?? "—")</TemplateColumn>
+                <TemplateColumn Title="Created">
+                    <time datetime="@context.CreatedAt.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(context.CreatedAt)">@Formatting.Local(context.CreatedAt)</time>
+                </TemplateColumn>
+                <TemplateColumn Title="Updated">
+                    <time datetime="@context.UpdatedAt.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(context.UpdatedAt)">@Formatting.Local(context.UpdatedAt)</time>
+                </TemplateColumn>
+            </FluentDataGrid>
+            <FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />
+        }
+    </ChildContent>
+</AdminLoader>
+
+@code {
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 25 };
+    private AdminLoader<PagedResult<PrivateDocumentItem>>? _loader;
+    private int _page = 1;
+
+    private async Task<ApiResult<PagedResult<PrivateDocumentItem>>> LoadAsync(CancellationToken cancellationToken)
+    {
+        var result = await Api.ListPrivateDocumentsAsync(_page, cancellationToken);
+        if (result.IsSuccess)
+        {
+            _pagination.ItemsPerPage = Math.Max(1, result.Value.PageSize);
+            await _pagination.SetTotalItemCountAsync(result.Value.TotalCount);
+            if (_pagination.CurrentPageIndex != result.Value.Page - 1)
+            {
+                await _pagination.SetCurrentPageIndexAsync(result.Value.Page - 1);
+            }
+        }
+
+        return result;
+    }
+
+    private async Task OnPageIndexChangedAsync(int index)
+    {
+        if (index + 1 == _page || _loader is null)
+        {
+            return;
+        }
+
+        _page = index + 1;
+        await _loader.RefreshAsync();
+    }
+}

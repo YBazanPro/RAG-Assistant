@@ -17,6 +17,8 @@ internal static class ChatErrors
 
     public static readonly Error ActivityNotFound = Error.NotFound("chat.activity_not_found", "There is no activity for this answer.");
 
+    public static readonly Error RequestNotFound = Error.NotFound("chat.request_not_found", "The request was not found.");
+
     public static readonly Error AnswerInProgress =
         Error.Conflict("chat.answer_in_progress", "An answer is already being written in this conversation. Wait for it to finish.");
 

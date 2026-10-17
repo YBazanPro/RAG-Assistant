@@ -11,6 +11,16 @@ public sealed partial class VisibilityRuleCoverageTests
         ["ReprocessDocument.cs"] = "NewVersionFlow.GuardAsync",
     };
 
+    // Maintainer views that must not use ReadableBy (spec 017, Authorization): maintainers have no bypass for content, so these
+    // return aggregates, metadata or shared-only titles by construction. They may never read passages.
+    private static readonly Dictionary<string, string> MetadataOnly = new(StringComparer.Ordinal)
+    {
+        ["GetHealth.cs"] = "counts only; identifies no private document",
+        ["ListFailures.cs"] = "title, owner and error of a failed version; no retry for private documents",
+        ["ListPrivateDocuments.cs"] = "title, owner, status and dates of private documents; nothing else",
+        ["DocumentTitles.cs"] = "filters on Visibility.Shared itself and takes no viewer",
+    };
+
     private static readonly string[] Folders = ["Features", "Retrieval", "Common"];
 
     private static string ModuleFolder()
@@ -29,6 +39,9 @@ public sealed partial class VisibilityRuleCoverageTests
     [GeneratedRegex(@"\bdb\.(Documents|Versions|Passages)\b")]
     private static partial Regex TableAccess();
 
+    [GeneratedRegex(@"\bdb\.Passages\b")]
+    private static partial Regex PassageAccess();
+
     [Test]
     public async Task RequestPaths_thatReadDocumentTables_applyTheVisibilityRule()
     {
@@ -46,6 +59,16 @@ public sealed partial class VisibilityRuleCoverageTests
             }
 
             var name = Path.GetFileName(file);
+            if (MetadataOnly.ContainsKey(name))
+            {
+                if (PassageAccess().IsMatch(text))
+                {
+                    offenders.Add($"{name} (a metadata-only view must not read passages)");
+                }
+
+                continue;
+            }
+
             var applies = text.Contains("ReadableBy(", StringComparison.Ordinal)
                 || (GuardedElsewhere.TryGetValue(name, out var guard) && text.Contains(guard, StringComparison.Ordinal));
             if (!applies)

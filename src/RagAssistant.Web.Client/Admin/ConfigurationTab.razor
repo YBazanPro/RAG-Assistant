@@ -1,0 +1,47 @@
+@inject IAdminApi Api
+
+<div class="admin-grid">
+    <section aria-labelledby="chat-config-title">
+        <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold" id="chat-config-title">Chat</FluentText>
+        <AdminLoader TValue="ChatConfiguration" Label="chat configuration" Load="Api.GetChatConfigurationAsync">
+            <ChildContent Context="c">
+                <FluentCard Class="admin-stat">
+                    <MetaRow Label="Provider">@c.Provider</MetaRow>
+                    <MetaRow Label="Chat model">@(c.ChatModel ?? "unknown")</MetaRow>
+                    <MetaRow Label="Prompt version">@c.PromptVersion</MetaRow>
+                    <MetaRow Label="Rewrite prompt version">@c.RewritePromptVersion</MetaRow>
+                    <MetaRow Label="Passages per question">@c.TopK</MetaRow>
+                    <MetaRow Label="History exchanges">@c.HistoryExchanges</MetaRow>
+                    <MetaRow Label="History answer length">@c.MaxAnswerChars characters</MetaRow>
+                    <MetaRow Label="Question length">@c.MaxQuestionLength characters</MetaRow>
+                    <MetaRow Label="Messages per conversation">@c.MaxMessagesPerConversation</MetaRow>
+                    <MetaRow Label="Reports per answer">@c.MaxReportsPerAnswer</MetaRow>
+                    <MetaRow Label="Answer length">@c.MaxOutputTokens tokens</MetaRow>
+                    <MetaRow Label="First token timeout">@c.FirstTokenTimeoutSeconds s</MetaRow>
+                    <MetaRow Label="Answer timeout">@c.TotalTimeoutSeconds s</MetaRow>
+                    <MetaRow Label="Rewrite timeout">@c.RewriteTimeoutSeconds s</MetaRow>
+                    <MetaRow Label="Trace link">@(c.TraceLinkConfigured ? "configured" : "not configured")</MetaRow>
+                </FluentCard>
+            </ChildContent>
+        </AdminLoader>
+    </section>
+
+    <section aria-labelledby="documents-config-title">
+        <FluentText As="TextTag.H2" Size="TextSize.Size500" Weight="TextWeight.Semibold" id="documents-config-title">Documents</FluentText>
+        <AdminLoader TValue="DocumentsConfiguration" Label="documents configuration" Load="Api.GetDocumentsConfigurationAsync">
+            <ChildContent Context="c">
+                <FluentCard Class="admin-stat">
+                    <MetaRow Label="Embedding model">@c.EmbeddingModel (@c.EmbeddingDimensions dimensions)</MetaRow>
+                    <MetaRow Label="Passage size">up to @c.ChunkMaxTokens tokens, overlap @c.ChunkOverlapTokens, minimum @c.ChunkMinTokens</MetaRow>
+                    <MetaRow Label="Concurrent ingestions">@c.IngestionMaxConcurrentRuns</MetaRow>
+                    <MetaRow Label="Embedding batch">@c.IngestionEmbeddingBatchSize passages, timeout @c.IngestionEmbeddingTimeoutSeconds s, @c.IngestionEmbeddingMaxRetries retries</MetaRow>
+                    <MetaRow Label="Search">default @c.DefaultTopK, at most @c.MaxTopK passages</MetaRow>
+                    <MetaRow Label="Score thresholds">minimum @c.MinScore, confident @c.ConfidentScore, duplicate overlap @c.DuplicateOverlap</MetaRow>
+                    <MetaRow Label="Upload limits">text @Formatting.Size(c.MaxFileSizeBytes), PDF @Formatting.Size(c.MaxPdfSizeBytes), @c.PdfMaxPages pages</MetaRow>
+                    <MetaRow Label="Original files">@c.Storage</MetaRow>
+                    <MetaRow Label="Stale after">@c.StaleAfterDays days</MetaRow>
+                </FluentCard>
+            </ChildContent>
+        </AdminLoader>
+    </section>
+</div>

@@ -77,5 +77,11 @@ public sealed class RetrievalBed : IAsyncDisposable
         return await scope.ServiceProvider.GetRequiredService<IDocumentCatalog>().CheckAsync(ids, viewer, cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, string>> SharedTitlesAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        await using var scope = App.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IDocumentTitles>().GetSharedTitlesAsync(ids, cancellationToken);
+    }
+
     public async ValueTask DisposeAsync() => await App.DisposeAsync();
 }

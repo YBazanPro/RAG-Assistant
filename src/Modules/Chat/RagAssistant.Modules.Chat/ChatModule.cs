@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RagAssistant.Modules.Chat.Answering;
+using RagAssistant.Modules.Chat.Common;
 using RagAssistant.Modules.Chat.Options;
 using RagAssistant.Modules.Chat.Persistence;
 using RagAssistant.SharedKernel.Common.Behaviors;
@@ -56,6 +57,12 @@ public static class ChatModule
             .Bind(configuration.GetSection(FeedbackOptions.Section))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        services.AddOptions<AdminOptions>()
+            .Bind(configuration.GetSection(AdminOptions.Section))
+            .Validate(o => o.IsValid, "Admin:TraceUrlTemplate must be an absolute URL that contains {traceId}.")
+            .ValidateOnStart();
+        services.AddSingleton<ChatMetrics>();
 
         services.AddMediator(options =>
         {

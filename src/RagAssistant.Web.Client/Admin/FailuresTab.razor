@@ -1,0 +1,117 @@
+@inject IAdminApi Api
+@inject IDocumentsApi Documents
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+    <div aria-live="polite">
+        @if (_message is not null)
+        {
+            <FluentMessageBar Intent="@(_messageIsError ? MessageBarIntent.Error : MessageBarIntent.Success)" AllowDismiss="false">@_message</FluentMessageBar>
+        }
+    </div>
+
+    <AdminLoader @ref="_loader" TValue="PagedResult<FailureItem>" Label="ingestion failures" Load="LoadAsync">
+        <ChildContent Context="result">
+            @if (result.TotalCount == 0)
+            {
+                <EmptyState Title="No failed ingestions" Description="Documents whose latest version failed to index are listed here." />
+            }
+            else
+            {
+                <FluentDataGrid TGridItem="FailureItem" Items="@result.Items.AsQueryable()" ItemKey="@(f => f.VersionId)" ShowHover="true" MultiLine="true"
+                                aria-label="@($"Ingestion failures, {result.TotalCount} results")" GridTemplateColumns="2fr 1fr 0.8fr 1fr 2fr 1fr 1fr">
+                    <TemplateColumn Title="Document">
+                        @if (context.Visibility == "shared")
+                        {
+                            <FluentLink Href="@($"documents/{context.DocumentId}")">@context.Title</FluentLink>
+                        }
+                        else
+                        {
+                            <span>@context.Title</span>
+                            <VisibilityBadge Visibility="private" />
+                        }
+                        <span class="admin-hint">v@(context.VersionNumber)</span>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Owner"><span title="@context.OwnerSub">@AdminFormat.ShortSub(context.OwnerSub)</span></TemplateColumn>
+                    <TemplateColumn Title="Stage">@(context.Stage ?? "—")</TemplateColumn>
+                    <TemplateColumn Title="Error"><code>@(context.ErrorCode ?? "—")</code></TemplateColumn>
+                    <TemplateColumn Title="Message">@(context.ErrorMessage ?? "—")</TemplateColumn>
+                    <TemplateColumn Title="Failed">
+                        @if (context.FailedAt is { } at)
+                        {
+                            <time datetime="@at.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(at)">@Formatting.Local(at)</time>
+                        }
+                        else
+                        {
+                            @("—")
+                        }
+                    </TemplateColumn>
+                    <TemplateColumn Title="Action">
+                        @if (context.CanRetry)
+                        {
+                            <FluentButton Appearance="ButtonAppearance.Outline" Disabled="@_retrying.Contains(context.DocumentId)"
+                                          OnClick="@(() => RetryAsync(context))" aria-label="@($"Retry ingestion of {context.Title}")">Retry</FluentButton>
+                        }
+                        else if (context.Visibility == "private")
+                        {
+                            <span class="admin-hint">Only the owner can retry</span>
+                        }
+                    </TemplateColumn>
+                </FluentDataGrid>
+                <FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />
+            }
+        </ChildContent>
+    </AdminLoader>
+</FluentStack>
+
+@code {
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 25 };
+    private readonly HashSet<Guid> _retrying = [];
+    private AdminLoader<PagedResult<FailureItem>>? _loader;
+    private int _page = 1;
+    private string? _message;
+    private bool _messageIsError;
+
+    private async Task<ApiResult<PagedResult<FailureItem>>> LoadAsync(CancellationToken cancellationToken)
+    {
+        var result = await Api.ListFailuresAsync(_page, cancellationToken);
+        if (result.IsSuccess)
+        {
+            _pagination.ItemsPerPage = Math.Max(1, result.Value.PageSize);
+            await _pagination.SetTotalItemCountAsync(result.Value.TotalCount);
+            if (_pagination.CurrentPageIndex != result.Value.Page - 1)
+            {
+                await _pagination.SetCurrentPageIndexAsync(result.Value.Page - 1);
+            }
+        }
+
+        return result;
+    }
+
+    private async Task RetryAsync(FailureItem failure)
+    {
+        _retrying.Add(failure.DocumentId);
+        var result = await Documents.RetryAsync(failure.DocumentId, CancellationToken.None);
+        _retrying.Remove(failure.DocumentId);
+
+        // A conflict means someone else retried first: the refresh below drops the row either way.
+        _messageIsError = !result.IsSuccess && result.Error!.Status != 409;
+        _message = result.IsSuccess
+            ? $"Ingestion of “{failure.Title}” was queued again."
+            : _messageIsError ? $"Retry failed: {result.Error!.Message}" : $"“{failure.Title}” is no longer waiting for a retry.";
+        if (_loader is not null)
+        {
+            await _loader.RefreshAsync();
+        }
+    }
+
+    private async Task OnPageIndexChangedAsync(int index)
+    {
+        if (index + 1 == _page || _loader is null)
+        {
+            return;
+        }
+
+        _page = index + 1;
+        await _loader.RefreshAsync();
+    }
+}

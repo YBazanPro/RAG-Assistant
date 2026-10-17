@@ -31,6 +31,7 @@ internal sealed partial class AnswerPipeline(
     IOptions<GenerationOptions> generationOptions,
     IOptions<ChatRetrievalOptions> retrievalOptions,
     IOptions<FollowUpOptions> followUpOptions,
+    ChatMetrics metrics,
     TimeProvider clock,
     ILogger<AnswerPipeline> logger)
 {
@@ -360,12 +361,14 @@ internal sealed partial class AnswerPipeline(
             message.Citations.Clear();
             message.Citations.AddRange(snapshots ?? []);
 
-            db.RequestTraces.Add(Trace(attempt, status, reason, errorCode));
+            var trace = Trace(attempt, status, reason, errorCode);
+            db.RequestTraces.Add(trace);
             await db.SaveChangesAsync(timeout.Token);
             await db.Conversations
                 .Where(c => c.Id == attempt.Answer.ConversationId)
                 .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastActivityAt, now), timeout.Token);
             await transaction.CommitAsync(timeout.Token);
+            metrics.Record(trace, attempt.Search?.Chunks.Count ?? 0);
         }
         catch (Exception ex) when (ex is DbException or DbUpdateException or OperationCanceledException)
         {

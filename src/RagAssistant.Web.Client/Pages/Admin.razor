@@ -1,7 +1,87 @@
 @page "/admin"
 @attribute [Authorize(Policy = PolicyNames.Maintainer)]
+@inject NavigationManager Navigation
 
 <PageTitle>Admin · RagAssistant</PageTitle>
 
-<PageHeader Title="Administration" />
-<EmptyState Title="Nothing to review yet" Description="Request traces, ingestion failures and evaluation results will appear here." />
+<PageHeader Title="Administration" Description="Read-only views for maintainers: requests, ingestion, feedback and configuration." />
+
+<div class="@(_requestId is null ? "admin-layout" : "admin-layout with-panel")">
+    <div class="admin-main">
+        @* Each tab fetches only when it is the selected one, so opening /admin loads one tab's data, not all of it. *@
+        <FluentTabs ActiveTabId="@ActiveTab" ActiveTabIdChanged="OnTabChanged" aria-label="Administration sections">
+            <FluentTab Id="overview" Header="Overview">
+                @if (ActiveTab == "overview")
+                {
+                    <AdminOverview />
+                }
+            </FluentTab>
+            <FluentTab Id="requests" Header="Requests">
+                @if (ActiveTab == "requests")
+                {
+                    <RequestsTab OnOpen="OpenRequest" />
+                }
+            </FluentTab>
+            <FluentTab Id="failures" Header="Ingestion failures">
+                @if (ActiveTab == "failures")
+                {
+                    <FailuresTab />
+                }
+            </FluentTab>
+            <FluentTab Id="feedback" Header="Feedback">
+                @if (ActiveTab == "feedback")
+                {
+                    <FeedbackTab OnOpen="OpenRequest" />
+                }
+            </FluentTab>
+            <FluentTab Id="private" Header="Private documents">
+                @if (ActiveTab == "private")
+                {
+                    <PrivateDocumentsTab />
+                }
+            </FluentTab>
+            <FluentTab Id="configuration" Header="Configuration">
+                @if (ActiveTab == "configuration")
+                {
+                    <ConfigurationTab />
+                }
+            </FluentTab>
+        </FluentTabs>
+    </div>
+
+    @if (_requestId is { } id)
+    {
+        <RetrievalInspector @key="id" RequestId="id" ReturnFocusId="@RequestsTab.RowId(id)" OnClose="CloseRequest" />
+    }
+</div>
+
+@code {
+    private static readonly string[] Tabs = ["overview", "requests", "failures", "feedback", "private", "configuration"];
+
+    private Guid? _requestId;
+
+    [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+
+    [SupplyParameterFromQuery(Name = "request")] public string? Request { get; set; }
+
+    private string ActiveTab => Tab is not null && Tabs.Contains(Tab) ? Tab : "overview";
+
+    protected override void OnParametersSet() => _requestId = Guid.TryParse(Request, out var id) ? id : null;
+
+    // The tab and the open request live in the URL, so a request can be shared as a link and Back closes the panel.
+    private void OnTabChanged(string? tabId)
+    {
+        if (tabId is null || tabId == ActiveTab)
+        {
+            return;
+        }
+
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["tab"] = tabId, ["request"] = null }));
+    }
+
+    private void OpenRequest(Guid id) =>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["request"] = id.ToString() }));
+
+    private void CloseRequest() =>
+        Navigation.NavigateTo(Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["request"] = null }), new NavigationOptions { ReplaceHistoryEntry = true });
+}

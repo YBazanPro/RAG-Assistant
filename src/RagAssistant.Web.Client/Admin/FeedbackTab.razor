@@ -1,0 +1,72 @@
+@inject IAdminApi Api
+
+<AdminLoader @ref="_loader" TValue="PagedResult<FeedbackListItem>" Label="feedback" Load="LoadAsync">
+    <ChildContent Context="result">
+        @if (result.TotalCount == 0)
+        {
+            <EmptyState Title="No feedback to review" Description="Answers rated not helpful, and issue reports, are listed here." />
+        }
+        else
+        {
+            <FluentDataGrid TGridItem="FeedbackListItem" Items="@result.Items.AsQueryable()" ShowHover="true" MultiLine="true"
+                            aria-label="@($"Feedback, {result.TotalCount} results")" GridTemplateColumns="1.2fr 1fr 1.2fr 2fr 3fr 1fr">
+                <TemplateColumn Title="When">
+                    <time datetime="@context.CreatedAt.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(context.CreatedAt)">@Formatting.Local(context.CreatedAt)</time>
+                </TemplateColumn>
+                <TemplateColumn Title="Kind">
+                    <FluentBadge Appearance="BadgeAppearance.Tint" Color="@(context.Kind == "report" ? BadgeColor.Danger : BadgeColor.Warning)">@(context.Kind == "report" ? "report" : "not helpful")</FluentBadge>
+                </TemplateColumn>
+                <TemplateColumn Title="Category">@(context.Category ?? "—")</TemplateColumn>
+                <TemplateColumn Title="Comment">@(context.Comment ?? "—")</TemplateColumn>
+                <TemplateColumn Title="Question">
+                    @if (context.RequestId is { } id)
+                    {
+                        <FluentButton Id="@RequestsTab.RowId(id)" Appearance="ButtonAppearance.Transparent" OnClick="@(() => OnOpen.InvokeAsync(id))"
+                                      aria-label="@($"Open request: {context.QuestionText}")">@context.QuestionText</FluentButton>
+                    }
+                    else
+                    {
+                        <span>@(context.QuestionText ?? "—")</span>
+                    }
+                </TemplateColumn>
+                <TemplateColumn Title="Owner"><span title="@context.OwnerSub">@(context.OwnerSub is null ? "—" : AdminFormat.ShortSub(context.OwnerSub))</span></TemplateColumn>
+            </FluentDataGrid>
+            <FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />
+        }
+    </ChildContent>
+</AdminLoader>
+
+@code {
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 25 };
+    private AdminLoader<PagedResult<FeedbackListItem>>? _loader;
+    private int _page = 1;
+
+    [Parameter] public EventCallback<Guid> OnOpen { get; set; }
+
+    private async Task<ApiResult<PagedResult<FeedbackListItem>>> LoadAsync(CancellationToken cancellationToken)
+    {
+        var result = await Api.ListFeedbackAsync(_page, cancellationToken);
+        if (result.IsSuccess)
+        {
+            _pagination.ItemsPerPage = Math.Max(1, result.Value.PageSize);
+            await _pagination.SetTotalItemCountAsync(result.Value.TotalCount);
+            if (_pagination.CurrentPageIndex != result.Value.Page - 1)
+            {
+                await _pagination.SetCurrentPageIndexAsync(result.Value.Page - 1);
+            }
+        }
+
+        return result;
+    }
+
+    private async Task OnPageIndexChangedAsync(int index)
+    {
+        if (index + 1 == _page || _loader is null)
+        {
+            return;
+        }
+
+        _page = index + 1;
+        await _loader.RefreshAsync();
+    }
+}

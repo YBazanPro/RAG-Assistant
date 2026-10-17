@@ -86,6 +86,11 @@ public static class DocumentsModule
                 + "ConfidentScore must be at least MinScore, and both durations must be greater than zero.")
             .ValidateOnStart();
 
+        services.AddOptions<DocumentsAdminOptions>()
+            .Bind(configuration.GetSection(DocumentsAdminOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddMediator(options =>
         {
             options.Namespace = "RagAssistant.Modules.Documents.Generated";
@@ -108,6 +113,7 @@ public static class DocumentsModule
         services.AddScoped<PassageCandidates>();
         services.AddScoped<IDocumentSearch, DocumentSearch>();
         services.AddScoped<IDocumentCatalog, DocumentCatalog>();
+        services.AddScoped<IDocumentTitles, DocumentTitles>();
         return services;
     }
 }

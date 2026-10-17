@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.FluentUI.AspNetCore.Components;
 using RagAssistant.Security;
+using RagAssistant.Web.Client.Admin;
 using RagAssistant.Web.Client.Chat;
 using RagAssistant.Web.Client.Documents;
 
@@ -22,6 +23,7 @@ public static class UiServiceExtensions
         services.AddScoped<IIngestionEventSource>(sp => new IngestionEventSource(sp.GetRequiredService<HttpClient>));
         services.AddScoped<IFileUploader, BrowserFileUploader>();
         services.AddScoped<IChatApi>(sp => new ChatApi(sp.GetRequiredService<HttpClient>));
+        services.AddScoped<IAdminApi>(sp => new AdminApi(sp.GetRequiredService<HttpClient>));
         services.AddScoped<BrowserChatInterop>();
         services.AddScoped<IClipboard>(sp => sp.GetRequiredService<BrowserChatInterop>());
         services.AddScoped<IThreadScroller>(sp => sp.GetRequiredService<BrowserChatInterop>());

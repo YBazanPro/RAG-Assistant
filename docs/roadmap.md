@@ -13,7 +13,7 @@ This document decides **what to build, in which order, and with which tools**. E
 
 | Done | Not yet |
 |---|---|
-| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4); browsing the corpus and the Documents UI (spec 008, steps 1.5 and 1.6); document lifecycle (spec 009, step 1.7); PDF import (spec 010, step 1.8); retrieval (spec 011, steps 2.1 to 2.4); Chat module backend: conversations, refusal path, grounded streamed answers, request-trace writing (spec 012, steps 3.1 to 3.3); Chat UI (spec 013, step 3.4); follow-up rewrite, feedback and conversation deletion (spec 014, steps 3.5 and 3.6) | , feedback and deletion (spec 014) |
+| Aspire AppHost, PostgreSQL + pgvector, pgweb, MigrationService, `DatabaseMigrator`, TUnit integration fixture (spec 001); shared kernel and API conventions (spec 002); CI (spec 003); Keycloak, JWT bearer and policies (spec 004); Web shell and BFF (spec 005); Documents module data model and import (spec 006, steps 1.1 and 1.2); background ingestion, retry and the SSE progress stream (spec 007, steps 1.3 and 1.4); browsing the corpus and the Documents UI (spec 008, steps 1.5 and 1.6); document lifecycle (spec 009, step 1.7); PDF import (spec 010, step 1.8); retrieval (spec 011, steps 2.1 to 2.4); Chat module backend: conversations, refusal path, grounded streamed answers, request-trace writing (spec 012, steps 3.1 to 3.3); Chat UI (spec 013, step 3.4); follow-up rewrite, feedback and conversation deletion (spec 014, steps 3.5 and 3.6); chat scope, activity panel and layout (spec 015, step 3.7); private and shared documents (spec 016, step 3.8); request traces read side, the admin area and Chat metrics (spec 017, Phase 4) | Phase 5 (evaluation) and Phase 6 (first-release hardening) |
 
 
 
@@ -175,9 +175,9 @@ Decision record: [ADR 0009](adr/0009-document-visibility.md), private and shared
 
 | Step | Slice | Key points |
 |---|---|---|
-| 4.1 | **Request traces** | One record per question: rewritten query, retrieved passages + scores, threshold decision, status, citations, timings, model/token usage, trace ID. No full document text. Retention per D4. *Start writing these records in 3.3; this step adds reading them.* |
-| 4.2 | **Admin area** (`Maintainer`) | Recent requests → `RetrievalInspector`; ingestion failures with retry; corpus health (counts per status, failed runs, stale documents); link to the Aspire trace. |
-| 4.3 | **Metrics** | OpenTelemetry metrics: ingestion durations, retrieval result counts, refusals, time to first token, errors per stage. |
+| 4.1 | ✅ **Request traces** ([spec 017](specs/017-diagnose-traces-admin-and-metrics.md), implemented) | One record per question: rewritten query, retrieved passages + scores, threshold decision, status, citations, timings, model/token usage, trace ID. No full document text. Retention per D4. *Written since 3.3; read through `GET /api/admin/chat/requests` and `…/{id}`, titles shown only for currently shared documents.* |
+| 4.2 | ✅ **Admin area** (`Maintainer`) ([spec 017](specs/017-diagnose-traces-admin-and-metrics.md), implemented) | Tabs on `/admin`: overview (corpus health, chat summary), requests with the `RetrievalInspector` side panel, ingestion failures with retry, feedback, a metadata-only list of private documents, read-only configuration; link to the Aspire trace through `Admin:TraceUrlTemplate`. |
+| 4.3 | ✅ **Metrics** ([spec 017](specs/017-diagnose-traces-admin-and-metrics.md), implemented) | Documents already had ingestion and search meters; Chat adds the `RagAssistant.Chat` meter (requests, refusals, retrieval results, time to first token, request duration, errors per stage) and `/admin` summarises the same facts from the stored traces. |
 
 **Kit:** `opentelemetry`, `logging`, `serilog`. **Extra:** `plan-ui-change` (dashboard decomposition).
 

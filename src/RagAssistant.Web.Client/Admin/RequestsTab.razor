@@ -1,0 +1,129 @@
+@inject IAdminApi Api
+
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+    <fieldset class="admin-filters">
+        <legend>Filter requests</legend>
+        <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="16" Wrap="true">
+            @foreach (var status in Statuses)
+            {
+                <FluentCheckbox Label="@status" CheckState="@((bool?)_statuses.Contains(status))"
+                                CheckStateChanged="@((bool? state) => ToggleStatusAsync(status, state))" />
+            }
+            <FluentCheckbox Label="Rated not helpful or reported" CheckState="@((bool?)_negative)"
+                            CheckStateChanged="@((bool? state) => ToggleNegativeAsync(state))" />
+        </FluentStack>
+    </fieldset>
+
+    <AdminLoader @ref="_loader" TValue="PagedResult<RequestListItem>" Label="requests" Load="LoadAsync">
+        <ChildContent Context="result">
+            @if (result.TotalCount == 0)
+            {
+                <EmptyState Title="No requests" Description="@(HasFilters ? "No request matches these filters." : "Questions asked in the chat will appear here.")" />
+            }
+            else
+            {
+                <FluentDataGrid TGridItem="RequestListItem" Items="@result.Items.AsQueryable()" ItemKey="@(r => r.Id)" ShowHover="true" MultiLine="true"
+                                aria-label="@($"Requests, {result.TotalCount} results")" GridTemplateColumns="1.2fr 3fr 1fr 1fr 1fr 0.8fr 1fr">
+                    <TemplateColumn Title="Started">
+                        <time datetime="@context.StartedAt.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(context.StartedAt)">@Formatting.Local(context.StartedAt)</time>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Question">
+                        <FluentButton Id="@RowId(context.Id)" Appearance="ButtonAppearance.Transparent" OnClick="@(() => OnOpen.InvokeAsync(context.Id))"
+                                      aria-label="@($"Open request: {context.QuestionText}")">@context.QuestionText</FluentButton>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Owner"><span title="@context.OwnerSub">@AdminFormat.ShortSub(context.OwnerSub)</span></TemplateColumn>
+                    <TemplateColumn Title="Status">
+                        <FluentBadge Appearance="BadgeAppearance.Tint" Color="@StatusColor(context.FinalStatus)">@context.FinalStatus</FluentBadge>
+                        @if (context.HasNegativeFeedback)
+                        {
+                            <FluentBadge Appearance="BadgeAppearance.Outline" title="Rated not helpful or reported"><span aria-hidden="true">⚑ </span>feedback</FluentBadge>
+                        }
+                    </TemplateColumn>
+                    <TemplateColumn Title="Evidence">@(context.EvidenceOutcome ?? "—")</TemplateColumn>
+                    <TemplateColumn Title="Best score" Align="DataGridCellAlignment.End">@AdminFormat.Score(context.BestScore)</TemplateColumn>
+                    <TemplateColumn Title="Total" Align="DataGridCellAlignment.End">@AdminFormat.Ms(context.TotalMs)</TemplateColumn>
+                </FluentDataGrid>
+                <FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />
+            }
+        </ChildContent>
+    </AdminLoader>
+</FluentStack>
+
+@code {
+    private static readonly string[] Statuses = ["complete", "partial", "refused", "failed", "cancelled"];
+
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 25 };
+    private readonly HashSet<string> _statuses = [];
+    private AdminLoader<PagedResult<RequestListItem>>? _loader;
+    private bool _negative;
+    private int _page = 1;
+
+    /// <summary>Called with the request the user picked; the page opens the inspector.</summary>
+    [Parameter] public EventCallback<Guid> OnOpen { get; set; }
+
+    /// <summary>The element id of a request's row button, so closing the inspector can return focus to it.</summary>
+    public static string RowId(Guid id) => $"request-row-{id}";
+
+    private bool HasFilters => _negative || _statuses.Count > 0;
+
+    private static BadgeColor StatusColor(string status) => status switch
+    {
+        "complete" => BadgeColor.Success,
+        "failed" => BadgeColor.Danger,
+        "partial" => BadgeColor.Warning,
+        _ => BadgeColor.Subtle,
+    };
+
+    private async Task<ApiResult<PagedResult<RequestListItem>>> LoadAsync(CancellationToken cancellationToken)
+    {
+        var result = await Api.ListRequestsAsync([.. _statuses], _negative, _page, cancellationToken);
+        if (result.IsSuccess)
+        {
+            _pagination.ItemsPerPage = Math.Max(1, result.Value.PageSize);
+            await _pagination.SetTotalItemCountAsync(result.Value.TotalCount);
+            if (_pagination.CurrentPageIndex != result.Value.Page - 1)
+            {
+                await _pagination.SetCurrentPageIndexAsync(result.Value.Page - 1);
+            }
+        }
+
+        return result;
+    }
+
+    private Task ToggleStatusAsync(string status, bool? state)
+    {
+        if (state == true)
+        {
+            _statuses.Add(status);
+        }
+        else
+        {
+            _statuses.Remove(status);
+        }
+
+        return FilterChangedAsync();
+    }
+
+    private Task ToggleNegativeAsync(bool? state)
+    {
+        _negative = state == true;
+        return FilterChangedAsync();
+    }
+
+    private Task FilterChangedAsync()
+    {
+        _page = 1;
+        return _loader is null ? Task.CompletedTask : _loader.RefreshAsync();
+    }
+
+    private async Task OnPageIndexChangedAsync(int index)
+    {
+        if (index + 1 == _page || _loader is null)
+        {
+            return;
+        }
+
+        _page = index + 1;
+        await _loader.RefreshAsync();
+    }
+}

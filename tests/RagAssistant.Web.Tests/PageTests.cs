@@ -62,7 +62,8 @@ public class PageTests(WebAppFactory factory)
         var html = await response.Content.ReadAsStringAsync();
 
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        await Assert.That(html).Contains("Nothing to review yet");
+        await Assert.That(html).Contains("Administration");
+        await Assert.That(html).Contains("Ingestion failures");
         await Assert.That(html).Contains("<title>Admin · RagAssistant</title>");
     }
 

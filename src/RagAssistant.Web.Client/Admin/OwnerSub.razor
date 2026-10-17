@@ -1,0 +1,28 @@
+@inject IClipboard Clipboard
+
+@* The owner is only a `sub`: shortened here, complete in the tooltip and through the copy button. *@
+<span class="owner-sub" title="@Sub">@AdminFormat.ShortSub(Sub)</span>
+<FluentButton Appearance="ButtonAppearance.Transparent" OnClick="CopyAsync" aria-label="Copy owner id">Copy</FluentButton>
+@if (_copied)
+{
+    <span role="status" class="copy-confirmation">Copied</span>
+}
+
+@code {
+    private bool _copied;
+
+    [Parameter, EditorRequired] public string Sub { get; set; } = "";
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await Clipboard.CopyAsync(Sub, CancellationToken.None);
+            _copied = true;
+        }
+        catch (ClipboardUnavailableException)
+        {
+            _copied = false;
+        }
+    }
+}

@@ -190,7 +190,7 @@ Personas below are two distinct users, "owner" (`sub` A) and "other" (`sub` B); 
 
 | Decision | Fallback chosen now | Revisit when |
 |---|---|---|
-| Maintainer metadata view of private documents (ADR 0009: title, owner, status in admin) | Maintainers see no private documents anywhere. The admin spec (Phase 4) adds a dedicated, metadata-only listing; it must not reuse these read paths. | Phase 4.2 admin area |
+| Maintainer metadata view of private documents (ADR 0009: title, owner, status in admin) | Maintainers see no private documents anywhere. The admin spec (Phase 4) adds a dedicated, metadata-only listing; it must not reuse these read paths. | Closed by [spec 017](017-diagnose-traces-admin-and-metrics.md): `GET /api/admin/documents/private`, metadata only |
 | Orphaned private documents (owner left) | Stay private and unreachable; fixed by a manual database operation (set `Visibility`) | the first real case, or a user-management story |
 | Ownership transfer | not built | a user needs it |
 | Showing a visibility audit trail | not built; `UpdatedBy/At` and `Revision` already record the change | compliance need |
