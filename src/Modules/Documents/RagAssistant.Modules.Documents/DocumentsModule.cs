@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Ingestion;
+using RagAssistant.Modules.Documents.Ingestion.Extraction;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
@@ -104,6 +105,9 @@ public static class DocumentsModule
         services.AddSingleton<DocumentsMetrics>();
 
         services.AddSingleton<IngestionQueue>();
+        services.AddSingleton<ISourceExtractor, MarkdownSourceExtractor>();
+        services.AddSingleton<ISourceExtractor, PlainTextSourceExtractor>();
+        services.AddSingleton<ISourceExtractor, PdfSourceExtractor>();
         services.AddScoped<PassageEmbedder>();
         services.AddScoped<IngestionRunProcessor>();
         services.AddHostedService<IngestionWorker>();

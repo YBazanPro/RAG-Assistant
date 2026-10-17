@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
-using RagAssistant.Modules.Documents.Domain;
+using RagAssistant.Modules.Documents.Ingestion.Extraction;
 using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Pdf;
@@ -80,7 +80,7 @@ internal sealed class GoldenChunkingTests
         string.Join(' ', Enumerable.Range(1, 120).Select(n => $"token{n}")),
         "tail.");
 
-    private static readonly SourceBlock[] PdfBlocks =
+    private static readonly PdfBlock[] PdfBlocks =
     [
         new("Front matter before any heading.", [], 1),
         new("Chapter one opens on the first page.", ["One"], 1),
@@ -101,7 +101,7 @@ internal sealed class GoldenChunkingTests
     [Arguments("markdown-default", true)]
     public async Task Chunk_markdown_matchesGolden(string name, bool defaults)
     {
-        var passages = Chunker.Chunk(Markdown, SourceFormat.Markdown, defaults ? Default : Small);
+        var passages = Chunker.Chunk(MarkdownSourceExtractor.Parse(Markdown), defaults ? Default : Small);
 
         await AssertGoldenAsync(name, passages);
     }
@@ -109,7 +109,7 @@ internal sealed class GoldenChunkingTests
     [Test]
     public async Task Chunk_plainText_matchesGolden()
     {
-        var passages = Chunker.Chunk(PlainText, SourceFormat.PlainText, Small);
+        var passages = Chunker.Chunk(PlainTextSourceExtractor.Parse(PlainText), Small);
 
         await AssertGoldenAsync("plaintext-small", passages);
     }
@@ -117,7 +117,7 @@ internal sealed class GoldenChunkingTests
     [Test]
     public async Task Chunk_pdfBlocks_matchesGolden()
     {
-        var passages = Chunker.Chunk(PdfBlocks, Small);
+        var passages = Chunker.Chunk(PdfSourceExtractor.ToDocument(PdfBlocks), Small);
 
         await AssertGoldenAsync("pdf-blocks-small", passages);
     }
@@ -131,7 +131,7 @@ internal sealed class GoldenChunkingTests
             Page(Body(700, Enumerable.Range(1, 30).Select(n => $"Line {n} of a long page about expense categories and limits.").ToArray())));
         var extraction = new PdfTextExtractor(MsOptions.Create(new PdfOptions())).Extract(new MemoryStream(pdf), onPageDone: null, CancellationToken.None);
 
-        var passages = Chunker.Chunk(extraction.Blocks, Small);
+        var passages = Chunker.Chunk(PdfSourceExtractor.ToDocument(extraction.Blocks), Small);
 
         await AssertGoldenAsync("pdf-extracted-small", passages);
     }

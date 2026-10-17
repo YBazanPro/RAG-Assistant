@@ -51,7 +51,7 @@ internal sealed class PdfTextExtractorTests
             Page(Body(700, "The quarterly budget review covers travel expenses.")),
             Page(Body(700, "Equipment purchases follow the procurement policy.")));
 
-        var passages = Chunker.Chunk(Extract(pdf).Blocks, new ChunkingOptions { MinTokens = 1 });
+        var passages = Chunker.Chunk(PdfSourceExtractor.ToDocument(Extract(pdf).Blocks), new ChunkingOptions { MinTokens = 1 });
 
         await Assert.That(passages.Count).IsEqualTo(1);
         await Assert.That(passages[0].PageStart).IsEqualTo(1);

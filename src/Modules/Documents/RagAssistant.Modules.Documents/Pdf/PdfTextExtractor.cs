@@ -12,9 +12,12 @@ using UglyToad.PdfPig.Outline;
 
 namespace RagAssistant.Modules.Documents.Pdf;
 
+/// <summary>A paragraph of extracted text with the heading chain it sits under and the page it was found on (1-based).</summary>
+internal sealed record PdfBlock(string Text, string[] SectionPath, int Page);
+
 /// <param name="PagesWithoutText">1-based page numbers with too little text to count as text pages.</param>
 /// <param name="MarginLinesRemoved">Repeated headers, footers and page numbers that were dropped.</param>
-internal sealed record PdfExtraction(IReadOnlyList<SourceBlock> Blocks, int PageCount, int[] PagesWithoutText, int MarginLinesRemoved);
+internal sealed record PdfExtraction(IReadOnlyList<PdfBlock> Blocks, int PageCount, int[] PagesWithoutText, int MarginLinesRemoved);
 
 /// <summary>Reads the text layer of a PDF into ordered paragraphs with section paths and page numbers (spec 010). No OCR.</summary>
 internal interface IPdfTextExtractor
@@ -352,7 +355,7 @@ internal sealed partial class PdfTextExtractor(IOptions<PdfOptions> options) : I
         }
     }
 
-    private static List<SourceBlock> BuildBlocks(List<Line> lines, List<OutlineEntry> outline, PdfOptions o)
+    private static List<PdfBlock> BuildBlocks(List<Line> lines, List<OutlineEntry> outline, PdfOptions o)
     {
         var headingLevel = new int[lines.Count];
         var outlineStarts = new List<(int Start, int Level, string Title)>();
@@ -385,7 +388,7 @@ internal sealed partial class PdfTextExtractor(IOptions<PdfOptions> options) : I
             headingLevel = DetectFontHeadings(lines, o);
         }
 
-        var blocks = new List<SourceBlock>();
+        var blocks = new List<PdfBlock>();
         var chain = new List<(int Level, string Title)>();
         var paragraph = new StringBuilder();
         var paragraphPage = 0;
@@ -395,7 +398,7 @@ internal sealed partial class PdfTextExtractor(IOptions<PdfOptions> options) : I
         {
             if (paragraph.Length > 0)
             {
-                blocks.Add(new SourceBlock(paragraph.ToString(), [.. chain.Select(h => h.Title)], paragraphPage));
+                blocks.Add(new PdfBlock(paragraph.ToString(), [.. chain.Select(h => h.Title)], paragraphPage));
                 paragraph.Clear();
             }
         }
