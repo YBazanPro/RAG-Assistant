@@ -67,6 +67,22 @@ internal sealed class ChunkerPageTests
     }
 
     [Test]
+    public async Task Chunk_smallPassageBeforeASiblingSection_isNotMergedIntoIt()
+    {
+        // PDF sections have no heading line to repeat, so a merge into the sibling would label B's text with path A.
+        var passages = Chunker.Chunk(
+            PdfSourceExtractor.ToDocument([new("Small.", ["A"], 1), new("Also small.", ["B"], 2)]),
+            new ChunkingOptions { MaxTokens = 50, OverlapTokens = 5, MinTokens = 20 });
+
+        await Assert.That(passages.Count).IsEqualTo(2);
+        await Assert.That(passages[0].SectionPath).IsEquivalentTo(["A"]);
+        await Assert.That(passages[0].Text).IsEqualTo("Small.");
+        await Assert.That(passages[0].PageEnd).IsEqualTo(1);
+        await Assert.That(passages[1].SectionPath).IsEquivalentTo(["B"]);
+        await Assert.That(passages[1].Text).IsEqualTo("Also small.");
+    }
+
+    [Test]
     public async Task Chunk_respectsTheTokenLimitLikeText()
     {
         var passages = Chunker.Chunk(PdfSourceExtractor.ToDocument([new(Words("x", 300), NoPath, 1), new(Words("y", 300), NoPath, 2)]), Options);
