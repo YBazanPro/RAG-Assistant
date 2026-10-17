@@ -12,7 +12,7 @@ internal sealed record SourceDocument(IReadOnlyList<SourceSection> Sections);
 /// derived from path changes.
 /// </summary>
 /// <param name="Path">The heading chain, outermost first; empty before the first heading and for formats without headings.</param>
-/// <param name="HeadingLine">The heading as written in the source, put back in front of the section's text when it merges into the previous passage; null when the source has none to repeat.</param>
+/// <param name="HeadingLine">The heading as written in the source, put back in front of the section's text when it merges into the previous passage; null when the source has none to repeat, and then the section's text never merges into a passage of another section.</param>
 internal sealed record SourceSection(string[] Path, string? HeadingLine, IReadOnlyList<SourceBlock> Blocks);
 
 /// <param name="Page">1-based page the block was found on, 0 when the source has no pages.</param>

@@ -262,14 +262,21 @@ internal static class Chunker
     private static bool SameParent(string[] a, string[] b) =>
         a.Length > 0 && b.Length > 0 && a.AsSpan(0, a.Length - 1).SequenceEqual(b.AsSpan(0, b.Length - 1));
 
-    /// <summary>Merges drafts[at + 1] into drafts[at] when the result fits; the later part keeps its heading line when it starts a section.</summary>
+    /// <summary>
+    /// Merges drafts[at + 1] into drafts[at] when the result fits; the later part keeps its heading line when it starts a section.
+    /// A section without a heading line (PDF) is never merged across: its text would sit under the other section's path with no visible boundary.
+    /// </summary>
     private static bool TryMerge(List<Draft> drafts, int at, Limits limits)
     {
         var first = drafts[at];
         var second = drafts[at + 1];
-        var part = second.StartSection != first.EndSection && second.StartHeading is { } heading
-            ? $"{heading}\n{second.Text}"
-            : second.Text;
+        var crossesSection = second.StartSection != first.EndSection;
+        if (crossesSection && second.StartHeading is null)
+        {
+            return false;
+        }
+
+        var part = crossesSection ? $"{second.StartHeading}\n{second.Text}" : second.Text;
         var text = first.Text + BlockSeparator + part;
         var limit = CanReceiveOverlap(drafts, at) ? limits.Continuation : limits.Max;
         if (text.Length > limit)

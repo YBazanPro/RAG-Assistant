@@ -50,13 +50,14 @@ beta171 beta172 beta173 beta174 beta175 beta176 beta177 beta178 beta179 beta180 
 beta193 beta194 beta195 beta196
 beta197 beta198 beta199
 <<<
-#13 path=One ordinal=4 pages=4-6 chars=56 tokens=14
+#13 path=One ordinal=4 pages=4-4 chars=37 tokens=10
 Back in chapter one after the detail.
-
+<<<
+#14 path=Two ordinal=0 pages=5-6 chars=17 tokens=5
 Tiny.
 
 Also tiny.
 <<<
-#14 path=One ordinal=5 pages=7-7 chars=229 tokens=58
+#15 path=One ordinal=5 pages=7-7 chars=229 tokens=58
 gamma0 gamma1 gamma2 gamma3 gamma4 gamma5 gamma6 gamma7 gamma8 gamma9 gamma10 gamma11 gamma12 gamma13 gamma14 gamma15 gamma16 gamma17 gamma18 gamma19 gamma20 gamma21 gamma22 gamma23 gamma24 gamma25 gamma26 gamma27 gamma28 gamma29
 <<<
