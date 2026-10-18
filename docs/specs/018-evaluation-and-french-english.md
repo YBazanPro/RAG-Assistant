@@ -36,7 +36,7 @@ Success: a maintainer runs one command against the AppHost and gets a reproducib
 
 **Answer language (Chat module)**
 
-- **The question's language is detected explicitly** with the same detector: `en` or `fr`. When unsure, the language of the conversation's previous question is kept, otherwise `en`. No extra model call is made.
+- **The question's language is detected explicitly** with the same detector and a minimum of 3 words instead of 20 (clarification 1): `en` or `fr`. When unsure, the language of the conversation's previous question is kept, otherwise `en`. No extra model call is made.
 - **The prompt names the answer language** ("Answer in French." / "Answer in English."). The follow-up rewrite writes the standalone question in the question's language. Prompt versions become `018.1` and `rw.018.1`.
 - **An explicit request for a language wins over the question's language,** for any language. The answer prompt says: "Answer in French, unless the user explicitly asks for another language; then use that language." The model handles any wording, and no parsing code is written.
 - **A request lasts for the rest of the conversation.** On follow-ups, the rewrite's structured result (`RewriteResult`) gains `RequestedLanguage`: the ISO 639-1 code of the language the user last asked for anywhere in the history window and the current question, or `null`. When it is set, the answer prompt names that language instead of the detected one ("Answer in Spanish.", the name taken from `CultureInfo.GetCultureInfo(code).EnglishName`), and the message and trace record source `requested`. A value that is not a known two-letter culture is ignored. No extra model call: the rewrite already runs on follow-ups.
@@ -85,6 +85,13 @@ Success: a maintainer runs one command against the AppHost and gets a reproducib
 - Hosted judge models or any API key.
 - Translating passages, or cross-language query expansion.
 
+## Clarifications
+
+Recorded during implementation, agreed with the developer on 2026-10-18.
+
+1. **Question detection uses a 3-word minimum.** With the 20-word minimum for documents, almost every question would be uncertain and fall back to the conversation or `en`. `LanguageDetector.Detect(text, minWords: 3)` is used for questions; documents keep the default of 20. The 0.7 share rule is the same for both.
+2. **An absent `language` on `PUT /api/documents/{id}` means `detect`,** like an absent `language` on import. The edit form always sends the field, so this only affects API callers that omit it.
+
 ## Domain Model
 
 ### Documents (`documents` schema)
@@ -102,7 +109,7 @@ Lifecycle:
 
 **Detector (`LanguageDetector`):** pure, deterministic and allocation-light.
 - It scores the text against short English and French stop-word lists plus French diacritics, and only looks at the first 20,000 characters.
-- `confident` when the text has at least 20 words and the winning share is at least 0.7 of the matched stop-words. Otherwise `uncertain`, with the best guess kept for the trace.
+- `confident` when the text has at least 20 words (3 for a question, clarification 1) and the winning share is at least 0.7 of the matched stop-words. Otherwise `uncertain`, with the best guess kept for the trace.
 - Placement: a pure, stateless text utility in `RagAssistant.SharedKernel/Common/Text` (text statistics, no business rule), called by both modules.
 
 ### Chat (`chat` schema)
@@ -120,7 +127,7 @@ A retry (spec 012) reuses the question's stored language.
 | Verb | Route | Change | Policy |
 |---|---|---|---|
 | POST | `/api/documents` | `language` form field optional: absent, empty or `detect` → `LanguageSource = detect` (stored language `en` until detection). A code → `owner`. Response unchanged. | ContentOwner |
-| PUT | `/api/documents/{id}` | `language` accepts a two-letter code or `detect` (see lifecycle). `If-Match` rules unchanged. | ContentOwner |
+| PUT | `/api/documents/{id}` | `language` accepts a two-letter code or `detect` (see lifecycle); absent or empty means `detect`, as on import (clarification 2). `If-Match` rules unchanged. | ContentOwner |
 | GET | `/api/documents/{id}` | Adds `languageSource`, and `detectedLanguage` + `languageDetection` of the active version. | KnowledgeSeeker |
 | GET | `/api/documents/{id}/versions` | Each version adds `detectedLanguage`, `languageDetection`. | KnowledgeSeeker |
 | GET | `/api/documents/search` | New `candidates=true` (default false): adds `candidates[]` with `passageId`, `documentId`, `language`, `score`, `dropped` (`null` \| `minScore` \| `duplicate` \| `topK`). `ranked` is unchanged. | Maintainer |

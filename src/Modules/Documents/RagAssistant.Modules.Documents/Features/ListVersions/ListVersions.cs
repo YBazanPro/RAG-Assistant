@@ -36,7 +36,9 @@ internal static class ListVersions
         string? CreatedBy,
         DateTimeOffset? IndexedAt,
         RunItem[] Runs,
-        int[]? PagesWithoutText);
+        int[]? PagesWithoutText,
+        string? DetectedLanguage,
+        string? LanguageDetection);
 
     public sealed record Response(VersionItem[] Items);
 
@@ -73,6 +75,8 @@ internal static class ListVersions
                     v.CreatedBy,
                     v.IndexedAt,
                     v.PagesWithoutText,
+                    v.DetectedLanguage,
+                    v.LanguageDetection,
                     Runs = v.Runs
                         .OrderByDescending(r => r.Attempt)
                         .Select(r => new RunRow(
@@ -96,7 +100,9 @@ internal static class ListVersions
                 v.IndexedAt,
                 [.. v.Runs.Select(r => new RunItem(
                     r.Id, r.Attempt, r.Status.ToApi(), r.Stage.ToApi(), r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt))],
-                v.PagesWithoutText));
+                v.PagesWithoutText,
+                v.DetectedLanguage,
+                v.LanguageDetection.ToApi()));
 
             return new Response([.. items]);
         }

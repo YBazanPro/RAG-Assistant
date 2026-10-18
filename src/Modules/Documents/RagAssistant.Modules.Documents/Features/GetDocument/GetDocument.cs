@@ -51,7 +51,10 @@ internal static class GetDocument
         string? UpdatedBy,
         int Revision,
         string Visibility,
-        bool IsOwner);
+        bool IsOwner,
+        string LanguageSource,
+        string? DetectedLanguage,
+        string? LanguageDetection);
 
     internal sealed class Handler(DocumentsDbContext db) : IRequestHandler<Query, Result<Response>>
     {
@@ -68,6 +71,11 @@ internal static class GetDocument
                     Latest = d.Versions
                         .OrderByDescending(v => v.Number)
                         .Select(v => new VersionRow(v.Id, v.Number, v.Status, v.SourceFormat, v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt, v.PagesWithoutText))
+                        .FirstOrDefault(),
+                    // What the active version detected, so the detail page can offer it when the owner chose otherwise (spec 018).
+                    Detection = d.Versions
+                        .Where(v => v.Id == d.ActiveVersionId)
+                        .Select(v => new DetectionRow(v.DetectedLanguage, v.LanguageDetection))
                         .FirstOrDefault(),
                     Run = d.Versions
                         .OrderByDescending(v => v.Number)
@@ -100,11 +108,13 @@ internal static class GetDocument
                 d.ActiveVersionId, latest, run, d.CreatedAt,
                 // The raw sub is the access identity: only its owner gets it back (spec 016).
                 isOwner ? d.CreatedBy : null, d.UpdatedAt, isOwner || d.UpdatedBy == query.ViewerSub ? d.UpdatedBy : null, d.Revision,
-                d.Visibility.ToApi(), isOwner);
+                d.Visibility.ToApi(), isOwner, d.LanguageSource.ToApi(), row.Detection?.Language, row.Detection?.Confidence.ToApi());
         }
 
         private sealed record VersionRow(
             Guid Id, int Number, VersionStatus Status, SourceFormat SourceFormat, string OriginalFileName, int SizeBytes, int? PassageCount, DateTimeOffset CreatedAt, int[]? PagesWithoutText);
+
+        private sealed record DetectionRow(string? Language, LanguageConfidence? Confidence);
 
         private sealed record RunRow(
             Guid Id, int Attempt, RunStatus Status, IngestionStage Stage, string? ErrorCode, string? ErrorMessage,

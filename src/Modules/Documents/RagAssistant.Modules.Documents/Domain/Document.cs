@@ -11,6 +11,9 @@ internal sealed class Document
 
     public required string Language { get; set; }
 
+    /// <summary>Detect: an indexed version's confident detection replaces <see cref="Language"/>; Owner: detection only advises.</summary>
+    public LanguageSource LanguageSource { get; set; } = LanguageSource.Detect;
+
     public string[] Tags { get; set; } = [];
 
     public DateOnly? EffectiveDate { get; set; }

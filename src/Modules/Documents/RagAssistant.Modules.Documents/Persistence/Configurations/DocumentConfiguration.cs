@@ -23,6 +23,7 @@ internal sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(d => d.UpdatedBy).HasMaxLength(128);
 
         builder.Property(d => d.Visibility).HasDefaultValue(Visibility.Shared);
+        builder.Property(d => d.LanguageSource).HasDefaultValue(LanguageSource.Detect);
 
         builder.HasIndex(d => d.Tags).HasMethod("gin");
         builder.HasIndex(d => new { d.Visibility, d.CreatedBy });

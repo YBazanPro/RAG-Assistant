@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
+using RagAssistant.SharedKernel.Common.Text;
 
 namespace RagAssistant.Modules.Documents.Ingestion;
 
@@ -58,7 +60,7 @@ internal sealed partial class IngestionRunProcessor(
                 .Select(v => new VersionInput(v.DocumentId, v.Number, v.Content, v.StorageKey, v.SourceFormat))
                 .SingleAsync(cancellationToken);
 
-            var extracted = await RunStageAsync(runId, stage, () => ExtractAsync(version, runId, run.VersionId, cancellationToken), cancellationToken);
+            var (extracted, detection) = await RunStageAsync(runId, stage, () => ExtractAsync(version, runId, run.VersionId, cancellationToken), cancellationToken);
 
             stage = IngestionStage.Chunking;
             var passages = await RunStageAsync(
@@ -101,7 +103,7 @@ internal sealed partial class IngestionRunProcessor(
             {
                 storing?.SetTag("stage", "storing");
                 await RecordEventAsync(runId, stage, EventStatus.Started, null, cancellationToken);
-                await StoreAsync(runId, run.VersionId, version.DocumentId, passages, vectors, cancellationToken);
+                await StoreAsync(runId, run.VersionId, version.DocumentId, passages, vectors, detection, cancellationToken);
             }
 
             var elapsed = clock.GetElapsedTime(started);
@@ -123,7 +125,7 @@ internal sealed partial class IngestionRunProcessor(
         }
     }
 
-    private async Task<(SourceDocument Result, string Summary)> ExtractAsync(VersionInput version, Guid runId, Guid versionId, CancellationToken cancellationToken)
+    private async Task<((SourceDocument Document, LanguageDetection Detection) Result, string Summary)> ExtractAsync(VersionInput version, Guid runId, Guid versionId, CancellationToken cancellationToken)
     {
         var extractor = extractors.SingleOrDefault(e => e.Format == version.Format)
             ?? throw new InvalidOperationException($"No extractor is registered for {version.Format}.");
@@ -152,7 +154,32 @@ internal sealed partial class IngestionRunProcessor(
                 .ExecuteUpdateAsync(s => s.SetProperty(v => v.PagesWithoutText, withoutText), cancellationToken);
         }
 
-        return (extraction.Document, extraction.Summary);
+        // Detected here, before chunking, from the text the passages will hold; applied to the document only once the version is indexed.
+        var detection = LanguageDetector.Detect(LeadingText(extraction.Document));
+        LanguageConfidence? confidence = detection.Language is null ? null
+            : detection.IsConfident ? LanguageConfidence.Confident : LanguageConfidence.Uncertain;
+        await db.Versions.Where(v => v.Id == versionId)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(v => v.DetectedLanguage, detection.Language).SetProperty(v => v.LanguageDetection, confidence),
+                cancellationToken);
+        Activity.Current?.SetTag("document.language_detection", confidence?.ToString().ToLowerInvariant() ?? "none");
+
+        return ((extraction.Document, detection), extraction.Summary);
+    }
+
+    private static string LeadingText(SourceDocument document)
+    {
+        var text = new StringBuilder();
+        foreach (var block in document.Sections.SelectMany(s => s.Blocks))
+        {
+            text.Append(block.Text).Append('\n');
+            if (text.Length >= LanguageDetector.MaxCharacters)
+            {
+                break;
+            }
+        }
+
+        return text.ToString();
     }
 
     private async Task WriteExtractionProgressAsync(ChannelReader<(int Done, int Total)> reader, Guid runId, CancellationToken cancellationToken)
@@ -234,6 +261,7 @@ internal sealed partial class IngestionRunProcessor(
         Guid documentId,
         IReadOnlyList<ChunkedPassage> chunks,
         IReadOnlyList<float[]> vectors,
+        LanguageDetection detection,
         CancellationToken cancellationToken)
     {
         var embedding = embeddingOptions.Value;
@@ -281,6 +309,14 @@ internal sealed partial class IngestionRunProcessor(
         // Deliberately leaves Document.UpdatedAt alone: ingestion is the system's work, not an edit by a user.
         await db.Documents.Where(d => d.Id == documentId)
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.ActiveVersionId, versionId), cancellationToken);
+        if (detection is { IsConfident: true, Language: { } detected })
+        {
+            // A document left to detection takes the active version's language (spec 018). Unlike other system work this bumps the
+            // revision: the metadata a client holds is stale, so its next edit must not silently restore the old language.
+            await db.Documents
+                .Where(d => d.Id == documentId && d.LanguageSource == LanguageSource.Detect && d.Language != detected)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.Language, detected).SetProperty(d => d.Revision, d => d.Revision + 1), cancellationToken);
+        }
         await db.IngestionRuns.Where(r => r.Id == runId)
             .ExecuteUpdateAsync(
                 s => s.SetProperty(r => r.Status, RunStatus.Succeeded)
