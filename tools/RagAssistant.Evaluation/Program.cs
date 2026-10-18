@@ -7,6 +7,7 @@ using RagAssistant.Evaluation;
 using RagAssistant.Evaluation.Api;
 using RagAssistant.Evaluation.Commands;
 using RagAssistant.Evaluation.Corpus;
+using RagAssistant.Evaluation.Run;
 
 // The evaluation harness (spec 018). Commands run against a running AppHost; settings come from appsettings.json, user secrets,
 // RAGEVAL_ environment variables and --Evaluation:Key=value arguments.
@@ -15,6 +16,7 @@ const string Usage = """
 
     Commands:
       seed      Import or update the sample corpus (samples/corpus) in the running app.
+      run       Seed, ask every golden question (samples/golden) and write a report to .data/evaluation.
       render    Write the generated sample PDFs to .data/evaluation/pdf, to look at them.
     """;
 
@@ -44,6 +46,8 @@ builder.Services.AddHttpClient<RagAssistantApi>((services, http) =>
     http.Timeout = TimeSpan.FromMinutes(10);
 });
 builder.Services.AddTransient<SeedCommand>();
+builder.Services.AddTransient<RunCommand>();
+builder.Services.AddTransient<ReportWriter>();
 
 using var host = builder.Build();
 using var cancellation = new CancellationTokenSource();
@@ -60,6 +64,8 @@ try
         case "seed":
             await host.Services.GetRequiredService<SeedCommand>().RunAsync(Console.Out, cancellation.Token);
             return 0;
+        case "run":
+            return await host.Services.GetRequiredService<RunCommand>().RunAsync(Console.Out, cancellation.Token);
         case "render":
             return Render(host.Services.GetRequiredService<IOptions<EvaluationOptions>>().Value);
         default:

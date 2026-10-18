@@ -9,7 +9,7 @@ namespace RagAssistant.Evaluation.Api;
 /// The HTTP API as the harness uses it (spec 018): only public endpoints, never the database or an internal type. Calls go straight
 /// to the API with a bearer token, as the dev tokens allow; the BFF is not involved.
 /// </summary>
-internal sealed class RagAssistantApi(HttpClient http, DevTokens tokens)
+internal sealed partial class RagAssistantApi(HttpClient http, DevTokens tokens)
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 

@@ -14,6 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- LanguageDetector: the answer-language check uses the same detector as the app (spec 018). -->
+    <ProjectReference Include="..\..\src\RagAssistant.SharedKernel\RagAssistant.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

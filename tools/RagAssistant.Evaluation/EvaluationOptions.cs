@@ -19,6 +19,11 @@ internal sealed class EvaluationOptions
 
     public string CorpusPath { get; set; } = "samples/corpus";
 
+    public string DatasetPath { get; set; } = "samples/golden/questions.json";
+
+    /// <summary>Git-ignored; one folder per run.</summary>
+    public string ReportsPath { get; set; } = ".data/evaluation";
+
     /// <summary>Every seeded document carries this tag; harness conversations are scoped to it (spec 018).</summary>
     public string SampleTag { get; set; } = "sample";
 

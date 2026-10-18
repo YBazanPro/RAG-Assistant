@@ -92,7 +92,7 @@ Recorded during implementation, agreed with the developer on 2026-10-18.
 1. **Question detection uses a 3-word minimum.** With the 20-word minimum for documents, almost every question would be uncertain and fall back to the conversation or `en`. `LanguageDetector.Detect(text, minWords: 3)` is used for questions; documents keep the default of 20. The 0.7 share rule is the same for both.
 2. **An absent `language` on `PUT /api/documents/{id}` means `detect`,** like an absent `language` on import. The edit form always sends the field, so this only affects API callers that omit it.
 
-Found while building the harness (2026-10-18), awaiting the developer's confirmation:
+Found while building the harness, confirmed by the developer on 2026-10-18:
 
 3. **The generated PDFs are English only.** PdfPig's built-in Standard 14 fonts cannot write many French letters (à, â, ç, ô, É among others), and embedding a font file would add a binary asset. The corpus has 2 English PDFs (procurement, data retention); the French safety instructions are Markdown. The renderer pins the PDF's random `/ID` to a hash of its source, so the same source always gives the same bytes.
 4. **Unchanged content is recognised by the API's duplicate guard.** `seed` uploads each document's last file; `409 documents.duplicate_content` naming the same document means "unchanged". No content hash is computed on the harness side.
