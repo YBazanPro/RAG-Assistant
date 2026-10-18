@@ -37,7 +37,9 @@ public sealed record RequestQuestion(
     string? Language,
     IReadOnlyList<string> Tags,
     IReadOnlyList<ScopedDocument> Documents,
-    IReadOnlyList<Guid> UnavailableDocumentIds);
+    IReadOnlyList<Guid> UnavailableDocumentIds,
+    string? DetectedLanguage = null,
+    string? LanguageSource = null);
 
 public sealed record ScopedDocument(Guid Id, string? Title);
 
@@ -75,7 +77,8 @@ public sealed record RequestGeneration(
     bool SentinelHit,
     int StrippedMarkerCount,
     int? FirstTokenMs,
-    int TotalMs);
+    int TotalMs,
+    string? AnswerLanguage = null);
 
 public sealed record RequestResult(string FinalStatus, string? RefusalReason, string? ErrorCode);
 

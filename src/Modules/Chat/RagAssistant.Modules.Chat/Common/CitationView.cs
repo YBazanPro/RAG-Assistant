@@ -15,9 +15,10 @@ public sealed record CitationView(
     int? PageEnd,
     double Score,
     string Text,
-    bool DocumentReadable = true)
+    bool DocumentReadable = true,
+    string? Language = null)
 {
     /// <param name="documentReadable">False when the viewer can no longer read the live document (spec 016): the snapshot is then the only source.</param>
     internal static CitationView From(CitationSnapshot s, bool documentReadable = true) =>
-        new(s.Marker, s.PassageId, s.DocumentId, s.VersionId, s.VersionNumber, s.DocumentTitle, s.SectionPath, s.PageStart, s.PageEnd, s.Score, s.Text, documentReadable);
+        new(s.Marker, s.PassageId, s.DocumentId, s.VersionId, s.VersionNumber, s.DocumentTitle, s.SectionPath, s.PageStart, s.PageEnd, s.Score, s.Text, documentReadable, s.Language);
 }

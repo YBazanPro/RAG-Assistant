@@ -9,6 +9,11 @@
             <span class="citation-section">@CitationText.Section(Citation)</span>
         }
         <span class="citation-details">@CitationText.Version(Citation)@(CitationText.Pages(Citation) is { } pages ? $" · {pages}" : "")</span>
+        @if (Citation.Language is { } language)
+        {
+            @* The accessible name already says the language; the badge is for sighted readers. *@
+            <FluentBadge Appearance="BadgeAppearance.Outline" Class="citation-language" aria-hidden="true">@language.ToUpperInvariant()</FluentBadge>
+        }
     </button>
     <CopyReference Citation="@Citation" />
 </div>

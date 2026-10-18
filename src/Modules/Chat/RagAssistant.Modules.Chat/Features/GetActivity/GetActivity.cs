@@ -19,8 +19,16 @@ internal static class GetActivity
 
     public sealed record Query(string UserId, Guid ConversationId, Guid MessageId) : IRequest<Result<ActivityView>>;
 
+    /// <param name="QuestionLanguage">The language the question is written in (spec 018); null on older traces.</param>
+    /// <param name="QuestionLanguageSource">How it was decided: detected, conversation, default or requested.</param>
     public sealed record ActivityView(
-        string Question, RewriteStep Rewrite, ScopeStep Scope, RetrievalStep Retrieval, AnswerStep Answer);
+        string Question,
+        RewriteStep Rewrite,
+        ScopeStep Scope,
+        RetrievalStep Retrieval,
+        AnswerStep Answer,
+        string? QuestionLanguage = null,
+        string? QuestionLanguageSource = null);
 
     public sealed record RewriteStep(bool Used, string? Query, string? FallbackReason, int? Ms);
 
@@ -102,7 +110,9 @@ internal static class GetActivity
                     trace.FirstTokenMs,
                     trace.TotalMs,
                     trace.StrippedMarkerCount,
-                    trace.SentinelHit));
+                    trace.SentinelHit),
+                trace.QuestionLanguage,
+                trace.QuestionLanguageSource?.ToApi());
         }
     }
 }

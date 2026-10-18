@@ -32,7 +32,8 @@ internal static class AnswerEvents
         IReadOnlyList<string> SectionPath,
         int? PageStart,
         int? PageEnd,
-        double Score);
+        double Score,
+        string? Language = null);
 
     /// <summary>The filters this question was searched under (spec 015).</summary>
     public sealed record ScopeInfo(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid> DocumentIds);

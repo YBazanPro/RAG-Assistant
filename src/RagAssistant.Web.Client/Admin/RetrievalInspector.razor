@@ -39,6 +39,10 @@
                 <MetaRow Label="Owner"><OwnerSub Sub="@d.OwnerSub" /></MetaRow>
                 <MetaRow Label="Started"><time datetime="@d.StartedAt.UtcDateTime.ToString("o")" title="@Formatting.UtcTooltip(d.StartedAt)">@Formatting.Local(d.StartedAt)</time></MetaRow>
                 <MetaRow Label="Attempt">@d.Attempt</MetaRow>
+                @if (d.Question.DetectedLanguage is { } questionLanguage)
+                {
+                    <MetaRow Label="Question language">@questionLanguage@(d.Question.LanguageSource is { } source ? $" ({source})" : "")</MetaRow>
+                }
                 @if (d.Question.Language is not null)
                 {
                     <MetaRow Label="Language filter">@d.Question.Language</MetaRow>
@@ -119,6 +123,10 @@
                 <FluentText As="TextTag.H3" Weight="TextWeight.Semibold" id="inspector-generation">Generation</FluentText>
                 <MetaRow Label="Model">@(d.Generation.ChatModel ?? "not called")</MetaRow>
                 <MetaRow Label="Prompt version">@(d.Generation.PromptVersion ?? "—")</MetaRow>
+                @if (d.Generation.AnswerLanguage is { } answerLanguage)
+                {
+                    <MetaRow Label="Answer language instruction">@answerLanguage</MetaRow>
+                }
                 <MetaRow Label="Tokens">@Tokens(d.Generation.InputTokens, d.Generation.OutputTokens)</MetaRow>
                 <MetaRow Label="Sentinel hit">@(d.Generation.SentinelHit ? "yes" : "no")</MetaRow>
                 <MetaRow Label="Markers removed">@d.Generation.StrippedMarkerCount</MetaRow>

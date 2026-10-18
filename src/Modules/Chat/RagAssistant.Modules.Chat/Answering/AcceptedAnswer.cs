@@ -1,3 +1,5 @@
+using RagAssistant.Modules.Chat.Domain;
+
 namespace RagAssistant.Modules.Chat.Answering;
 
 /// <summary>An answer whose pending rows are committed; everything the pipeline needs to produce it.</summary>
@@ -11,4 +13,6 @@ internal sealed record AcceptedAnswer(
     string[] Tags,
     Guid[] DocumentIds,
     int Attempt,
-    int UserSequence);
+    int UserSequence,
+    string QuestionLanguage,
+    QuestionLanguageSource QuestionLanguageSource);

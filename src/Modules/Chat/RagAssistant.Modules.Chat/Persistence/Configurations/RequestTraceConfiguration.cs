@@ -13,6 +13,9 @@ internal sealed class RequestTraceConfiguration : IEntityTypeConfiguration<Reque
         builder.Property(t => t.Id).ValueGeneratedNever();
         builder.Property(t => t.OwnerSub).HasMaxLength(200);
         builder.Property(t => t.FilterLanguage).HasMaxLength(2);
+        builder.Property(t => t.QuestionLanguage).HasMaxLength(2);
+        builder.Property(t => t.AnswerLanguage).HasMaxLength(2);
+        builder.Property(t => t.RequestedLanguage).HasMaxLength(2);
         builder.Property(t => t.OtelTraceId).HasMaxLength(32);
         builder.Property(t => t.EvidenceOutcome).HasMaxLength(32);
         builder.Property(t => t.EmbeddingModel).HasMaxLength(200);

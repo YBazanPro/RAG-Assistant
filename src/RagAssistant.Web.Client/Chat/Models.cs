@@ -21,10 +21,11 @@ public sealed record Citation(
     int? PageStart,
     int? PageEnd,
     string? Text,
-    bool DocumentReadable = true)
+    bool DocumentReadable = true,
+    string? Language = null)
 {
     public static Citation FromSource(AnswerSource s) =>
-        new(s.Marker, s.PassageId, s.DocumentId, Guid.Empty, s.VersionNumber, s.DocumentTitle, s.SectionPath, s.PageStart, s.PageEnd, null);
+        new(s.Marker, s.PassageId, s.DocumentId, Guid.Empty, s.VersionNumber, s.DocumentTitle, s.SectionPath, s.PageStart, s.PageEnd, null, Language: s.Language);
 }
 
 /// <param name="Role"><c>user</c> or <c>assistant</c>.</param>
@@ -68,7 +69,8 @@ public sealed record AnswerSource(
     IReadOnlyList<string> SectionPath,
     int? PageStart,
     int? PageEnd,
-    double Score = 0);
+    double Score = 0,
+    string? Language = null);
 
 /// <summary>The filters a question was searched under (spec 015).</summary>
 public sealed record ScopeInfo(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid> DocumentIds);
@@ -117,7 +119,14 @@ public sealed record ScopeChoice(IReadOnlyList<ScopeDocument> Documents, IReadOn
 
 // What the pipeline did for one answer (spec 015); the same shape the activity endpoint returns. Live answers fill it in part.
 
-public sealed record ActivityView(string Question, RewriteStep Rewrite, ScopeStep Scope, RetrievalStep Retrieval, AnswerStep? Answer);
+public sealed record ActivityView(
+    string Question,
+    RewriteStep Rewrite,
+    ScopeStep Scope,
+    RetrievalStep Retrieval,
+    AnswerStep? Answer,
+    string? QuestionLanguage = null,
+    string? QuestionLanguageSource = null);
 
 public sealed record RewriteStep(bool Used, string? Query, string? FallbackReason, int? Ms);
 

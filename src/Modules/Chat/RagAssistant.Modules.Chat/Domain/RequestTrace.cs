@@ -37,6 +37,17 @@ internal sealed class RequestTrace
 
     public string? FilterLanguage { get; set; }
 
+    /// <summary>The language the question is written in (spec 018); null on traces written before it.</summary>
+    public string? QuestionLanguage { get; set; }
+
+    public QuestionLanguageSource? QuestionLanguageSource { get; set; }
+
+    /// <summary>The language the answer prompt named; null when the model was never called.</summary>
+    public string? AnswerLanguage { get; set; }
+
+    /// <summary>The answer language the rewrite said the user asked for; null when none or no rewrite ran.</summary>
+    public string? RequestedLanguage { get; set; }
+
     public string[] FilterTags { get; set; } = [];
 
     public Guid[] FilterDocumentIds { get; set; } = [];

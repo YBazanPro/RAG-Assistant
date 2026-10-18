@@ -13,24 +13,34 @@ namespace RagAssistant.Modules.Chat.Answering;
 internal static class PromptBuilder
 {
     /// <summary>Recorded in every trace; change it whenever the wording changes.</summary>
-    public const string PromptVersion = "014.1";
+    public const string PromptVersion = "018.1";
 
     /// <summary>Recorded in the trace of every rewrite call; change it whenever the rewrite wording changes.</summary>
-    public const string RewritePromptVersion = "rw.014.1";
+    public const string RewritePromptVersion = "rw.018.1";
 
     public const string LowConfidenceInstruction =
         "The evidence may be incomplete. Answer only what the passages support, and say what they do not cover.";
 
     /// <param name="question">The question the passages were retrieved for: the standalone question of a follow-up.</param>
+    /// <summary>The rule that lets an explicit request in the question beat the named language (spec 018).</summary>
+    public const string RequestedLanguageRule = "- If the user explicitly asks for another language, answer in that language instead.";
+
     /// <param name="originalWording">What the user typed, when that differs from <paramref name="question"/>.</param>
+    /// <param name="answerLanguage">ISO 639-1 code of the language to answer in (spec 018).</param>
     public static IReadOnlyList<ChatMessage> Build(
-        string question, IReadOnlyList<RetrievedChunk> chunks, EvidenceOutcome outcome, string sentinel, string? originalWording = null)
+        string question,
+        IReadOnlyList<RetrievedChunk> chunks,
+        EvidenceOutcome outcome,
+        string sentinel,
+        string? originalWording = null,
+        string answerLanguage = "en")
     {
         string[] rules =
         [
             "You answer questions using only the numbered passages in the user's message.",
             "Rules:",
-            "- Answer in English.",
+            $"- Answer in {QuestionLanguages.Name(answerLanguage)}.",
+            RequestedLanguageRule,
             "- Use only facts stated in the passages. Do not add facts, assumptions or general knowledge.",
             "- Cite every claim with the number of its passage in square brackets, like [1]. Cite passages separately: write [1][2], not [1, 2].",
             "- Be concise, but keep every condition and exception the passages state.",
@@ -70,7 +80,8 @@ internal static class PromptBuilder
     /// The follow-up rewrite prompt (spec 014): the history resolves references, nothing more. The reply format is imposed by the
     /// structured-output request (<see cref="RewriteResult"/>), not by this text.
     /// </summary>
-    public static IReadOnlyList<ChatMessage> BuildRewrite(IReadOnlyList<Exchange> history, string question)
+    /// <param name="questionLanguage">ISO 639-1 code of the language the latest question is written in (spec 018).</param>
+    public static IReadOnlyList<ChatMessage> BuildRewrite(IReadOnlyList<Exchange> history, string question, string questionLanguage = "en")
     {
         string[] rules =
         [
@@ -80,7 +91,8 @@ internal static class PromptBuilder
             "- Keep the user's intent and wording as far as possible. Do not answer the question.",
             "- Do not add facts from the earlier answers beyond what is needed to resolve a reference.",
             "- If the latest question already stands alone, or starts a new topic, return it unchanged.",
-            "- Write the question in English.",
+            $"- Write the question in {QuestionLanguages.Name(questionLanguage)}.",
+            "- Set requestedLanguage to the ISO 639-1 code of the language the user last explicitly asked the answers to be written in, in the conversation or the latest question, for example \"en\" for \"answer in English from now on\". Use null when the user never asked for a language.",
         ];
 
         var user = new StringBuilder("Conversation so far:\n\n");
@@ -108,4 +120,5 @@ internal static class PromptBuilder
 }
 
 /// <summary>The structured reply of the rewrite call.</summary>
-internal sealed record RewriteResult(string StandaloneQuestion);
+/// <param name="RequestedLanguage">The answer language the user asked for in the history or the latest question (spec 018), or null.</param>
+internal sealed record RewriteResult(string StandaloneQuestion, string? RequestedLanguage = null);

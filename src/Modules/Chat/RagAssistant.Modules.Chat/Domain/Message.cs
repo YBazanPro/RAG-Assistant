@@ -19,6 +19,14 @@ internal sealed class Message
 
     public string? FilterLanguage { get; set; }
 
+    /// <summary>User messages: the language the question is written in (spec 018); null on rows written before it.</summary>
+    public string? QuestionLanguage { get; set; }
+
+    public QuestionLanguageSource? QuestionLanguageSource { get; set; }
+
+    /// <summary>User messages: the answer language the user asked for, carried over by the rewrite (spec 018); null when none.</summary>
+    public string? RequestedLanguage { get; set; }
+
     public string[] FilterTags { get; set; } = [];
 
     /// <summary>User messages: the documents the question was restricted to (spec 015); empty means no restriction.</summary>

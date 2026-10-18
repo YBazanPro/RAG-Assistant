@@ -80,19 +80,23 @@ internal static class AcceptQuestion
             // Spec 015: tags sent with the question replace the conversation's scope tags for that question; the documents stay.
             var tags = requested.Length > 0 ? requested : conversation.ScopeTags;
             var documentIds = conversation.ScopeDocumentIds;
+            var sequence = conversation.MessageCount + 1;
+            var (questionLanguage, languageSource) = await QuestionLanguages.ResolveAsync(db, conversation.Id, sequence, question, cancellationToken);
 
             var userMessage = new Message
             {
                 Id = Guid.CreateVersion7(now),
                 ConversationId = conversation.Id,
                 Role = MessageRole.User,
-                Sequence = conversation.MessageCount + 1,
+                Sequence = sequence,
                 Text = question,
                 RetrievalQuery = question,
                 CreatedAt = now,
                 FilterLanguage = language,
                 FilterTags = tags,
                 FilterDocumentIds = documentIds,
+                QuestionLanguage = questionLanguage,
+                QuestionLanguageSource = languageSource,
             };
             var answer = new Message
             {
@@ -115,7 +119,7 @@ internal static class AcceptQuestion
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            return new AcceptedAnswer(conversation.Id, userMessage.Id, answer.Id, conversation.OwnerSub, question, language, tags, documentIds, answer.Attempts, userMessage.Sequence);
+            return new AcceptedAnswer(conversation.Id, userMessage.Id, answer.Id, conversation.OwnerSub, question, language, tags, documentIds, answer.Attempts, userMessage.Sequence, questionLanguage, languageSource);
         }
     }
 }
