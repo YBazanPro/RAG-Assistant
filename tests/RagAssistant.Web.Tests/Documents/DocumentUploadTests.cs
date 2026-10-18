@@ -35,7 +35,7 @@ public class DocumentUploadTests
         cut.FindAll("fluent-button").First(b => b.TextContent.Trim().EndsWith("Import", StringComparison.Ordinal)).Click();
 
     [Test]
-    public async Task Choosing_reportMd_defaultsTitleToTheFileNameAndLanguageToEn()
+    public async Task Choosing_reportMd_defaultsTitleToTheFileNameAndLanguageToDetect()
     {
         var (ctx, _) = NewContext();
         using var _c = ctx;
@@ -44,7 +44,8 @@ public class DocumentUploadTests
         Choose(cut, "report.md");
 
         await Assert.That(cut.TextValue("Title")).IsEqualTo("report");
-        await Assert.That(cut.TextValue("Language")).IsEqualTo("en");
+        // Spec 018: the language is detected at ingestion unless the owner picks one.
+        await Assert.That(cut.FilterSelect("Language").Instance.Value).IsEqualTo("detect");
     }
 
     [Test]

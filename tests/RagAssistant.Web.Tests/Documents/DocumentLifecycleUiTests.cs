@@ -143,11 +143,12 @@ public class DocumentLifecycleUiTests
 
         Button(cut, "Edit").Click();
         await cut.SetTextAsync("Title", " ");
-        await cut.SetTextAsync("Language", "english");
+        await cut.SetSelectAsync("Language", "other");
+        await cut.SetTextAsync("Language code", "english");
         Button(cut, "Save").Click();
 
         await Assert.That(cut.Markup).Contains("Title is required.");
-        await Assert.That(cut.Markup).Contains("Language must be two letters");
+        await Assert.That(cut.Markup).Contains("Language code must be two letters");
         await Assert.That(api.UpdateCalls.Count).IsEqualTo(0);
     }
 
