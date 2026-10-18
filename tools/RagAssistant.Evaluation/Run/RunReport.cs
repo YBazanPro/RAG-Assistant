@@ -17,7 +17,8 @@ internal sealed record RunReport(
     Aggregate Overall,
     IReadOnlyDictionary<string, Aggregate> ByCategory,
     IReadOnlyDictionary<string, Aggregate> ByQuestionLanguage,
-    IReadOnlyList<CaseResult> Cases)
+    IReadOnlyList<CaseResult> Cases,
+    IReadOnlyDictionary<Guid, CorpusPassage>? Passages = null)
 {
     public const int CurrentSchemaVersion = 1;
 }
@@ -41,6 +42,9 @@ internal sealed record RunConfiguration(
     string? GitCommit,
     string ApiBaseUrl);
 
+/// <summary>A passage of the seeded corpus; the sweep needs the text to redo near-duplicate reduction offline.</summary>
+internal sealed record CorpusPassage(string Document, string Text);
+
 /// <summary>A case whose expected evidence no longer exists in the corpus: excluded and counted, never passed silently (AC-25).</summary>
 internal sealed record BrokenCase(string Id, string Reason);
 
@@ -48,8 +52,9 @@ internal sealed record BrokenCase(string Id, string Reason);
 /// <param name="Matches">The index of the expected evidence item this passage matches, or null.</param>
 internal sealed record RetrievedPassage(int Rank, Guid PassageId, string? Document, double Score, string? Language, int? Matches);
 
-/// <summary>A candidate of the raw pool (spec 018, threshold sweep), with whether it is expected evidence.</summary>
-internal sealed record PoolCandidate(Guid PassageId, string? Document, double Score, string? Dropped, bool Expected);
+/// <summary>A candidate of the raw pool (spec 018, threshold sweep), in rank order.</summary>
+/// <param name="Matches">The index of the expected evidence item this passage matches, or null.</param>
+internal sealed record PoolCandidate(Guid PassageId, string? Document, double Score, string? Dropped, int? Matches);
 
 internal sealed record CaseMetrics(
     double? RecallAt1,

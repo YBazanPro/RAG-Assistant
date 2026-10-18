@@ -36,4 +36,10 @@ internal sealed class EvaluationOptions
     public string? MaintainerPassword { get; set; }
 
     public TimeSpan IndexingTimeout { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>The Ollama the AppHost runs (its persistent container keeps this port); the judge is called there directly.</summary>
+    public Uri OllamaUrl { get; set; } = new("http://localhost:18481");
+
+    /// <summary>Must differ from the model under test; pulled on demand by <c>judge</c> (spec 018).</summary>
+    public string JudgeModel { get; set; } = "gemma3:12b";
 }

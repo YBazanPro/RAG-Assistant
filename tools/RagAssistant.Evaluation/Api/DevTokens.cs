@@ -29,7 +29,17 @@ internal sealed class DevTokens(HttpClient http, IOptions<EvaluationOptions> opt
             ["username"] = user,
             ["password"] = PasswordOf(user, settings),
         });
-        using var response = await http.PostAsync(settings.TokenEndpoint, form, cancellationToken);
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.PostAsync(settings.TokenEndpoint, form, cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new HarnessException($"Keycloak at {settings.TokenEndpoint} is not reachable ({ex.Message}). Start the AppHost first.");
+        }
+
+        using var _ = response;
         if (!response.IsSuccessStatusCode)
         {
             throw new HarnessException(

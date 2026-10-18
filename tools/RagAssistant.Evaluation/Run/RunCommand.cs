@@ -76,7 +76,8 @@ internal sealed class RunCommand(
             Scoring.Aggregate(results),
             Group(results, r => r.Category),
             Group(results, r => r.QuestionLanguage),
-            results);
+            results,
+            passages.All);
         var folder = await reports.WriteAsync(report, cancellationToken);
         await output.WriteLineAsync($"Report: {folder}");
         return invalid is null ? 0 : 3;
@@ -121,7 +122,7 @@ internal sealed class RunCommand(
             {
                 var search = await api.SearchCandidatesAsync(user, query, Settings.SampleTag, cancellationToken);
                 pool = [.. (search.Candidates ?? []).Select(c => new PoolCandidate(
-                    c.PassageId, passages.DocumentOf(c.PassageId), c.Score, c.Dropped, passages.MatchOf(golden, c.PassageId) is not null))];
+                    c.PassageId, passages.DocumentOf(c.PassageId), c.Score, c.Dropped, passages.MatchOf(golden, c.PassageId)))];
             }
         }
 
@@ -243,6 +244,8 @@ internal sealed class RunCommand(
 /// <summary>The passages of the seeded sample documents: their document key and text, for matching expected evidence.</summary>
 internal sealed class CorpusPassages(Dictionary<Guid, (string Document, string Text)> passages)
 {
+    public IReadOnlyDictionary<Guid, CorpusPassage> All => passages.ToDictionary(p => p.Key, p => new CorpusPassage(p.Value.Document, p.Value.Text));
+
     public string? DocumentOf(Guid passageId) => passages.TryGetValue(passageId, out var p) ? p.Document : null;
 
     /// <summary>The index of the expected evidence item the passage matches, or null.</summary>

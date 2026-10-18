@@ -226,6 +226,10 @@ aspire stop --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 dotnet run --project tools/RagAssistant.Evaluation -- seed
 # ... then ask the golden questions (samples/golden) and write a report to .data/evaluation/<run>/
 dotnet run --project tools/RagAssistant.Evaluation -- run
+# Offline on reports: diff two runs, sweep retrieval thresholds; judge needs Ollama (pulls Evaluation:JudgeModel on demand)
+dotnet run --project tools/RagAssistant.Evaluation -- compare .data/evaluation/<runA> .data/evaluation/<runB>
+dotnet run --project tools/RagAssistant.Evaluation -- sweep .data/evaluation/<run>
+dotnet run --project tools/RagAssistant.Evaluation -- judge .data/evaluation/<run>
 
 # Add EF migration for a module
 dotnet ef migrations add [Name] --project src/Modules/[Module]/RagAssistant.Modules.[Module] --startup-project src/RagAssistant.Api --context [Module]DbContext
