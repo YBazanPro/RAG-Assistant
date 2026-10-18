@@ -222,6 +222,9 @@ aspire start --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 aspire logs api --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 aspire stop --apphost src/RagAssistant.AppHost/RagAssistant.AppHost.csproj
 
+# Evaluation harness (spec 018, needs the AppHost running): load or update the sample corpus (samples/corpus)
+dotnet run --project tools/RagAssistant.Evaluation -- seed
+
 # Add EF migration for a module
 dotnet ef migrations add [Name] --project src/Modules/[Module]/RagAssistant.Modules.[Module] --startup-project src/RagAssistant.Api --context [Module]DbContext
 

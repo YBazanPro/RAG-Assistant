@@ -1,0 +1,226 @@
+{
+  "description": "Policies of Corvane, a fictional company with offices in Lyon and Leeds, written for RagAssistant demos and evaluation (spec 018). Every document is tagged 'sample' by the seed command. Documents with format 'pdf' are rendered from their Markdown source at seed time; they are English only, because PdfPig's built-in fonts lack many French letters.",
+  "documents": [
+    {
+      "key": "travel-expenses",
+      "title": "Travel and Expense Policy",
+      "ownerName": "Finance",
+      "language": "detect",
+      "tags": [
+        "finance",
+        "travel"
+      ],
+      "effectiveDate": "2026-01-01",
+      "versions": [
+        "documents/travel-expenses.md"
+      ]
+    },
+    {
+      "key": "remote-work",
+      "title": "Remote Work Policy",
+      "ownerName": "Human Resources",
+      "language": "detect",
+      "tags": [
+        "hr",
+        "remote-work"
+      ],
+      "effectiveDate": "2026-03-01",
+      "versions": [
+        "documents/remote-work-v1.md",
+        "documents/remote-work-v2.md"
+      ]
+    },
+    {
+      "key": "incident-response",
+      "title": "Information Security Incident Response",
+      "ownerName": "Security",
+      "language": "en",
+      "tags": [
+        "security"
+      ],
+      "effectiveDate": "2025-09-01",
+      "versions": [
+        "documents/incident-response.md"
+      ]
+    },
+    {
+      "key": "budget-exceptions",
+      "title": "Budget Exception Policy",
+      "ownerName": "Finance",
+      "language": "detect",
+      "tags": [
+        "finance"
+      ],
+      "effectiveDate": "2026-01-01",
+      "versions": [
+        "documents/budget-exceptions.md"
+      ]
+    },
+    {
+      "key": "procurement",
+      "title": "Procurement Policy",
+      "ownerName": "Procurement",
+      "language": "detect",
+      "tags": [
+        "finance",
+        "procurement"
+      ],
+      "effectiveDate": "2025-06-01",
+      "format": "pdf",
+      "versions": [
+        "documents/procurement.pdf.md"
+      ]
+    },
+    {
+      "key": "it-equipment",
+      "title": "IT Equipment Policy",
+      "ownerName": "IT",
+      "language": "detect",
+      "tags": [
+        "it"
+      ],
+      "effectiveDate": "2025-01-01",
+      "versions": [
+        "documents/it-equipment.txt"
+      ]
+    },
+    {
+      "key": "onboarding",
+      "title": "New Employee Onboarding Guide",
+      "ownerName": "Human Resources",
+      "language": "en",
+      "tags": [
+        "hr"
+      ],
+      "effectiveDate": "2026-02-01",
+      "versions": [
+        "documents/onboarding.md"
+      ]
+    },
+    {
+      "key": "data-retention",
+      "title": "Data Retention Policy",
+      "ownerName": "Legal",
+      "language": "detect",
+      "tags": [
+        "legal",
+        "privacy"
+      ],
+      "effectiveDate": "2025-05-01",
+      "format": "pdf",
+      "versions": [
+        "documents/data-retention.pdf.md"
+      ]
+    },
+    {
+      "key": "conges",
+      "title": "Politique des congés payés",
+      "ownerName": "Ressources humaines",
+      "language": "detect",
+      "tags": [
+        "hr",
+        "conges"
+      ],
+      "effectiveDate": "2025-06-01",
+      "versions": [
+        "documents/conges.md"
+      ]
+    },
+    {
+      "key": "teletravail",
+      "title": "Accord sur le télétravail",
+      "ownerName": "Ressources humaines",
+      "language": "detect",
+      "tags": [
+        "hr",
+        "remote-work"
+      ],
+      "effectiveDate": "2026-03-01",
+      "versions": [
+        "documents/teletravail.md"
+      ]
+    },
+    {
+      "key": "notes-de-frais",
+      "title": "Procédure des notes de frais",
+      "ownerName": "Comptabilité",
+      "language": "fr",
+      "tags": [
+        "finance",
+        "travel"
+      ],
+      "effectiveDate": "2026-01-01",
+      "versions": [
+        "documents/notes-de-frais.md"
+      ]
+    },
+    {
+      "key": "charte-informatique",
+      "title": "Charte informatique",
+      "ownerName": "Informatique",
+      "language": "detect",
+      "tags": [
+        "it",
+        "security"
+      ],
+      "effectiveDate": "2025-01-01",
+      "versions": [
+        "documents/charte-informatique.md"
+      ]
+    },
+    {
+      "key": "harcelement",
+      "title": "Prévention du harcèlement",
+      "ownerName": "Ressources humaines",
+      "language": "detect",
+      "tags": [
+        "hr"
+      ],
+      "effectiveDate": "2025-09-01",
+      "versions": [
+        "documents/harcelement.md"
+      ]
+    },
+    {
+      "key": "securite-batiment",
+      "title": "Consignes de sécurité du bâtiment",
+      "ownerName": "Services généraux",
+      "language": "detect",
+      "tags": [
+        "safety"
+      ],
+      "effectiveDate": "2025-03-01",
+      "versions": [
+        "documents/securite-batiment.md"
+      ]
+    },
+    {
+      "key": "formation",
+      "title": "Formation professionnelle",
+      "ownerName": "Ressources humaines",
+      "language": "detect",
+      "tags": [
+        "hr",
+        "training"
+      ],
+      "effectiveDate": "2026-01-01",
+      "versions": [
+        "documents/formation.txt"
+      ]
+    },
+    {
+      "key": "protection-donnees",
+      "title": "Politique de protection des données personnelles",
+      "ownerName": "Juridique",
+      "language": "detect",
+      "tags": [
+        "legal",
+        "privacy"
+      ],
+      "effectiveDate": "2025-05-01",
+      "versions": [
+        "documents/protection-donnees.md"
+      ]
+    }
+  ]
+}

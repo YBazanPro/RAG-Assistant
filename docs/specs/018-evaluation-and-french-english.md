@@ -46,7 +46,7 @@ Success: a maintainer runs one command against the AppHost and gets a reproducib
 
 **Evaluation (Phase 5)**
 
-- **Committed sample corpus, also used for demos:** policies of a fictional company written for the project, about 8 English and 8 French documents. A few topics are covered in both languages; there are 2–3 PDFs (generated with PdfPig's `PdfDocumentBuilder` by the harness's `seed` command, never committed) and one document with a superseded version. Stored in `samples/corpus` with a manifest (`manifest.json`: key, file, title, owner name, language or `detect`, tags, effective date, visibility `shared`, version files).
+- **Committed sample corpus, also used for demos:** policies of a fictional company written for the project, about 8 English and 8 French documents. A few topics are covered in both languages; there are 2 PDFs (generated with PdfPig's `PdfDocumentBuilder` by the harness's `seed` command, never committed; English only, clarification 3) and one document with a superseded version. Stored in `samples/corpus` with a manifest (`manifest.json`: key, file, title, owner name, language or `detect`, tags, effective date, visibility `shared`, version files).
 - **Golden dataset** in `samples/golden/questions.json`, about 86 questions:
   - ~40 same-language (English → English, French → French documents), the baseline;
   - ~16 cross-language (French question → English documents and the reverse);
@@ -91,6 +91,12 @@ Recorded during implementation, agreed with the developer on 2026-10-18.
 
 1. **Question detection uses a 3-word minimum.** With the 20-word minimum for documents, almost every question would be uncertain and fall back to the conversation or `en`. `LanguageDetector.Detect(text, minWords: 3)` is used for questions; documents keep the default of 20. The 0.7 share rule is the same for both.
 2. **An absent `language` on `PUT /api/documents/{id}` means `detect`,** like an absent `language` on import. The edit form always sends the field, so this only affects API callers that omit it.
+
+Found while building the harness (2026-10-18), awaiting the developer's confirmation:
+
+3. **The generated PDFs are English only.** PdfPig's built-in Standard 14 fonts cannot write many French letters (à, â, ç, ô, É among others), and embedding a font file would add a binary asset. The corpus has 2 English PDFs (procurement, data retention); the French safety instructions are Markdown. The renderer pins the PDF's random `/ID` to a hash of its source, so the same source always gives the same bytes.
+4. **Unchanged content is recognised by the API's duplicate guard.** `seed` uploads each document's last file; `409 documents.duplicate_content` naming the same document means "unchanged". No content hash is computed on the harness side.
+5. **`seed` waits for indexing by polling `GET /api/documents/{id}`** (every 2 s, up to `Evaluation:IndexingTimeout`, 15 min) until the run it started succeeds or fails, instead of reading the SSE stream.
 
 ## Domain Model
 
@@ -209,7 +215,7 @@ The harness uses the realm's dev users through the `ragassistant-dev` password-g
   - admin request detail;
   - search with `candidates=true`.
   The harness uses no database access and no internal type. It talks only HTTP and `SseParser`.
-- **Seeding:** each manifest document is found by title + tag `sample`. A missing document is imported. When the active version's content hash differs from the file, a new version is uploaded. Metadata is updated with `PUT` when it differs. The harness waits for indexing through `GET …/ingestion/events`.
+- **Seeding:** each manifest document is found by title + tag `sample`. A missing document is imported. The last file is uploaded as a new version; the API's duplicate guard refuses it when nothing changed (clarification 4). Metadata is updated with `PUT` when it differs. The harness waits for indexing by polling the document (clarification 5).
 
 ## Acceptance Criteria
 

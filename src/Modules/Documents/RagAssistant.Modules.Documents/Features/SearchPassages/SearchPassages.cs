@@ -20,7 +20,16 @@ internal static partial class SearchPassages
 
     /// <param name="TopK">Raw text, so a malformed value surfaces as a field error; empty means <c>DefaultTopK</c>.</param>
     /// <param name="IncludeDiagnostics">Also counts documents skipped for a model mismatch; only the endpoint needs it.</param>
-    public sealed record Query(string? Q, string? Language, string[] Tags, string? TopK, bool IncludeDiagnostics, IReadOnlyList<Guid>? DocumentIds = null, string? ViewerSub = null)
+    /// <param name="Candidates">Raw <c>candidates</c> text (<c>true</c>/<c>false</c>); true also returns the scored pool (spec 018, threshold sweep).</param>
+    public sealed record Query(
+        string? Q,
+        string? Language,
+        string[] Tags,
+        string? TopK,
+        bool IncludeDiagnostics,
+        IReadOnlyList<Guid>? DocumentIds = null,
+        string? ViewerSub = null,
+        string? Candidates = null)
         : IRequest<Result<SearchRun>>;
 
     /// <param name="SkippedForModelMismatch">Null unless diagnostics were requested.</param>
@@ -33,7 +42,10 @@ internal static partial class SearchPassages
         EvidenceThresholds Thresholds,
         string EmbeddingModel,
         int? SkippedForModelMismatch,
-        double? BestScore = null);
+        double? BestScore = null,
+        IReadOnlyList<RetrievedChunk>? Pool = null);
+
+    public static bool WantsCandidates(string? value) => bool.TryParse(value, out var wanted) && wanted;
 
     public sealed class Validator : AbstractValidator<Query>
     {
@@ -63,6 +75,10 @@ internal static partial class SearchPassages
             RuleFor(x => x.Tags)
                 .Must(v => v.Length <= MaxTags)
                 .WithMessage($"At most {MaxTags} tags can be combined.");
+
+            RuleFor(x => x.Candidates)
+                .Must(v => string.IsNullOrWhiteSpace(v) || bool.TryParse(v, out _))
+                .WithMessage("'candidates' must be true or false.");
         }
     }
 
@@ -124,7 +140,9 @@ internal static partial class SearchPassages
             LogCompleted(logger, outcome, pool.Count, decision.Kept.Count);
 
             double? best = pool.Count > 0 ? pool.Max(c => c.Score) : null;
-            return new SearchRun(text, topK, decision.Outcome, decision.Kept, decision.Discarded, thresholds, model, skipped, best);
+            return new SearchRun(
+                text, topK, decision.Outcome, decision.Kept, decision.Discarded, thresholds, model, skipped, best,
+                WantsCandidates(query.Candidates) ? EvidenceRules.Rank(pool) : null);
         }
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Searching passages for \"{Query}\".")]
