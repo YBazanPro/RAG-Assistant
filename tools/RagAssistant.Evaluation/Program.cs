@@ -57,6 +57,9 @@ builder.Services.AddTransient<SeedCommand>();
 builder.Services.AddTransient<RunCommand>();
 builder.Services.AddTransient<ReportWriter>();
 builder.Services.AddTransient<JudgeCommand>();
+// Loading a judge model into memory, then scoring a long answer, takes minutes on a laptop; the default 100 s is too short.
+builder.Services.AddHttpClient(JudgeCommand.HttpClientName, http => http.Timeout = TimeSpan.FromMinutes(10))
+    .AddHttpMessageHandler(services => new JudgeTraceHandler(services.GetRequiredService<IOptions<EvaluationOptions>>().Value.JudgeTrace));
 
 using var host = builder.Build();
 using var cancellation = new CancellationTokenSource();

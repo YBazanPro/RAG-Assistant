@@ -41,5 +41,11 @@ internal sealed class EvaluationOptions
     public Uri OllamaUrl { get; set; } = new("http://localhost:18481");
 
     /// <summary>Must differ from the model under test; pulled on demand by <c>judge</c> (spec 018).</summary>
-    public string JudgeModel { get; set; } = "gemma3:12b";
+    public string JudgeModel { get; set; } = "gemma4:12b";
+
+    /// <summary>Comma-separated case ids to judge only those (for trying a judge model); empty judges every answer.</summary>
+    public string? JudgeCases { get; set; }
+
+    /// <summary>Log the judge's requests and replies to .data/evaluation/judge-trace.log.</summary>
+    public bool JudgeTrace { get; set; }
 }

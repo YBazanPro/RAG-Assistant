@@ -6,6 +6,8 @@ using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
 using Microsoft.Extensions.Options;
 using OllamaSharp;
+using OllamaChatRequest = OllamaSharp.Models.Chat.ChatRequest;
+using ThinkValue = OllamaSharp.Models.Chat.ThinkValue;
 
 namespace RagAssistant.Evaluation.Run;
 
@@ -16,8 +18,10 @@ namespace RagAssistant.Evaluation.Run;
 /// judge directly. The result is written next to the report as <c>judge-&lt;model&gt;.json</c> and <c>.md</c>; the report itself is
 /// never changed.
 /// </summary>
-internal sealed class JudgeCommand(IOptions<EvaluationOptions> options, TimeProvider clock)
+internal sealed class JudgeCommand(IHttpClientFactory httpClients, IOptions<EvaluationOptions> options, TimeProvider clock)
 {
+    public const string HttpClientName = "ollama-judge";
+
     private EvaluationOptions Settings => options.Value;
 
     public async Task<int> RunAsync(string reportPath, TextWriter output, CancellationToken cancellationToken)
@@ -35,15 +39,18 @@ internal sealed class JudgeCommand(IOptions<EvaluationOptions> options, TimeProv
         }
 
         var passages = report.Passages ?? throw new HarnessException("This report has no corpus passages; run 'run' again.");
-        using var ollama = new OllamaApiClient(Settings.OllamaUrl, judgeModel);
+        var http = httpClients.CreateClient(HttpClientName);
+        http.BaseAddress = Settings.OllamaUrl;
+        using var ollama = new OllamaApiClient(http, judgeModel);
         await EnsurePulledAsync(ollama, judgeModel, output, cancellationToken);
-        IChatClient judge = ollama;
+        IChatClient judge = new WithoutThinking(ollama);
         var configuration = new ChatConfiguration(judge);
         var groundedness = new GroundednessEvaluator();
         var relevance = new RelevanceEvaluator();
 
         var judged = new List<JudgedCase>();
-        foreach (var c in report.Cases.Where(c => c.Status is "complete" or "partial" && c.AnswerText.Length > 0))
+        var only = (Settings.JudgeCases ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
+        foreach (var c in report.Cases.Where(c => c.Status is "complete" or "partial" && c.AnswerText.Length > 0 && (only.Count == 0 || only.Contains(c.Id))))
         {
             var messages = c.Turns.Select(t => new ChatMessage(ChatRole.User, t)).ToList();
             var response = new ChatResponse(new ChatMessage(ChatRole.Assistant, c.AnswerText));
@@ -55,14 +62,19 @@ internal sealed class JudgeCommand(IOptions<EvaluationOptions> options, TimeProv
                 var grounded = await groundedness.EvaluateAsync(messages, response, configuration, [new GroundednessEvaluatorContext(context)], cancellationToken);
                 var relevant = await relevance.EvaluateAsync(messages, response, configuration, null, cancellationToken);
                 bool? language = c.ExpectedAnswerLanguage is "en" or "fr" ? null : await JudgeLanguageAsync(judge, c.AnswerText, c.ExpectedAnswerLanguage, cancellationToken);
+                var groundedMetric = grounded.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName);
+                var relevantMetric = relevant.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName);
+                // A score the evaluator could not read from the judge's reply is null; its diagnostics say why.
+                var problems = new[] { groundedMetric, relevantMetric }
+                    .Where(m => m.Value is null)
+                    .SelectMany(m => (m.Diagnostics ?? []).Select(d => $"{m.Name}: {d.Message}"))
+                    .ToList();
                 judged.Add(new JudgedCase(
-                    c.Id, c.Category, c.QuestionLanguage,
-                    grounded.Get<NumericMetric>(GroundednessEvaluator.GroundednessMetricName).Value,
-                    relevant.Get<NumericMetric>(RelevanceEvaluator.RelevanceMetricName).Value,
-                    language,
-                    null));
+                    c.Id, c.Category, c.QuestionLanguage, groundedMetric.Value, relevantMetric.Value, language,
+                    problems.Count == 0 ? null : string.Join(" | ", problems)));
             }
-            catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException && !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException or TaskCanceledException
+                && !cancellationToken.IsCancellationRequested)
             {
                 // A failed judgement is recorded and the pass goes on, like a failed case in a run.
                 judged.Add(new JudgedCase(c.Id, c.Category, c.QuestionLanguage, null, null, null, ex.Message));
@@ -165,6 +177,27 @@ internal sealed class JudgeCommand(IOptions<EvaluationOptions> options, TimeProv
 
     private static string Slug(string text) =>
         string.Concat(text.Select(c => char.IsAsciiLetterOrDigit(c) ? char.ToLower(c, CultureInfo.InvariantCulture) : '-')).Trim('-');
+}
+
+/// <summary>
+/// Reasoning models (gemma4, qwen3) think by default; the evaluators' prompts ask for their own step-by-step format, and the hidden
+/// thinking used up the output budget, leaving replies cut off or empty and unparsable. Every call is sent with thinking off.
+/// </summary>
+internal sealed class WithoutThinking(IChatClient inner) : DelegatingChatClient(inner)
+{
+    public override Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+        base.GetResponseAsync(messages, Off(options), cancellationToken);
+
+    public override IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+        base.GetStreamingResponseAsync(messages, Off(options), cancellationToken);
+
+    private static ChatOptions Off(ChatOptions? options)
+    {
+        var copy = options?.Clone() ?? new ChatOptions();
+        copy.RawRepresentationFactory = _ => new OllamaChatRequest { Think = new ThinkValue(false) };
+        return copy;
+    }
 }
 
 internal sealed record JudgeReport(
