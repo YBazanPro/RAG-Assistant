@@ -1,6 +1,6 @@
 # Spec 018: Evaluation and French/English content
 
-**Status:** Approved (2026-10-18)
+**Status:** In Review (reopened 2026-10-19: CPU-only reference machine; first approved 2026-10-18)
 **Date:** 2026-10-18
 **Roadmap:** Phase 5 (steps 5.1 and 5.2), and a revision of the spec 005 "English only" decision for content · **Builds on:** specs [006](006-documents-data-model-and-import.md), [007](007-background-ingestion-and-progress.md), [009](009-document-lifecycle.md), [011](011-retrieval.md), [012](012-chat-conversations-and-grounded-answers.md), [014](014-follow-ups-feedback-and-deletion.md), [015](015-chat-scope-activity-and-layout.md), [017](017-diagnose-traces-admin-and-metrics.md) · **Decision records:** [ADR 0003](../adr/0003-model-provider.md) (addendum: chat model chosen by evaluation), [ADR 0001](../adr/0001-ui-ai-streaming-stack.md) (`Microsoft.Extensions.AI.Evaluation` in a separate harness)
 
@@ -70,8 +70,8 @@ Success: a maintainer runs one command against the AppHost and gets a reproducib
 - **Reports:** JSON (machine) + Markdown (human) in `.data/evaluation/<timestamp>-<model>/` (git-ignored). Each report records the configuration: chat model, embedding model, prompt versions, thresholds, topK, chunking options, corpus manifest hash, dataset hash, judge model, and the git commit if available.
 - **Threshold sweep:** `GET /api/documents/search` (maintainer) gets an opt-in `candidates=true` that also returns the scored candidate pool before thresholds and duplicate reduction. `run` stores the pool for each first-turn question. `sweep` recomputes retrieval outcomes for a grid of `MinScore`, `ConfidentScore` and `DuplicateOverlap` values and reports the best settings. This spec then sets new defaults **by hand** from the first full run and records them in a *Calibration* section, like spec 011 did.
 - **One chat model per run.** The AppHost reads the chat model from configuration (parameter `chat-model`, default = the model this spec chooses) instead of the `ChatModel` constant, and pulls it. The harness reads the model from the traces and refuses a run that mixes models.
-- **Chat model chosen by evaluation.** Candidates come from current local families: Qwen 3.x, Gemma 4 and Mistral. Exact Ollama tags are fixed at planning, and they must fit the hardware budget. Among candidates with a median time to first token under 3 s (ADR 0004), the one that scores best on answer-language correctness, then refusal correctness, then groundedness, is kept. The choice and the comparison table go into an ADR 0003 addendum.
-- **Hardware budget:** the chosen chat model fits a dev machine with 16 GB+ VRAM / 32 GB RAM together with `bge-m3`, roughly up to 14B parameters at Q4 or a small MoE.
+- **Chat model chosen by evaluation.** Candidates: `qwen3.5:9b` and `ministral-3:8b`, against the current `llama3.2:3b` as baseline (revision 2026-10-19). Among candidates with a median time to first token under 8 s on the reference machine, the one that scores best on answer-language correctness, then refusal correctness, then groundedness, is kept. The choice and the comparison table go into an ADR 0003 addendum.
+- **Reference machine: CPU only** (revision 2026-10-19). The developer's laptop has an integrated AMD Radeon 890M and 88 GB of RAM, and the AppHost's Ollama container cannot use that GPU, so every model runs on the CPU. The chosen chat model runs there together with `bge-m3` and keeps a median time to first token under 8 s; ADR 0004's < 3 s stays the target for machines with a dedicated GPU.
 - **Documentation:** `product.md` (English only → UI in English, content and answers in English or French), the ADR 0003 note, the README demo steps (`seed`), `CLAUDE.md` (module table, commands), the roadmap (Phase 5.1/5.2 done, 5.3 → spec 020).
 
 ### Out
@@ -195,7 +195,7 @@ The harness uses the realm's dev users through the `ragassistant-dev` password-g
 
 ## Non-Functional Requirements
 
-- **Latency:** detection adds < 1 ms to a question and to extraction (first 20,000 characters only). The chosen model keeps a median time to first token < 3 s on the 16 GB machine (ADR 0004).
+- **Latency:** detection adds < 1 ms to a question and to extraction (first 20,000 characters only). The chosen model keeps a median time to first token < 8 s on the CPU-only reference machine (< 3 s, ADR 0004, on a machine with a dedicated GPU).
 - **Run time:** one `run` of ~80 questions takes roughly 10–20 minutes per model; `judge` runs separately.
 - **Reproducibility:** the same corpus, dataset, configuration and model give the same retrieval metrics. The report records everything needed to repeat a run. Answer metrics may vary with model sampling; the harness asks at the API's configured temperature.
 - **Observability:** `question.language` and `question.language_source` tags on the `chat.answer` activity. The `RagAssistant.Chat` request and refusal counters get a `question.language` tag (`en`, `fr`, `other`). The documents ingestion activity gets `document.language_detection`.
@@ -273,14 +273,15 @@ The harness uses the realm's dev users through the `ragassistant-dev` password-g
   - cross-language recall@5 is ≥ 0.7;
   - behaviour correctness on refusal cases is ≥ 90% in each language.
   If a bar is missed, it is reported and the spec goes back to In Review.
-- **AC-32** The chosen model has a median time to first token < 3 s on the reference machine, and the ADR 0003 addendum lists every candidate's results.
+- **AC-32** The chosen model has a median time to first token < 8 s on the CPU-only reference machine, and the ADR 0003 addendum lists every candidate's results.
 - **AC-33** The new defaults for `MinScore`, `ConfidentScore` and `DuplicateOverlap`, with the run that justifies them, are recorded in this spec's Calibration section and in `appsettings.json`.
 
 ## Deferred Decisions
 
 | Decision | Fallback chosen now | Revisit when |
 |---|---|---|
-| Exact Ollama tags of the candidate chat models and of the judge | Fixed at planning from Qwen 3.x, Gemma 4 and Mistral within 16 GB VRAM; judge from a different family than the chosen model | Planning |
+| Judge model | `gemma4:12b`: a family no candidate belongs to, about 8 GB, configurable (`Evaluation:JudgeModel`) | A Gemma model becomes a candidate |
+| Using the Radeon 890M (Ollama with Vulkan, run natively outside the AppHost's container) | CPU only | First tokens are too slow for demos, or a native Ollama option is wanted anyway |
 | Whether questions should prefer passages in their own language | No boost; search all languages | Spec 019, if cross-language results crowd out same-language ones |
 | Evaluation results in the admin area (roadmap 5.3) | Reports on disk only | Spec 020 |
 
