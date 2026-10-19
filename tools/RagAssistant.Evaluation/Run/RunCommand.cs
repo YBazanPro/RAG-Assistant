@@ -117,12 +117,20 @@ internal sealed class RunCommand(
         IReadOnlyList<PoolCandidate> pool = [];
         if (last is { AssistantMessageId: var id } && id != Guid.Empty)
         {
-            trace = await api.FindTraceAsync(user, id, golden.Turns[^1], cancellationToken);
-            if (last.RetrievalQuery is { } query)
+            try
             {
-                var search = await api.SearchCandidatesAsync(user, query, Settings.SampleTag, cancellationToken);
-                pool = [.. (search.Candidates ?? []).Select(c => new PoolCandidate(
-                    c.PassageId, passages.DocumentOf(c.PassageId), c.Score, c.Dropped, passages.MatchOf(golden, c.PassageId)))];
+                trace = await api.FindTraceAsync(user, id, golden.Turns[^1], cancellationToken);
+                if (last.RetrievalQuery is { } query)
+                {
+                    var search = await api.SearchCandidatesAsync(user, query, Settings.SampleTag, cancellationToken);
+                    pool = [.. (search.Candidates ?? []).Select(c => new PoolCandidate(
+                        c.PassageId, passages.DocumentOf(c.PassageId), c.Score, c.Dropped, passages.MatchOf(golden, c.PassageId)))];
+                }
+            }
+            catch (Exception ex) when (ex is HarnessException or HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                // The answer is scored anyway; only its trace or its candidate pool is missing (the sweep then skips the case).
+                error ??= "diagnostics unavailable: " + ex.Message;
             }
         }
 
