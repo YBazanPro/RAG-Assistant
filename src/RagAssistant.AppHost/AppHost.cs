@@ -6,8 +6,10 @@ const string OllamaImageTag = "0.40.4";
 // The 1024 dimensions must match Documents:Embeddings:Dimensions and the passages.embedding column. The model name recorded on
 // each version comes from the provider; Documents:Embeddings:Model (default "bge-m3") is only the fallback, so keep them equal.
 const string EmbeddingModel = "bge-m3";
-// Chosen by the spec 012 calibration spike; configuration, not code, for the API (ADR 0003).
-const string ChatModel = "llama3.2:3b";
+// The default chat model until spec 018's comparison chooses one (ADR 0003). Another Ollama model is tried with the chat-model
+// parameter, e.g. dotnet run --project src/RagAssistant.AppHost -- --Parameters:chat-model=qwen3.5:9b, or the user secret
+// Parameters:chat-model; the AppHost pulls it, and the evaluation harness reads it back from the request traces.
+const string DefaultChatModel = "llama3.2:3b";
 // Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
 const string WebClientSecret = "ragassistant-web-dev-secret";
 
@@ -43,7 +45,8 @@ var embeddings = ollama.AddModel("embeddings", EmbeddingModel);
 
 // Chat:Provider = Demo (launch profile "https-demo") runs the API's deterministic demo chat client: no chat model is pulled.
 var demoChat = builder.Configuration["Chat:Provider"] == "Demo";
-var chat = demoChat ? null : ollama.AddModel("chat", ChatModel);
+var chatModel = builder.Configuration["Parameters:chat-model"] is { Length: > 0 } configured ? configured : DefaultChatModel;
+var chat = demoChat ? null : ollama.AddModel("chat", chatModel);
 
 var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("migrations")
     .WithReference(database)

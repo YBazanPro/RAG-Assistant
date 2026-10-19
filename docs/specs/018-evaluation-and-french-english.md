@@ -1,6 +1,6 @@
 # Spec 018: Evaluation and French/English content
 
-**Status:** In Review (reopened 2026-10-19: CPU-only reference machine; first approved 2026-10-18)
+**Status:** Approved (2026-10-19, revised for a CPU-only reference machine; first approved 2026-10-18)
 **Date:** 2026-10-18
 **Roadmap:** Phase 5 (steps 5.1 and 5.2), and a revision of the spec 005 "English only" decision for content · **Builds on:** specs [006](006-documents-data-model-and-import.md), [007](007-background-ingestion-and-progress.md), [009](009-document-lifecycle.md), [011](011-retrieval.md), [012](012-chat-conversations-and-grounded-answers.md), [014](014-follow-ups-feedback-and-deletion.md), [015](015-chat-scope-activity-and-layout.md), [017](017-diagnose-traces-admin-and-metrics.md) · **Decision records:** [ADR 0003](../adr/0003-model-provider.md) (addendum: chat model chosen by evaluation), [ADR 0001](../adr/0001-ui-ai-streaming-stack.md) (`Microsoft.Extensions.AI.Evaluation` in a separate harness)
 

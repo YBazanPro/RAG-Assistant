@@ -89,7 +89,7 @@ Spec 012 is the contract; this skill says where things live and what not to brea
 ## Providers
 
 - `src/RagAssistant.Api/Program.cs` registers `IChatClient` by `Chat:Provider`:
-  - `Ollama`: AppHost resource `chat`, model const `ChatModel` in `AppHost.cs`;
+  - `Ollama`: AppHost resource `chat`, model `DefaultChatModel` in `AppHost.cs` unless the `chat-model` parameter names another (spec 018);
   - `Demo`: `Api/Chat/DemoChatClient.cs`, extractive, cites `[1]`/`[2]`, never declines.
   - Both use `.UseOpenTelemetry(sourceName: "RagAssistant.Chat.Model").UseLogging()`.
 - AppHost launch profile `https-demo` = Demo (no chat model pulled). The UI smoke tests use it.
