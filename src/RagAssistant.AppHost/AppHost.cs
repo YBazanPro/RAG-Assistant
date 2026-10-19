@@ -6,10 +6,10 @@ const string OllamaImageTag = "0.40.4";
 // The 1024 dimensions must match Documents:Embeddings:Dimensions and the passages.embedding column. The model name recorded on
 // each version comes from the provider; Documents:Embeddings:Model (default "bge-m3") is only the fallback, so keep them equal.
 const string EmbeddingModel = "bge-m3";
-// The default chat model until spec 018's comparison chooses one (ADR 0003). Another Ollama model is tried with the chat-model
+// The chat model chosen by spec 018's comparison on a CPU-only machine (ADR 0003 addendum). Another Ollama model is tried with the chat-model
 // parameter, e.g. dotnet run --project src/RagAssistant.AppHost -- --Parameters:chat-model=qwen3.5:9b, or the user secret
 // Parameters:chat-model; the AppHost pulls it, and the evaluation harness reads it back from the request traces.
-const string DefaultChatModel = "llama3.2:3b";
+const string DefaultChatModel = "ministral-3:8b";
 // Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
 const string WebClientSecret = "ragassistant-web-dev-secret";
 
