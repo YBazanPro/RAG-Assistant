@@ -43,6 +43,14 @@ internal sealed class EvaluationOptions
     /// <summary>Must differ from the model under test; pulled on demand by <c>judge</c> (spec 018).</summary>
     public string JudgeModel { get; set; } = "gemma4:12b";
 
+    /// <summary><c>Ollama</c> (default) or <c>OpenAICompatible</c> for a hosted judge; then JudgeModel is the provider's model id.</summary>
+    public string JudgeProvider { get; set; } = "Ollama";
+
+    public Uri JudgeEndpoint { get; set; } = new("https://openrouter.ai/api/v1");
+
+    /// <summary>Only for a hosted judge; keep it in user secrets (<c>dotnet user-secrets set Evaluation:JudgeApiKey ...</c>).</summary>
+    public string? JudgeApiKey { get; set; }
+
     /// <summary>Comma-separated case ids to judge only those (for trying a judge model); empty judges every answer.</summary>
     public string? JudgeCases { get; set; }
 

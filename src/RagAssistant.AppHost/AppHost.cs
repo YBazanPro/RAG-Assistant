@@ -45,8 +45,18 @@ var embeddings = ollama.AddModel("embeddings", EmbeddingModel);
 
 // Chat:Provider = Demo (launch profile "https-demo") runs the API's deterministic demo chat client: no chat model is pulled.
 var demoChat = builder.Configuration["Chat:Provider"] == "Demo";
-var chatModel = builder.Configuration["Parameters:chat-model"] is { Length: > 0 } configured ? configured : DefaultChatModel;
-var chat = demoChat ? null : ollama.AddModel("chat", chatModel);
+// chat-provider = openai-compatible sends chat calls to a hosted OpenAI-compatible endpoint (OpenRouter unless openai-endpoint says
+// otherwise) with the secret parameter openai-api-key, and chat-model is then the provider's model id (spec 018, ADR 0003).
+// Questions and retrieved passages leave the machine; embeddings stay on the local bge-m3.
+var hostedChat = builder.Configuration["Parameters:chat-provider"] == "openai-compatible";
+var configuredModel = builder.Configuration["Parameters:chat-model"];
+if (hostedChat && string.IsNullOrEmpty(configuredModel))
+{
+    throw new InvalidOperationException("chat-provider=openai-compatible needs chat-model, the provider's model id.");
+}
+
+var chatModel = configuredModel is { Length: > 0 } ? configuredModel : DefaultChatModel;
+var chat = demoChat || hostedChat ? null : ollama.AddModel("chat", chatModel);
 
 var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("migrations")
     .WithReference(database)
@@ -73,7 +83,18 @@ if (dashboardUrl is not null)
     api.WithEnvironment("Admin__TraceUrlTemplate", $"{dashboardUrl.TrimEnd('/')}/traces/detail/{{traceId}}");
 }
 
-if (chat is null)
+if (hostedChat)
+{
+    var apiKey = builder.AddParameter("openai-api-key", secret: true);
+    api.WithEnvironment("Chat__Provider", "OpenAICompatible")
+        .WithEnvironment("Chat__OpenAICompatible__Model", chatModel)
+        .WithEnvironment("Chat__OpenAICompatible__ApiKey", apiKey);
+    if (builder.Configuration["Parameters:openai-endpoint"] is { Length: > 0 } endpoint)
+    {
+        api.WithEnvironment("Chat__OpenAICompatible__Endpoint", endpoint);
+    }
+}
+else if (chat is null)
 {
     api.WithEnvironment("Chat__Provider", "Demo");
 }

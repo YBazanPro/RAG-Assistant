@@ -15,10 +15,14 @@ builder.AddOllamaApiClient("embeddings").AddEmbeddingGenerator();
 
 // Chat:Provider = Demo streams an extractive answer with no model download; retrieval stays real. The deadlines that count are
 // the Chat module's (Chat:Generation); the ServiceDefaults attempt timeout only bounds the wait for the response headers.
-var chat = builder.Configuration["Chat:Provider"] == "Demo"
-    ? builder.Services.AddChatClient(services => new DemoChatClient(services.GetRequiredService<TimeProvider>()))
-    : builder.AddOllamaApiClient("chat").AddChatClient()
-        .Use(inner => new OllamaThinking(inner, builder.Configuration.GetValue<bool>(OllamaThinking.ConfigurationKey)));
+// Chat:Provider = OpenAICompatible is the opt-in hosted provider (spec 018): questions and passages leave the machine.
+var chat = builder.Configuration["Chat:Provider"] switch
+{
+    "Demo" => builder.Services.AddChatClient(services => new DemoChatClient(services.GetRequiredService<TimeProvider>())),
+    OpenAICompatibleChat.ProviderName => builder.Services.AddOpenAICompatibleChat(builder.Configuration),
+    _ => builder.AddOllamaApiClient("chat").AddChatClient()
+        .Use(inner => new OllamaThinking(inner, builder.Configuration.GetValue<bool>(OllamaThinking.ConfigurationKey))),
+};
 chat.UseOpenTelemetry(sourceName: "RagAssistant.Chat.Model").UseLogging();
 
 // In-memory only, no L2 (ADR 0008); the Documents module caches query embeddings in it.

@@ -1,6 +1,6 @@
 # Spec 018: Evaluation and French/English content
 
-**Status:** Approved (2026-10-19, revised for a CPU-only reference machine; first approved 2026-10-18)
+**Status:** Approved (2026-10-19, second revision: optional OpenAI-compatible provider; revised for a CPU-only reference machine the same day; first approved 2026-10-18)
 **Date:** 2026-10-18
 **Roadmap:** Phase 5 (steps 5.1 and 5.2), and a revision of the spec 005 "English only" decision for content · **Builds on:** specs [006](006-documents-data-model-and-import.md), [007](007-background-ingestion-and-progress.md), [009](009-document-lifecycle.md), [011](011-retrieval.md), [012](012-chat-conversations-and-grounded-answers.md), [014](014-follow-ups-feedback-and-deletion.md), [015](015-chat-scope-activity-and-layout.md), [017](017-diagnose-traces-admin-and-metrics.md) · **Decision records:** [ADR 0003](../adr/0003-model-provider.md) (addendum: chat model chosen by evaluation), [ADR 0001](../adr/0001-ui-ai-streaming-stack.md) (`Microsoft.Extensions.AI.Evaluation` in a separate harness)
 
@@ -73,6 +73,8 @@ Success: a maintainer runs one command against the AppHost and gets a reproducib
 - **Chat model chosen by evaluation.** Candidates: `qwen3.5:9b` and `ministral-3:8b`, against the current `llama3.2:3b` as baseline (revision 2026-10-19). Among candidates with a median time to first token under 8 s on the reference machine, the one that scores best on answer-language correctness, then refusal correctness, then groundedness, is kept. The choice and the comparison table go into an ADR 0003 addendum.
 - **Reference machine: CPU only** (revision 2026-10-19). The developer's laptop has an integrated AMD Radeon 890M and 88 GB of RAM, and the AppHost's Ollama container cannot use that GPU, so every model runs on the CPU. The chosen chat model runs there together with `bge-m3` and keeps a median time to first token under 8 s; ADR 0004's < 3 s stays the target for machines with a dedicated GPU.
 - **Thinking off by default** (revision 2026-10-19). Reasoning models such as `qwen3.5:9b` think by default; on the CPU the hidden reasoning used the whole output budget and pushed the first visible token past the answer deadlines. The API, which alone knows the provider, sends Ollama `think=false` on every chat call unless `Chat:Ollama:Think` is true (`OllamaThinking` in `RagAssistant.Api/Chat`). Models without a thinking mode ignore the flag, so the candidates are compared on equal terms.
+- **Optional OpenAI-compatible chat provider** (second revision 2026-10-19). Local Ollama stays the default and the only provider a fresh clone needs. `Chat:Provider = OpenAICompatible` sends chat calls to an OpenAI-compatible endpoint (OpenRouter by default) instead: `Chat:OpenAICompatible:Endpoint` (default `https://openrouter.ai/api/v1`), `Chat:OpenAICompatible:Model` and `Chat:OpenAICompatible:ApiKey`, all required and validated at startup, the key never in a committed file. It is wired only in the API through `Microsoft.Extensions.AI.OpenAI` (ADR 0003 addendum); modules are unchanged. The AppHost selects it with the parameters `chat-provider=openai-compatible`, `chat-model` (the provider's model id) and the secret `openai-api-key` (optional `openai-endpoint`); no Ollama chat model is then pulled. Embeddings stay local (`bge-m3`), so the corpus is never re-embedded. **Questions and retrieved passages, private documents included, leave the machine** for that provider; the default stays local for that reason. OpenRouter may route a model id to different upstream providers, so runs through it are less reproducible; the trace records the model id the provider returned.
+- **Optional hosted judge** (same revision). `Evaluation:JudgeProvider = OpenAICompatible` with `Evaluation:JudgeEndpoint`, `Evaluation:JudgeApiKey` (user secrets) and `Evaluation:JudgeModel` runs the judge through the same kind of endpoint, much faster than a local judge on the CPU. The judge must still differ from the model under test.
 - **Documentation:** `product.md` (English only → UI in English, content and answers in English or French), the ADR 0003 note, the README demo steps (`seed`), `CLAUDE.md` (module table, commands), the roadmap (Phase 5.1/5.2 done, 5.3 → spec 020).
 
 ### Out
@@ -83,7 +85,7 @@ Success: a maintainer runs one command against the AppHost and gets a reproducib
 - Detecting languages other than English and French. A question in another language is answered in the fallback language unless the user explicitly asks for a language; answers in a third language are honoured on request but carry no quality bar.
 - UI localization: no French labels, no language switch.
 - Running the harness in CI.
-- Hosted judge models or any API key.
+- A hosted provider by default, embeddings from a hosted provider, and API keys in committed files.
 - Translating passages, or cross-language query expansion.
 
 ## Clarifications

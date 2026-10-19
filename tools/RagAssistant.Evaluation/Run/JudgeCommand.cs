@@ -5,7 +5,10 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.AI.Evaluation;
 using Microsoft.Extensions.AI.Evaluation.Quality;
 using Microsoft.Extensions.Options;
+using System.ClientModel;
+using System.ClientModel.Primitives;
 using OllamaSharp;
+using OpenAI;
 using OllamaChatRequest = OllamaSharp.Models.Chat.ChatRequest;
 using ThinkValue = OllamaSharp.Models.Chat.ThinkValue;
 
@@ -39,11 +42,7 @@ internal sealed class JudgeCommand(IHttpClientFactory httpClients, IOptions<Eval
         }
 
         var passages = report.Passages ?? throw new HarnessException("This report has no corpus passages; run 'run' again.");
-        var http = httpClients.CreateClient(HttpClientName);
-        http.BaseAddress = Settings.OllamaUrl;
-        using var ollama = new OllamaApiClient(http, judgeModel);
-        await EnsurePulledAsync(ollama, judgeModel, output, cancellationToken);
-        IChatClient judge = new WithoutThinking(ollama);
+        using var judge = await CreateJudgeAsync(judgeModel, output, cancellationToken);
         var configuration = new ChatConfiguration(judge);
         var groundedness = new GroundednessEvaluator();
         var relevance = new RelevanceEvaluator();
@@ -101,6 +100,30 @@ internal sealed class JudgeCommand(IHttpClientFactory httpClients, IOptions<Eval
         await File.WriteAllTextAsync(Path.Combine(folder, $"{name}.md"), Markdown(result), cancellationToken);
         await output.WriteLineAsync($"Judged {judged.Count} answers with {judgeModel}: {Path.Combine(folder, name)}.md");
         return 0;
+    }
+
+    /// <summary>
+    /// A local judge through the AppHost's Ollama, pulled on demand and with thinking off; or, with
+    /// <c>Evaluation:JudgeProvider = OpenAICompatible</c>, a hosted one (spec 018, second revision), much faster than a CPU.
+    /// </summary>
+    private async Task<IChatClient> CreateJudgeAsync(string judgeModel, TextWriter output, CancellationToken cancellationToken)
+    {
+        var http = httpClients.CreateClient(HttpClientName);
+        if (Settings.JudgeProvider == "OpenAICompatible")
+        {
+            var key = Settings.JudgeApiKey
+                ?? throw new HarnessException("Evaluation:JudgeProvider = OpenAICompatible needs Evaluation:JudgeApiKey (user secrets).");
+            return new OpenAIClient(
+                    new ApiKeyCredential(key),
+                    new OpenAIClientOptions { Endpoint = Settings.JudgeEndpoint, Transport = new HttpClientPipelineTransport(http) })
+                .GetChatClient(judgeModel)
+                .AsIChatClient();
+        }
+
+        http.BaseAddress = Settings.OllamaUrl;
+        var ollama = new OllamaApiClient(http, judgeModel);
+        await EnsurePulledAsync(ollama, judgeModel, output, cancellationToken);
+        return new WithoutThinking(ollama);
     }
 
     /// <summary>The judge model is pulled by the harness on demand, never by the AppHost (spec 018).</summary>
