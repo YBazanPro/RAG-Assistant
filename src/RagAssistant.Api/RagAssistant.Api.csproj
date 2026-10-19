@@ -18,4 +18,8 @@
     <ProjectReference Include="..\RagAssistant.SharedKernel\RagAssistant.SharedKernel.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="RagAssistant.Integration.Tests" />
+  </ItemGroup>
+
 </Project>

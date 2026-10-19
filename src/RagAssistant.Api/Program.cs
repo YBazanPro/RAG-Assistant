@@ -17,7 +17,8 @@ builder.AddOllamaApiClient("embeddings").AddEmbeddingGenerator();
 // the Chat module's (Chat:Generation); the ServiceDefaults attempt timeout only bounds the wait for the response headers.
 var chat = builder.Configuration["Chat:Provider"] == "Demo"
     ? builder.Services.AddChatClient(services => new DemoChatClient(services.GetRequiredService<TimeProvider>()))
-    : builder.AddOllamaApiClient("chat").AddChatClient();
+    : builder.AddOllamaApiClient("chat").AddChatClient()
+        .Use(inner => new OllamaThinking(inner, builder.Configuration.GetValue<bool>(OllamaThinking.ConfigurationKey)));
 chat.UseOpenTelemetry(sourceName: "RagAssistant.Chat.Model").UseLogging();
 
 // In-memory only, no L2 (ADR 0008); the Documents module caches query embeddings in it.

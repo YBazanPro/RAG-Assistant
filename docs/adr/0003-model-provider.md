@@ -45,3 +45,8 @@ Modules depend only on the Microsoft.Extensions.AI abstractions. Only `RagAssist
 |---|---|
 | Azure OpenAI / OpenAI as default | Requires an account and keys; breaks clone-and-run. Remains a supported swap. |
 | Anthropic for chat | No embeddings API, so a second provider would be needed anyway. |
+
+## Addendum (2026-10-19, spec 018)
+
+- **The chat model is configuration of the AppHost.** `DefaultChatModel` (`llama3.2:3b`) is used unless the `chat-model` parameter names another Ollama model; spec 018's evaluation compares `qwen3.5:9b` and `ministral-3:8b` against it on the CPU-only reference machine and the result is recorded here.
+- **Thinking is off.** The API sends Ollama `think=false` on every chat call unless `Chat:Ollama:Think` is true: answers come from the given passages, and on a CPU the hidden reasoning of thinking models cost the whole output budget and the first-token deadline.
