@@ -16,7 +16,7 @@ internal sealed class DocumentSearch(ModuleMediator mediator) : IDocumentSearch
 
         var request = new SearchPassages.Query(
             query, filters.Language, [.. filters.Tags ?? []], topK.ToString(CultureInfo.InvariantCulture), IncludeDiagnostics: false,
-            filters.DocumentIds, viewerSub);
+            filters.DocumentIds, viewerSub, QueryLanguage: filters.QueryLanguage);
         var run = await mediator.Send(request, cancellationToken);
         if (run.IsFailure)
         {
@@ -27,6 +27,8 @@ internal sealed class DocumentSearch(ModuleMediator mediator) : IDocumentSearch
         }
 
         var value = run.Value;
-        return new SearchResult(value.Outcome, value.Kept, value.Thresholds, value.EmbeddingModel, value.BestScore);
+        return new SearchResult(
+            value.Outcome, value.Kept, value.Thresholds, value.EmbeddingModel, value.BestScore, value.Mode, value.Rerank, value.RerankMs,
+            value.RerankModel);
     }
 }

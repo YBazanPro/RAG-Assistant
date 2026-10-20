@@ -54,7 +54,11 @@ public sealed record RequestRetrieval(
     double? BestScore,
     string? EmbeddingModel,
     int? Ms,
-    IReadOnlyList<RequestPassage> Passages);
+    IReadOnlyList<RequestPassage> Passages,
+    string? Mode = null,
+    string? Rerank = null,
+    int? RerankMs = null,
+    string? RerankModel = null);
 
 public sealed record RequestPassage(
     int Rank,
@@ -67,7 +71,12 @@ public sealed record RequestPassage(
     int? VersionNumber,
     IReadOnlyList<string> SectionPath,
     int? PageStart,
-    int? PageEnd);
+    int? PageEnd,
+    RequestPassageStages? Stages = null);
+
+/// <summary>What each retrieval stage said about the passage (spec 019); null on older traces.</summary>
+public sealed record RequestPassageStages(
+    int? VectorRank, double? Cosine, int? KeywordRank, double? KeywordScore, double? FusedScore, double? RerankScore, string? AdmittedBy);
 
 public sealed record RequestGeneration(
     string? ChatModel,
@@ -179,4 +188,16 @@ public sealed record DocumentsConfiguration(
     int MaxPdfSizeBytes,
     int PdfMaxPages,
     string Storage,
-    int StaleAfterDays);
+    int StaleAfterDays,
+    RetrievalStagesConfiguration? Stages = null);
+
+/// <summary>Spec 019: the hybrid and rerank stages; no reranker model means none is configured.</summary>
+public sealed record RetrievalStagesConfiguration(
+    bool HybridEnabled,
+    int RrfK,
+    bool RerankingEnabled,
+    string? RerankerModel,
+    int RerankCandidates,
+    double RerankMinScore,
+    double RerankConfidentScore,
+    double RerankTimeoutSeconds);

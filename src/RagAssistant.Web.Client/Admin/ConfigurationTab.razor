@@ -38,6 +38,11 @@
                     <MetaRow Label="Embedding batch">@c.IngestionEmbeddingBatchSize passages, timeout @c.IngestionEmbeddingTimeoutSeconds s, @c.IngestionEmbeddingMaxRetries retries</MetaRow>
                     <MetaRow Label="Search">default @c.DefaultTopK, at most @c.MaxTopK passages</MetaRow>
                     <MetaRow Label="Score thresholds">minimum @c.MinScore, confident @c.ConfidentScore, duplicate overlap @c.DuplicateOverlap</MetaRow>
+                    @if (c.Stages is { } stages)
+                    {
+                        <MetaRow Label="Hybrid search">@(stages.HybridEnabled ? $"on, reciprocal rank fusion k = {stages.RrfK}" : "off")</MetaRow>
+                        <MetaRow Label="Reranking">@RerankingText(stages)</MetaRow>
+                    }
                     <MetaRow Label="Upload limits">text @Formatting.Size(c.MaxFileSizeBytes), PDF @Formatting.Size(c.MaxPdfSizeBytes), @c.PdfMaxPages pages</MetaRow>
                     <MetaRow Label="Original files">@c.Storage</MetaRow>
                     <MetaRow Label="Stale after">@c.StaleAfterDays days</MetaRow>
@@ -46,3 +51,12 @@
         </AdminLoader>
     </section>
 </div>
+
+@code {
+    /// <summary>Spec 019: switched on without a reranker model means no reranker is configured, so every search skips it.</summary>
+    private static string RerankingText(RetrievalStagesConfiguration stages) =>
+        !stages.RerankingEnabled ? "off"
+        : stages.RerankerModel is null ? "on, but no reranker is configured: every search goes on without it"
+        : FormattableString.Invariant(
+            $"on, {stages.RerankerModel}: {stages.RerankCandidates} candidates, minimum {stages.RerankMinScore}, confident {stages.RerankConfidentScore}, timeout {stages.RerankTimeoutSeconds} s");
+}

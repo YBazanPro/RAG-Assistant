@@ -205,7 +205,20 @@
         var thresholds = retrieval.MinScore is { } min && retrieval.ConfidentScore is { } confident
             ? $" (minimum score {Score(min)}, confident from {Score(confident)})"
             : "";
-        return $"{outcome}: {retrieval.Passages.Count} {(retrieval.Passages.Count == 1 ? "passage" : "passages")}{thresholds}{Ms(retrieval.Ms)}.";
+        return $"{outcome}: {retrieval.Passages.Count} {(retrieval.Passages.Count == 1 ? "passage" : "passages")}{thresholds}{Stages(retrieval)}{Ms(retrieval.Ms)}.";
+    }
+
+    /// <summary>Spec 019: said only when it differs from plain vector search, so the usual case reads as before.</summary>
+    private static string Stages(RetrievalStep retrieval)
+    {
+        var mode = retrieval.Mode == "hybrid" ? ", hybrid search" : "";
+        var rerank = retrieval.Rerank switch
+        {
+            "applied" => ", reranked",
+            "skipped" => ", reranking skipped",
+            _ => "",
+        };
+        return mode + rerank;
     }
 
     private static string PassageText(PassageStep passage)
@@ -213,7 +226,13 @@
         var title = passage.DocumentTitle ?? "Document unavailable";
         var section = passage.SectionPath.Count > 0 ? $", {string.Join(" › ", passage.SectionPath)}" : "";
         var page = passage.PageStart is { } start ? (passage.PageEnd is { } end && end != start ? $", pages {start}–{end}" : $", page {start}") : "";
-        return $"{passage.Rank}. {title}{section}{page}: score {Score(passage.Score)}{(passage.Cited ? ", cited" : "")}";
+        var admitted = passage.AdmittedBy switch
+        {
+            "keyword" => ", keyword match",
+            "both" => ", vector and keyword match",
+            _ => "",
+        };
+        return $"{passage.Rank}. {title}{section}{page}: score {Score(passage.Score)}{admitted}{(passage.Cited ? ", cited" : "")}";
     }
 
     private static string AnswerText(AnswerStep? answer)

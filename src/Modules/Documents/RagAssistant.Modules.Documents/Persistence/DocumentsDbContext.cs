@@ -25,6 +25,8 @@ internal sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> op
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.HasPostgresExtension("vector");
+        // Keyword search (spec 019): the french_unaccent configuration folds accents before stemming.
+        modelBuilder.HasPostgresExtension("unaccent");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(DocumentsDbContext).Assembly);
         modelBuilder.UseSnakeCaseColumns();
     }

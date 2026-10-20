@@ -23,7 +23,8 @@ internal sealed class RunCommand(
 {
     private EvaluationOptions Settings => options.Value;
 
-    public async Task<int> RunAsync(TextWriter output, CancellationToken cancellationToken)
+    /// <param name="variants">Also measure retrieval for vector, hybrid and hybrid + rerank on the same queries (spec 019).</param>
+    public async Task<int> RunAsync(TextWriter output, CancellationToken cancellationToken, bool variants = false)
     {
         var started = clock.GetUtcNow();
         await seed.RunAsync(output, cancellationToken);
@@ -56,7 +57,10 @@ internal sealed class RunCommand(
         }
 
         var models = results.Select(r => r.ChatModel).Where(m => m is not null).Distinct(StringComparer.Ordinal).ToList();
-        var invalid = models.Count > 1 ? $"The traces show several chat models: {string.Join(", ", models)}." : null;
+        var modes = results.Select(r => r.RetrievalMode).Where(m => m is not null).Distinct(StringComparer.Ordinal).ToList();
+        var invalid = models.Count > 1 ? $"The traces show several chat models: {string.Join(", ", models)}."
+            : modes.Count > 1 ? $"The traces show several retrieval modes: {string.Join(", ", modes)}."
+            : null;
         configuration = configuration with
         {
             ChatModel = models.Count == 1 ? models[0] : configuration.ChatModel,
@@ -78,6 +82,14 @@ internal sealed class RunCommand(
             Group(results, r => r.QuestionLanguage),
             results,
             passages.All);
+        if (variants)
+        {
+            var pairs = runnable.Zip(results).Where(p => p.Second.Error is null).ToList();
+            report = report with
+            {
+                Variants = await Variants.RunAsync(api, user, Settings.SampleTag, configuration.TopK, pairs, passages, output, cancellationToken),
+            };
+        }
         var folder = await reports.WriteAsync(report, cancellationToken);
         await output.WriteLineAsync($"Report: {folder}");
         return invalid is null ? 0 : 3;
@@ -143,7 +155,8 @@ internal sealed class RunCommand(
             golden.Id, golden.Category, golden.QuestionLanguage, golden.Turns, golden.Expected.Behaviour, expectedLanguage,
             golden.Expected.Evidence.Count, status, last?.Completed?.RefusalReason, error, last?.RetrievalQuery, last?.Retrieval?.Outcome,
             last?.Text ?? "", retrieved, cited, pool, trace?.Generation.ChatModel, trace?.Generation.PromptVersion,
-            trace?.Question.DetectedLanguage, trace?.Generation.AnswerLanguage, trace?.Generation.FirstTokenMs, trace?.Generation.TotalMs, metrics);
+            trace?.Question.DetectedLanguage, trace?.Generation.AnswerLanguage, trace?.Generation.FirstTokenMs, trace?.Generation.TotalMs, metrics,
+            trace?.Retrieval.Mode);
     }
 
     private async Task<CorpusPassages> LoadPassagesAsync(CorpusManifest manifest, CancellationToken cancellationToken)
@@ -191,6 +204,8 @@ internal sealed class RunCommand(
     {
         var chat = await api.ChatConfigurationAsync(user, cancellationToken);
         var documents = await api.DocumentsConfigurationAsync(user, cancellationToken);
+        // Spec 019: absent on an API that predates the hybrid and rerank stages.
+        var stages = documents.TryGetProperty("stages", out var s) && s.ValueKind == JsonValueKind.Object ? s : (JsonElement?)null;
         return new RunConfiguration(
             chat.GetProperty("provider").GetString() ?? "unknown",
             chat.TryGetProperty("chatModel", out var model) ? model.GetString() : null,
@@ -207,7 +222,14 @@ internal sealed class RunCommand(
             datasetHash,
             Settings.SampleTag,
             GitCommit(),
-            Settings.ApiBaseUrl.ToString());
+            Settings.ApiBaseUrl.ToString(),
+            stages is { } m ? (m.GetProperty("hybridEnabled").GetBoolean() ? "hybrid" : "vector") : null,
+            stages?.GetProperty("rerankingEnabled").GetBoolean(),
+            stages?.GetProperty("rrfK").GetInt32(),
+            stages?.GetProperty("rerankCandidates").GetInt32(),
+            stages is { } r && r.GetProperty("rerankerModel").ValueKind == JsonValueKind.String ? r.GetProperty("rerankerModel").GetString() : null,
+            stages?.GetProperty("rerankMinScore").GetDouble(),
+            stages?.GetProperty("rerankConfidentScore").GetDouble());
     }
 
     private static string CorpusHash(string corpusPath, CorpusManifest manifest)

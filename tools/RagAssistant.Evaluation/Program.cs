@@ -17,6 +17,7 @@ const string Usage = """
     Commands:
       seed      Import or update the sample corpus (samples/corpus) in the running app.
       run       Seed, ask every golden question (samples/golden) and write a report to .data/evaluation.
+                run --variants also measures retrieval for vector, hybrid and hybrid + rerank on the same queries (spec 019).
       compare   compare <reportA> <reportB>: every metric side by side, configuration differences flagged.
       sweep     sweep <report>: replay retrieval thresholds over the report's candidate pools and recommend the best.
       judge     judge <report>: score the stored answers with Evaluation:JudgeModel (groundedness, relevance, requested language).
@@ -34,7 +35,10 @@ if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
 var command = args[0];
 // Positional arguments (report paths) come first; --Key=value settings follow.
 string[] positional = [.. args[1..].TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal))];
-string[] settings = [.. args[1..].Skip(positional.Length)];
+string[] options = [.. args[1..].Skip(positional.Length)];
+// The one flag (spec 019): run --variants also measures retrieval for vector, hybrid and hybrid + rerank.
+var variants = options.Contains("--variants", StringComparer.Ordinal);
+string[] settings = [.. options.Where(o => o != "--variants")];
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 {
     Args = settings,
@@ -77,7 +81,7 @@ try
             await host.Services.GetRequiredService<SeedCommand>().RunAsync(Console.Out, cancellation.Token);
             return 0;
         case "run":
-            return await host.Services.GetRequiredService<RunCommand>().RunAsync(Console.Out, cancellation.Token);
+            return await host.Services.GetRequiredService<RunCommand>().RunAsync(Console.Out, cancellation.Token, variants);
         case "compare" when positional.Length == 2:
             {
                 var a = ReportWriter.Read(Resolve(positional[0]));

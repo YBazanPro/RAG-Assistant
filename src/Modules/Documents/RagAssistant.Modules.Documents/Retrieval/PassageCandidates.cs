@@ -18,7 +18,10 @@ internal sealed record CandidateFilter(string? Language, IReadOnlyList<string> T
     public required string ViewerSub { get; init; }
 }
 
-/// <summary>The eligible-passage queries of retrieval (spec 011, eligibility and pipeline step 3).</summary>
+/// <summary>A keyword match: <c>ts_rank_cd</c> of the passage for the query (spec 019).</summary>
+internal sealed record KeywordHit(Guid PassageId, double Score);
+
+/// <summary>The eligible-passage queries of retrieval (spec 011, eligibility and pipeline step 3; spec 019, keyword pool).</summary>
 internal sealed class PassageCandidates(DocumentsDbContext db)
 {
     private const int DefaultEfSearch = 40;
@@ -37,9 +40,51 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
             $"SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true), set_config('hnsw.ef_search', {efSearch}, true)",
             cancellationToken);
 
-        var rows = await Eligible(embeddingModel, filter)
+        var ranked = Eligible(embeddingModel, filter)
             .OrderBy(x => x.Passage.Embedding!.CosineDistance(vector))
+            .Take(poolSize);
+        return await ProjectAsync(ranked, vector, cancellationToken);
+    }
+
+    /// <summary>
+    /// The <paramref name="poolSize"/> eligible passages that best match <paramref name="query"/> as keywords (spec 019), best first:
+    /// <c>websearch_to_tsquery</c> in the configuration of the query's language, ranked with <c>ts_rank_cd</c>. Same eligibility and
+    /// filters as the vector pool. A query without lexemes (only stop-words or punctuation) matches nothing.
+    /// </summary>
+    public async Task<IReadOnlyList<KeywordHit>> KeywordAsync(
+        string query, string? queryLanguage, string embeddingModel, CandidateFilter filter, int poolSize, CancellationToken cancellationToken)
+    {
+        // The configuration comes from the same SQL function that sets each passage's own (migration HybridSearch).
+        var language = queryLanguage ?? string.Empty;
+        var matches = db.Database.SqlQuery<KeywordRow>($"""
+            SELECT p.id AS "PassageId", ts_rank_cd(p.search_vector, q.query)::double precision AS "Score"
+            FROM documents.passages p, websearch_to_tsquery(documents.search_config_for({language}), {query}) AS q(query)
+            WHERE p.search_vector @@ q.query
+            """);
+
+        var rows = await (
+                from m in matches
+                join e in Eligible(embeddingModel, filter) on m.PassageId equals e.Passage.Id
+                orderby m.Score descending, m.PassageId
+                select new { m.PassageId, m.Score })
             .Take(poolSize)
+            .ToListAsync(cancellationToken);
+        return [.. rows.Select(r => new KeywordHit(r.PassageId, r.Score))];
+    }
+
+    /// <summary>The given eligible passages with their cosine to the query, in no guaranteed order: keyword hits the vector pool missed.</summary>
+    public async Task<IReadOnlyList<RetrievedChunk>> FetchByIdsAsync(
+        float[] query, string embeddingModel, CandidateFilter filter, IReadOnlyCollection<Guid> passageIds, CancellationToken cancellationToken)
+    {
+        var vector = new Vector(query);
+        var wanted = passageIds.ToArray();
+        return await ProjectAsync(Eligible(embeddingModel, filter).Where(x => wanted.Contains(x.Passage.Id)), vector, cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<RetrievedChunk>> ProjectAsync(
+        IQueryable<EligibleRow> rows, Vector vector, CancellationToken cancellationToken)
+    {
+        var projected = await rows
             .Select(x => new
             {
                 PassageId = x.Passage.Id,
@@ -59,7 +104,7 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
 
         return
         [
-            .. rows.Select(r => new RetrievedChunk(
+            .. projected.Select(r => new RetrievedChunk(
                 r.PassageId, r.DocumentId, r.Title, r.Language, r.VersionId, r.Number, r.SectionPath, r.Position,
                 r.PageStart, r.PageEnd, r.Text, 1 - r.Distance)),
         ];
@@ -99,6 +144,14 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
         }
 
         return documents;
+    }
+
+    /// <summary>The shape of the raw keyword query; EF composes the eligibility joins on top of it.</summary>
+    private sealed class KeywordRow
+    {
+        public Guid PassageId { get; init; }
+
+        public double Score { get; init; }
     }
 
     // A member-init projection, so EF can keep composing on it (a constructor projection cannot be ordered by).

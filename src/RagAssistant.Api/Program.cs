@@ -1,9 +1,11 @@
 using Microsoft.Extensions.AI;
 using RagAssistant.Api.Api;
 using RagAssistant.Api.Chat;
+using RagAssistant.Api.Retrieval;
 using RagAssistant.Modules.Chat;
 using RagAssistant.Modules.Documents;
 using RagAssistant.SharedKernel.Common.Extensions;
+using RagAssistant.SharedKernel.Contracts.Retrieval;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +29,15 @@ var chat = builder.Configuration["Chat:Provider"] switch
             builder.Configuration.GetValue(OllamaRequestOptions.ContextWindowConfigurationKey, OllamaRequestOptions.DefaultContextWindowTokens))),
 };
 chat.UseOpenTelemetry(sourceName: "RagAssistant.Chat.Model").UseLogging();
+
+// The reranker exists only when the AppHost started one (launch profile https-rerank, spec 019, ADR 0010). Without it the Documents
+// module's fallback makes every rerank "skipped", so a search never fails for it.
+if (builder.Configuration[$"services:{TeiPassageReranker.ResourceName}:http:0"] is not null)
+{
+    var rerankModel = builder.Configuration[TeiPassageReranker.ModelConfigurationKey] ?? TeiPassageReranker.DefaultModel;
+    builder.Services.AddHttpClient<IPassageReranker, TeiPassageReranker>((http, _) => new TeiPassageReranker(http, rerankModel))
+        .ConfigureHttpClient(client => client.BaseAddress = new Uri($"http://{TeiPassageReranker.ResourceName}/"));
+}
 
 // In-memory only, no L2 (ADR 0008); the Documents module caches query embeddings in it.
 builder.Services.AddHybridCache();

@@ -124,13 +124,16 @@ public sealed class LiveAnswer : IDisposable
             var documents = (scope?.DocumentIds ?? []).Select(id => new ScopeDocument(id, null, !leftOut.Contains(id))).ToList();
             var passages = (_retrieval?.Sources ?? [])
                 .Select(s => new PassageStep(
-                    s.Marker, s.Marker, s.Score, false, s.DocumentId, s.DocumentTitle, s.VersionNumber, s.SectionPath, s.PageStart, s.PageEnd))
+                    s.Marker, s.Marker, s.Score, false, s.DocumentId, s.DocumentTitle, s.VersionNumber, s.SectionPath, s.PageStart, s.PageEnd,
+                    s.AdmittedBy))
                 .ToList();
             return new ActivityView(
                 Question ?? "",
                 new RewriteStep(SearchedFor is not null, RetrievalQuery, null, null),
                 new ScopeStep(scope?.Language, scope?.Tags ?? [], documents),
-                new RetrievalStep(_retrieval?.Outcome, _retrieval?.MinScore, _retrieval?.ConfidentScore, _retrieval?.RetrievalMs, passages, _retrieval?.BestScore),
+                new RetrievalStep(
+                    _retrieval?.Outcome, _retrieval?.MinScore, _retrieval?.ConfidentScore, _retrieval?.RetrievalMs, passages, _retrieval?.BestScore,
+                    _retrieval?.Mode, _retrieval?.Rerank),
                 null);
         }
     }

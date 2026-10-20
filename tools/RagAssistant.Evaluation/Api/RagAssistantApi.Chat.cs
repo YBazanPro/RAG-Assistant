@@ -98,6 +98,17 @@ internal sealed partial class RagAssistantApi
         return (await SendAsync<SearchDiagnostics>(user, new HttpRequestMessage(HttpMethod.Get, url), cancellationToken)).Require("search with candidates");
     }
 
+    /// <summary>One retrieval variant of spec 019 through the maintainer overrides, timed from the harness (query embedding included).</summary>
+    public async Task<(SearchDiagnostics Result, int Ms)> SearchVariantAsync(
+        string user, string query, string tag, int topK, string mode, bool rerank, string? queryLanguage, CancellationToken cancellationToken)
+    {
+        var url = $"api/documents/search?q={Uri.EscapeDataString(query)}&tags={Uri.EscapeDataString(tag)}&topK={topK}&mode={mode}&rerank={(rerank ? "true" : "false")}"
+            + (queryLanguage is null ? "" : $"&queryLanguage={queryLanguage}");
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var result = (await SendAsync<SearchDiagnostics>(user, new HttpRequestMessage(HttpMethod.Get, url), cancellationToken)).Require($"search ({mode}, rerank {rerank})");
+        return (result, (int)System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+    }
+
     public async Task<IReadOnlyList<PassageItem>> PassagesAsync(string user, Guid documentId, int version, CancellationToken cancellationToken)
     {
         var passages = new List<PassageItem>();
@@ -180,11 +191,19 @@ internal sealed record RequestQuestion(string Text, string? DetectedLanguage, st
 
 internal sealed record RequestRewrite(bool Used, string? RetrievalQuery, string? FallbackReason, string? PromptVersion);
 
-internal sealed record RequestRetrieval(string? EvidenceOutcome, double? MinScore, double? ConfidentScore, double? DuplicateOverlap, double? BestScore, string? EmbeddingModel, int? Ms);
+/// <param name="Mode">Spec 019: <c>vector</c> or <c>hybrid</c>; null on traces written before it.</param>
+internal sealed record RequestRetrieval(
+    string? EvidenceOutcome, double? MinScore, double? ConfidentScore, double? DuplicateOverlap, double? BestScore, string? EmbeddingModel, int? Ms,
+    string? Mode = null, string? Rerank = null);
 
 internal sealed record RequestGeneration(string? ChatModel, string? PromptVersion, int? FirstTokenMs, int TotalMs, string? AnswerLanguage);
 
-internal sealed record SearchDiagnostics(string Outcome, int TopK, IReadOnlyList<SearchCandidate>? Candidates);
+/// <param name="Passages">The kept passages, best first: what the chat would cite from.</param>
+internal sealed record SearchDiagnostics(
+    string Outcome, int TopK, IReadOnlyList<SearchCandidate>? Candidates, IReadOnlyList<SearchPassage>? Passages = null,
+    string? Mode = null, string? Rerank = null, int? RerankMs = null);
+
+internal sealed record SearchPassage(int Rank, Guid PassageId, double Score);
 
 internal sealed record SearchCandidate(Guid PassageId, Guid DocumentId, string Language, double Score, string? Dropped);
 

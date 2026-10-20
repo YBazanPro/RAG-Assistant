@@ -82,6 +82,11 @@
                 <MetaRow Label="Thresholds">minimum @AdminFormat.Score(d.Retrieval.MinScore), confident @AdminFormat.Score(d.Retrieval.ConfidentScore), duplicate overlap @AdminFormat.Score(d.Retrieval.DuplicateOverlap)</MetaRow>
                 <MetaRow Label="Best score">@AdminFormat.Score(d.Retrieval.BestScore)</MetaRow>
                 <MetaRow Label="Embedding model">@(d.Retrieval.EmbeddingModel ?? "—")</MetaRow>
+                @if (d.Retrieval.Mode is { } mode)
+                {
+                    <MetaRow Label="Mode">@mode</MetaRow>
+                    <MetaRow Label="Reranking">@RerankText(d.Retrieval)</MetaRow>
+                }
                 <MetaRow Label="Time">@AdminFormat.Ms(d.Retrieval.Ms)</MetaRow>
                 @if (d.Retrieval.Passages.Count == 0)
                 {
@@ -111,6 +116,10 @@
                                 @if (passage.Cited)
                                 {
                                     <FluentBadge Appearance="BadgeAppearance.Tint" Color="BadgeColor.Success"><span aria-hidden="true">✓ </span>cited [@passage.Marker]</FluentBadge>
+                                }
+                                @if (passage.Stages is { } stages)
+                                {
+                                    <span class="admin-hint inspector-stages">@StagesText(stages)</span>
                                 }
                                 <code class="admin-hint" title="Passage id">@passage.PassageId</code>
                             </li>
@@ -191,6 +200,41 @@
 </aside>
 
 @code {
+    /// <summary>Spec 019: whether the cross-encoder reordered the candidates, how long it took, and with which model.</summary>
+    private static string RerankText(RequestRetrieval retrieval) => retrieval.Rerank switch
+    {
+        "applied" => $"applied in {AdminFormat.Ms(retrieval.RerankMs)} ({retrieval.RerankModel ?? "unknown model"})",
+        "skipped" => $"skipped: the reranker did not answer ({AdminFormat.Ms(retrieval.RerankMs)})",
+        _ => "off",
+    };
+
+    /// <summary>Spec 019: each stage's rank and score, so a maintainer sees which stage found the passage.</summary>
+    private static string StagesText(RequestPassageStages stages)
+    {
+        var parts = new List<string> { $"admitted by {stages.AdmittedBy}" };
+        if (stages.VectorRank is { } vector)
+        {
+            parts.Add($"vector #{vector}, cosine {AdminFormat.Score(stages.Cosine)}");
+        }
+
+        if (stages.KeywordRank is { } keyword)
+        {
+            parts.Add($"keyword #{keyword}, rank {AdminFormat.Score(stages.KeywordScore)}");
+        }
+
+        if (stages.FusedScore is { } fused)
+        {
+            parts.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"fused {fused:0.0000}"));
+        }
+
+        if (stages.RerankScore is { } rerank)
+        {
+            parts.Add($"rerank {AdminFormat.Score(rerank)}");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
     private enum LoadState { Loading, Loaded, NotFound, Failed, SessionExpired }
 
     private ElementReference _element;

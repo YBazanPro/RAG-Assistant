@@ -29,6 +29,9 @@ internal sealed class DocumentsMetrics
     public const string PdfExtractionDurationName = "documents.pdf.extraction.duration";
     public const string SearchDurationName = "documents.search.duration";
     public const string SearchOutcomesName = "documents.search.outcomes";
+    public const string KeywordHitsName = "documents.search.keyword_hits";
+    public const string RerankDurationName = "documents.rerank.duration";
+    public const string RerankSkippedName = "documents.rerank.skipped";
 
     private readonly Counter<long> _imported;
     private readonly Counter<long> _rejected;
@@ -45,6 +48,9 @@ internal sealed class DocumentsMetrics
     private readonly Histogram<double> _pdfExtractionDuration;
     private readonly Histogram<double> _searchDuration;
     private readonly Counter<long> _searchOutcomes;
+    private readonly Histogram<long> _keywordHits;
+    private readonly Histogram<double> _rerankDuration;
+    private readonly Counter<long> _rerankSkipped;
 
     public DocumentsMetrics(IMeterFactory meterFactory)
     {
@@ -64,6 +70,9 @@ internal sealed class DocumentsMetrics
         _pdfExtractionDuration = meter.CreateHistogram<double>(PdfExtractionDurationName, unit: "s", description: "PDF text extraction, by outcome.");
         _searchDuration = meter.CreateHistogram<double>(SearchDurationName, unit: "s", description: "Passage searches, query embedding included, by outcome.");
         _searchOutcomes = meter.CreateCounter<long>(SearchOutcomesName, description: "Passage searches by evidence outcome, or 'failed' with the error code.");
+        _keywordHits = meter.CreateHistogram<long>(KeywordHitsName, description: "Keyword matches per hybrid search (spec 019).");
+        _rerankDuration = meter.CreateHistogram<double>(RerankDurationName, unit: "s", description: "Reranker calls that returned scores (spec 019).");
+        _rerankSkipped = meter.CreateCounter<long>(RerankSkippedName, description: "Searches that asked for reranking and went on without it, by reason (spec 019).");
     }
 
     public void Imported(SourceFormat format) =>
@@ -111,6 +120,12 @@ internal sealed class DocumentsMetrics
         _searchOutcomes.Add(1, new KeyValuePair<string, object?>("outcome", outcome));
         _searchDuration.Record(duration.TotalSeconds, new KeyValuePair<string, object?>("outcome", outcome));
     }
+
+    public void KeywordHits(int count) => _keywordHits.Record(count);
+
+    public void RerankCompleted(TimeSpan duration) => _rerankDuration.Record(duration.TotalSeconds);
+
+    public void RerankSkipped(string reason) => _rerankSkipped.Add(1, new KeyValuePair<string, object?>("reason", reason));
 
     public void SearchFailed(string reason, TimeSpan duration)
     {

@@ -18,7 +18,8 @@ internal sealed record RunReport(
     IReadOnlyDictionary<string, Aggregate> ByCategory,
     IReadOnlyDictionary<string, Aggregate> ByQuestionLanguage,
     IReadOnlyList<CaseResult> Cases,
-    IReadOnlyDictionary<Guid, CorpusPassage>? Passages = null)
+    IReadOnlyDictionary<Guid, CorpusPassage>? Passages = null,
+    IReadOnlyList<VariantResult>? Variants = null)
 {
     public const int CurrentSchemaVersion = 1;
 }
@@ -40,7 +41,14 @@ internal sealed record RunConfiguration(
     string DatasetHash,
     string Scope,
     string? GitCommit,
-    string ApiBaseUrl);
+    string ApiBaseUrl,
+    string? RetrievalMode = null,
+    bool? Reranking = null,
+    int? RrfK = null,
+    int? RerankCandidates = null,
+    string? RerankerModel = null,
+    double? RerankMinScore = null,
+    double? RerankConfidentScore = null);
 
 /// <summary>A passage of the seeded corpus; the sweep needs the text to redo near-duplicate reduction offline.</summary>
 internal sealed record CorpusPassage(string Document, string Text);
@@ -92,7 +100,8 @@ internal sealed record CaseResult(
     string? AnswerLanguageInstructed,
     int? FirstTokenMs,
     int? TotalMs,
-    CaseMetrics Metrics);
+    CaseMetrics Metrics,
+    string? RetrievalMode = null);
 
 /// <summary>Means over the cases a metric applies to; <see cref="Cases"/> counts every case in the group.</summary>
 internal sealed record Aggregate(

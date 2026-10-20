@@ -74,6 +74,16 @@ internal sealed class RequestTrace
     /// <summary>JSON array of <see cref="RetrievedPassageTrace"/>, stored as <c>jsonb</c>.</summary>
     public string RetrievedPassages { get; set; } = "[]";
 
+    /// <summary><c>vector</c> or <c>hybrid</c> (spec 019); null on older traces and when retrieval failed.</summary>
+    public string? RetrievalMode { get; set; }
+
+    /// <summary><c>off</c>, <c>applied</c> or <c>skipped</c> (spec 019).</summary>
+    public string? RerankStatus { get; set; }
+
+    public int? RerankMs { get; set; }
+
+    public string? RerankModel { get; set; }
+
     /// <summary>Null when the model was never called.</summary>
     public string? ChatModel { get; set; }
 
@@ -108,7 +118,10 @@ internal sealed class RequestTrace
     public int TotalMs { get; set; }
 }
 
-/// <remarks>The document fields (spec 015) are what the activity panel shows; traces written before it lack them. No passage text is stored.</remarks>
+/// <remarks>
+/// The document fields (spec 015) are what the activity panel shows, the stage fields (spec 019) what the request inspector shows;
+/// traces written before them lack them. No passage text is stored.
+/// </remarks>
 internal sealed record RetrievedPassageTrace(
     Guid PassageId,
     Guid VersionId,
@@ -121,4 +134,11 @@ internal sealed record RetrievedPassageTrace(
     int? VersionNumber = null,
     string[]? SectionPath = null,
     int? PageStart = null,
-    int? PageEnd = null);
+    int? PageEnd = null,
+    int? VectorRank = null,
+    double? Cosine = null,
+    int? KeywordRank = null,
+    double? KeywordScore = null,
+    double? FusedScore = null,
+    double? RerankScore = null,
+    string? AdmittedBy = null);

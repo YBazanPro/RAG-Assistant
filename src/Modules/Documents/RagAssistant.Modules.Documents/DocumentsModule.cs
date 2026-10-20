@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Ingestion;
@@ -14,6 +15,7 @@ using RagAssistant.Modules.Documents.Storage;
 using RagAssistant.SharedKernel.Common.Behaviors;
 using RagAssistant.SharedKernel.Common.Extensions;
 using RagAssistant.SharedKernel.Contracts.Documents;
+using RagAssistant.SharedKernel.Contracts.Retrieval;
 using RagAssistant.SharedKernel.Persistence;
 
 namespace RagAssistant.Modules.Documents;
@@ -84,7 +86,9 @@ public static class DocumentsModule
             .Validate(
                 o => o.IsConsistent,
                 "Documents:Retrieval: DefaultTopK must not exceed MaxTopK, MaxCandidates must be at least MaxTopK, "
-                + "ConfidentScore must be at least MinScore, and both durations must be greater than zero.")
+                + "ConfidentScore must be at least MinScore, and both durations must be greater than zero; Hybrid:RrfK must be at least 1; "
+                + "Reranking:Candidates must be 1 to 100, its scores between 0 and 1 with ConfidentScore at least MinScore, and its "
+                + "Timeout greater than zero.")
             .ValidateOnStart();
 
         services.AddOptions<DocumentsAdminOptions>()
@@ -115,6 +119,9 @@ public static class DocumentsModule
         // Retrieval (spec 011); HybridCache itself is registered by the host (ADR 0008).
         services.AddScoped<QueryEmbedder>();
         services.AddScoped<PassageCandidates>();
+        // Spec 019: the API registers the real reranker first; without one, reranking is always skipped.
+        services.TryAddSingleton<IPassageReranker, UnconfiguredReranker>();
+        services.AddScoped<PassageReranking>();
         services.AddScoped<IDocumentSearch, DocumentSearch>();
         services.AddScoped<IDocumentCatalog, DocumentCatalog>();
         services.AddScoped<IDocumentTitles, DocumentTitles>();

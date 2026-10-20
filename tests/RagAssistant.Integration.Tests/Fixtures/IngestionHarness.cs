@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using RagAssistant.Integration.Tests.Documents;
 using RagAssistant.SharedKernel.Persistence;
+using RagAssistant.SharedKernel.Contracts.Retrieval;
 
 namespace RagAssistant.Integration.Tests.Fixtures;
 
@@ -66,6 +67,9 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
     public FakeEmbeddingGenerator Generator { get; }
 
     public ScriptedChatClient Chat { get; }
+
+    /// <summary>The reranker (spec 019); it fails until a test gives it a score function.</summary>
+    public FakeReranker Reranker { get; } = new();
 
     public CapturingLoggerProvider Logs { get; } = new();
 
@@ -144,6 +148,7 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
             services.AddDatabaseMigrator();
             services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(Generator);
             services.AddSingleton<IChatClient>(Chat);
+            services.AddSingleton<IPassageReranker>(Reranker);
             if (Clock is not null)
             {
                 services.AddSingleton<TimeProvider>(Clock);
