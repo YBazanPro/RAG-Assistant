@@ -80,8 +80,10 @@ jobs:
           tail -n 200 apphost.log
           exit 1
 
+      # --variants (spec 019): vector against hybrid on the same queries every night. No reranker runs here, so the rerank variant
+      # reports "skipped" and costs nothing; reranking is measured with the https-rerank profile.
       - name: Run the evaluation
-        run: dotnet run --project tools/RagAssistant.Evaluation --no-build -- run 2>&1 | tee evaluation.log
+        run: dotnet run --project tools/RagAssistant.Evaluation --no-build -- run --variants 2>&1 | tee evaluation.log
 
       - name: Summarize the report
         if: ${{ !cancelled() }}
