@@ -69,7 +69,9 @@ internal static partial class GetRequest
                 .OrderBy(p => p.Rank)
                 .Select(p => new RequestPassage(
                     p.Rank, p.Marker, p.Score, p.Cited, p.PassageId, p.DocumentId, TitleOf(p.DocumentId), p.VersionNumber,
-                    p.SectionPath ?? [], p.PageStart, p.PageEnd))
+                    p.SectionPath ?? [], p.PageStart, p.PageEnd,
+                    p.AdmittedBy is null ? null
+                        : new RequestPassageStages(p.VectorRank, p.Cosine, p.KeywordRank, p.KeywordScore, p.FusedScore, p.RerankScore, p.AdmittedBy)))
                 .ToList();
 
             return new RequestDetail(
@@ -93,7 +95,7 @@ internal static partial class GetRequest
                     trace.RewriteInputTokens, trace.RewriteOutputTokens, trace.RewritePromptVersion),
                 new RequestRetrieval(
                     trace.EvidenceOutcome, trace.MinScore, trace.ConfidentScore, trace.DuplicateOverlap, trace.BestScore,
-                    trace.EmbeddingModel, trace.RetrievalMs, passages),
+                    trace.EmbeddingModel, trace.RetrievalMs, passages, trace.RetrievalMode, trace.RerankStatus, trace.RerankMs, trace.RerankModel),
                 new RequestGeneration(
                     trace.ChatModel, trace.PromptVersion, trace.InputTokens, trace.OutputTokens, trace.SentinelHit,
                     trace.StrippedMarkerCount, trace.FirstTokenMs, trace.TotalMs, trace.AnswerLanguage, trace.TrimmedPassageCount,

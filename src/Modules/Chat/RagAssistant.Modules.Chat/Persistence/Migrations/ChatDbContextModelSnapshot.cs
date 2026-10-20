@@ -442,6 +442,25 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("requested_language");
 
+                    b.Property<string>("RerankModel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("rerank_model");
+
+                    b.Property<int?>("RerankMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("rerank_ms");
+
+                    b.Property<string>("RerankStatus")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("rerank_status");
+
+                    b.Property<string>("RetrievalMode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("retrieval_mode");
+
                     b.Property<int?>("RetrievalMs")
                         .HasColumnType("integer")
                         .HasColumnName("retrieval_ms");

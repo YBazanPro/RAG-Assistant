@@ -59,7 +59,11 @@ internal sealed record RequestRetrieval(
     double? BestScore,
     string? EmbeddingModel,
     int? Ms,
-    IReadOnlyList<RequestPassage> Passages);
+    IReadOnlyList<RequestPassage> Passages,
+    string? Mode = null,
+    string? Rerank = null,
+    int? RerankMs = null,
+    string? RerankModel = null);
 
 /// <param name="DocumentTitle">Only for a document that is currently shared; null otherwise.</param>
 internal sealed record RequestPassage(
@@ -73,7 +77,12 @@ internal sealed record RequestPassage(
     int? VersionNumber,
     IReadOnlyList<string> SectionPath,
     int? PageStart,
-    int? PageEnd);
+    int? PageEnd,
+    RequestPassageStages? Stages = null);
+
+/// <summary>What each retrieval stage said about the passage (spec 019); null on traces written before it.</summary>
+internal sealed record RequestPassageStages(
+    int? VectorRank, double? Cosine, int? KeywordRank, double? KeywordScore, double? FusedScore, double? RerankScore, string? AdmittedBy);
 
 internal sealed record RequestGeneration(
     string? ChatModel,

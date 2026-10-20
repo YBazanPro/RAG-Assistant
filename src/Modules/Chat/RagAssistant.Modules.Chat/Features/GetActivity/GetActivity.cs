@@ -38,7 +38,14 @@ internal static class GetActivity
 
     /// <param name="BestScore">The best candidate before the evidence rules; explains a refusal (null when nothing matched, or on older traces).</param>
     public sealed record RetrievalStep(
-        string? Outcome, double? MinScore, double? ConfidentScore, int? Ms, IReadOnlyList<PassageStep> Passages, double? BestScore = null);
+        string? Outcome,
+        double? MinScore,
+        double? ConfidentScore,
+        int? Ms,
+        IReadOnlyList<PassageStep> Passages,
+        double? BestScore = null,
+        string? Mode = null,
+        string? Rerank = null);
 
     public sealed record PassageStep(
         int Rank,
@@ -50,7 +57,8 @@ internal static class GetActivity
         int? VersionNumber,
         IReadOnlyList<string> SectionPath,
         int? PageStart,
-        int? PageEnd);
+        int? PageEnd,
+        string? AdmittedBy = null);
 
     public sealed record AnswerStep(
         bool ModelCalled,
@@ -94,14 +102,16 @@ internal static class GetActivity
                     p.Rank, p.Marker, p.Score, p.Cited, p.DocumentId,
                     // A cited passage was authorised when the answer was given and keeps its snapshot title; the others
                     // show a title only while the viewer can still read the document (spec 016).
-                    p.Cited || (p.DocumentId is { } id && availability.Known.Contains(id)) ? p.DocumentTitle : null, p.VersionNumber, p.SectionPath ?? [], p.PageStart, p.PageEnd))
+                    p.Cited || (p.DocumentId is { } id && availability.Known.Contains(id)) ? p.DocumentTitle : null, p.VersionNumber, p.SectionPath ?? [], p.PageStart, p.PageEnd,
+                    p.AdmittedBy))
                 .ToList();
 
             return new ActivityView(
                 trace.QuestionText,
                 new RewriteStep(trace.RewriteUsed, trace.RetrievalQuery, trace.RewriteFallbackReason?.ToApi(), trace.RewriteMs),
                 new ScopeStep(trace.FilterLanguage, trace.FilterTags, documents),
-                new RetrievalStep(trace.EvidenceOutcome is { } outcome ? JsonNamingPolicy.CamelCase.ConvertName(outcome) : null, trace.MinScore, trace.ConfidentScore, trace.RetrievalMs, passages, trace.BestScore),
+                new RetrievalStep(trace.EvidenceOutcome is { } outcome ? JsonNamingPolicy.CamelCase.ConvertName(outcome) : null, trace.MinScore, trace.ConfidentScore, trace.RetrievalMs, passages, trace.BestScore,
+                    trace.RetrievalMode, trace.RerankStatus),
                 new AnswerStep(
                     trace.ChatModel is not null,
                     trace.FinalStatus.ToApi(),

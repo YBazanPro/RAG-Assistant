@@ -126,8 +126,10 @@ internal sealed partial class AnswerPipeline(
             attempt.UnavailableDocumentIds = [.. answer.DocumentIds.Where(id => !availability.Searchable.Contains(id))];
         }
 
+        // Spec 019: the keyword configuration follows the language the question is written in, never the requested answer language.
         var filters = new SearchFilters(
-            answer.Language, answer.Tags.Length > 0 ? answer.Tags : null, answer.DocumentIds.Length > 0 ? answer.DocumentIds : null);
+            answer.Language, answer.Tags.Length > 0 ? answer.Tags : null, answer.DocumentIds.Length > 0 ? answer.DocumentIds : null,
+            answer.QuestionLanguage);
         var result = await search.SearchAsync(query, filters, retrievalOptions.Value.TopK, answer.OwnerSub, aborted);
         attempt.RetrievalMs = Milliseconds(retrievalStarted);
         if (result.IsFailure)
@@ -159,14 +161,17 @@ internal sealed partial class AnswerPipeline(
 
         attempt.Search = found;
         var sources = found.Chunks
-            .Select((c, i) => new AnswerEvents.Source(i + 1, c.PassageId, c.DocumentId, c.DocumentTitle, c.VersionNumber, c.SectionPath, c.PageStart, c.PageEnd, c.Score, c.Language))
+            .Select((c, i) => new AnswerEvents.Source(
+                i + 1, c.PassageId, c.DocumentId, c.DocumentTitle, c.VersionNumber, c.SectionPath, c.PageStart, c.PageEnd, c.Score, c.Language,
+                c.Stages?.AdmittedBy.ToApi()))
             .ToList();
         var scope = new AnswerEvents.ScopeInfo(answer.Language, answer.Tags, answer.DocumentIds);
         await events.WriteAsync(
             AnswerEvents.Item(
                 AnswerEvents.RetrievalCompletedType,
                 new AnswerEvents.RetrievalCompleted(
-                    found.Outcome.ToApi(), sources, scope, attempt.UnavailableDocumentIds, found.Thresholds.MinScore, found.Thresholds.ConfidentScore, attempt.RetrievalMs, found.BestScore)),
+                    found.Outcome.ToApi(), sources, scope, attempt.UnavailableDocumentIds, found.Thresholds.MinScore, found.Thresholds.ConfidentScore, attempt.RetrievalMs, found.BestScore,
+                    found.Mode.ToApi(), found.Rerank.ToApi())),
             aborted);
 
         if (found.Outcome == EvidenceOutcome.NoEvidence)
@@ -412,7 +417,9 @@ internal sealed partial class AnswerPipeline(
         var passages = found?.Chunks
             .Select((c, i) => new RetrievedPassageTrace(
                 c.PassageId, c.VersionId, c.Score, i + 1, i + 1, status != AnswerStatus.Refused && cited.Contains(i + 1),
-                c.DocumentId, c.DocumentTitle, c.VersionNumber, [.. c.SectionPath], c.PageStart, c.PageEnd))
+                c.DocumentId, c.DocumentTitle, c.VersionNumber, [.. c.SectionPath], c.PageStart, c.PageEnd,
+                c.Stages?.VectorRank, c.Stages?.Cosine, c.Stages?.KeywordRank, c.Stages?.KeywordScore, c.Stages?.FusedScore,
+                c.Stages?.RerankScore, c.Stages?.AdmittedBy.ToApi()))
             .ToList() ?? [];
 
         return new RequestTrace
@@ -446,6 +453,10 @@ internal sealed partial class AnswerPipeline(
             DuplicateOverlap = found?.Thresholds.DuplicateOverlap,
             BestScore = found?.BestScore,
             EmbeddingModel = found?.EmbeddingModel,
+            RetrievalMode = found?.Mode.ToApi(),
+            RerankStatus = found?.Rerank.ToApi(),
+            RerankMs = found?.RerankMs,
+            RerankModel = found?.RerankModel,
             RetrievedPassages = JsonSerializer.Serialize(passages, TraceJson),
             ChatModel = attempt.ChatModel,
             PromptVersion = attempt.PromptVersion,

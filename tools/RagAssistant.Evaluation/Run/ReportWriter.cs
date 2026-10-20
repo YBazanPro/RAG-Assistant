@@ -66,6 +66,7 @@ internal sealed class ReportWriter(IOptions<EvaluationOptions> options)
             ("Prompt versions", $"{c.PromptVersion} / {c.RewritePromptVersion}"),
             ("Retrieval", $"topK {c.TopK} · MinScore {c.MinScore} · ConfidentScore {c.ConfidentScore} · DuplicateOverlap {c.DuplicateOverlap}"),
             ("Chunking", $"{c.ChunkMaxTokens} tokens, overlap {c.ChunkOverlapTokens}"),
+            ("Stages", Stages(c)),
             ("Scope", $"tag {c.Scope}"),
             ("Corpus / dataset", $"{c.CorpusHash[..12]} / {c.DatasetHash[..12]}"),
             ("Commit", c.GitCommit ?? "—"),
@@ -79,6 +80,25 @@ internal sealed class ReportWriter(IOptions<EvaluationOptions> options)
         md.AppendLine("## Metrics");
         md.AppendLine();
         AppendTable(md, [("all", report.Overall), .. report.ByCategory.Select(kv => (kv.Key, kv.Value)), .. report.ByQuestionLanguage.Select(kv => ($"lang {kv.Key}", kv.Value))]);
+
+        if (report.Variants is { Count: > 0 } variants)
+        {
+            md.AppendLine();
+            md.AppendLine("## Retrieval variants");
+            md.AppendLine();
+            md.AppendLine("Retrieval only, on the same queries; behaviour is what the retrieval outcome predicts (spec 019, run --variants).");
+            md.AppendLine();
+            md.AppendLine("| Variant | Group | Cases | R@1 | R@3 | R@5 | MRR | Behaviour | Refusals | Median search | Median rerank | Rerank skipped |");
+            md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|");
+            foreach (var v in variants)
+            {
+                foreach (var (group, a) in new[] { ("all", v.Overall) }.Concat(v.ByQuestionLanguage.Select(kv => ($"lang {kv.Key}", kv.Value))).Concat(v.ByCategory.Select(kv => (kv.Key, kv.Value))))
+                {
+                    md.AppendLine(CultureInfo.InvariantCulture,
+                        $"| {v.Name} | {group} | {a.Cases} | {Num(a.RecallAt1)} | {Num(a.RecallAt3)} | {Num(a.RecallAt5)} | {Num(a.Mrr)} | {Num(a.Behaviour)} | {Num(a.Refusals)} | {Ms(a.MedianSearchMs)} | {Ms(a.MedianRerankMs)} | {a.RerankSkipped} |");
+                }
+            }
+        }
 
         if (report.BrokenCases.Count > 0)
         {
@@ -116,6 +136,13 @@ internal sealed class ReportWriter(IOptions<EvaluationOptions> options)
                 $"| {name} | {a.Cases} | {a.Errors} | {Num(a.RecallAt1)} | {Num(a.RecallAt3)} | {Num(a.RecallAt5)} | {Num(a.RecallAtTopK)} | {Num(a.Mrr)} | {Num(a.BehaviourCorrectness)} | {Num(a.RefusalCorrectness)} | {Num(a.CitationRecall)} | {Num(a.CitationPrecision)} | {Num(a.AnswerLanguageCorrectness)} | {Num(a.InjectionResistance)} | {(a.MedianFirstTokenMs is { } ms ? $"{ms:0} ms" : "—")} |");
         }
     }
+
+    /// <summary>Spec 019: the retrieval stages of the configuration; older reports have none.</summary>
+    private static string Stages(RunConfiguration c) => c.RetrievalMode is null ? "—"
+        : FormattableString.Invariant(
+            $"{c.RetrievalMode} (RrfK {c.RrfK}) · reranking {(c.Reranking == true ? $"on, {c.RerankerModel ?? "no reranker configured"}, {c.RerankCandidates} candidates, MinScore {c.RerankMinScore}, ConfidentScore {c.RerankConfidentScore}" : "off")}");
+
+    private static string Ms(double? value) => value is { } ms ? FormattableString.Invariant($"{ms:0} ms") : "—";
 
     private static string Num(double? value) => value is { } v ? v.ToString("0.00", CultureInfo.InvariantCulture) : "—";
 

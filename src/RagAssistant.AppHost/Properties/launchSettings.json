@@ -28,6 +28,20 @@
         "Chat__Provider": "Demo"
       }
     },
+    "https-rerank": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:17268;http://localhost:15195",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21292",
+        "ASPIRE_DASHBOARD_MCP_ENDPOINT_URL": "https://localhost:23018",
+        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22004",
+        "Parameters__reranking": "true"
+      }
+    },
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,

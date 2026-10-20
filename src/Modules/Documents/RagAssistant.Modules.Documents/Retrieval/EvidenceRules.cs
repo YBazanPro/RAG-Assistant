@@ -24,10 +24,15 @@ internal static class EvidenceRules
     public static List<RetrievedChunk> Rank(IEnumerable<RetrievedChunk> pool) =>
         [.. pool.OrderByDescending(c => c.Score).ThenBy(c => c.DocumentId).ThenBy(c => c.Position)];
 
-    public static EvidenceDecision Apply(IEnumerable<RetrievedChunk> pool, int topK, EvidenceThresholds thresholds)
-    {
-        var ranked = Rank(pool);
+    public static EvidenceDecision Apply(IEnumerable<RetrievedChunk> pool, int topK, EvidenceThresholds thresholds) =>
+        ApplyOrdered(Rank(pool), topK, thresholds);
 
+    /// <summary>
+    /// The same steps on a pool already in its final order (spec 019): fused order in hybrid mode, rerank order when reranked.
+    /// The floor and the confident score always apply to <see cref="RetrievedChunk.Score"/>, the gating score.
+    /// </summary>
+    public static EvidenceDecision ApplyOrdered(IReadOnlyList<RetrievedChunk> ranked, int topK, EvidenceThresholds thresholds)
+    {
         var discarded = new List<DiscardedPassage>();
         var kept = new List<(RetrievedChunk Passage, HashSet<string> Shingles)>();
         foreach (var candidate in ranked)
@@ -61,8 +66,9 @@ internal static class EvidenceRules
             }
         }
 
+        // The best kept score, not the first: in hybrid order the first passage need not have the highest cosine.
         var outcome = kept.Count == 0 ? EvidenceOutcome.NoEvidence
-            : kept[0].Passage.Score < thresholds.ConfidentScore ? EvidenceOutcome.LowConfidence
+            : kept.Max(k => k.Passage.Score) < thresholds.ConfidentScore ? EvidenceOutcome.LowConfidence
             : EvidenceOutcome.Sufficient;
 
         return new EvidenceDecision(outcome, [.. kept.Select(k => k.Passage)], discarded);

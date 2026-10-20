@@ -58,4 +58,16 @@ internal sealed record DocumentsConfiguration(
     int MaxPdfSizeBytes,
     int PdfMaxPages,
     string Storage,
-    int StaleAfterDays);
+    int StaleAfterDays,
+    RetrievalStagesConfiguration? Stages = null);
+
+/// <summary>Spec 019: the hybrid and rerank stages. <paramref name="RerankerModel"/> is null when no reranker is configured.</summary>
+internal sealed record RetrievalStagesConfiguration(
+    bool HybridEnabled,
+    int RrfK,
+    bool RerankingEnabled,
+    string? RerankerModel,
+    int RerankCandidates,
+    double RerankMinScore,
+    double RerankConfidentScore,
+    double RerankTimeoutSeconds);

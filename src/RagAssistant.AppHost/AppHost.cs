@@ -10,6 +10,10 @@ const string EmbeddingModel = "bge-m3";
 // parameter, e.g. dotnet run --project src/RagAssistant.AppHost -- --Parameters:chat-model=qwen3.5:9b, or the user secret
 // Parameters:chat-model; the AppHost pulls it, and the evaluation harness reads it back from the request traces.
 const string DefaultChatModel = "ministral-3:8b";
+// The reranker of spec 019 (ADR 0010): Text Embeddings Inference, CPU build by default (the reference machine has no usable GPU);
+// --Parameters:reranker-tag=1.9.4 picks the CUDA build on a machine with an NVIDIA GPU.
+const string RerankerImageTag = "cpu-1.9.4";
+const string RerankerModel = "BAAI/bge-reranker-v2-m3";
 // Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
 const string WebClientSecret = "ragassistant-web-dev-secret";
 
@@ -56,6 +60,19 @@ if (hostedChat && string.IsNullOrEmpty(configuredModel))
 }
 
 var chatModel = configuredModel is { Length: > 0 } ? configuredModel : DefaultChatModel;
+
+// Reranking only when asked (launch profile https-rerank, or --Parameters:reranking=true): the default clone-and-run is unchanged.
+// The API does not wait for it, like the models: until TEI has downloaded the model, searches go on without reranking (spec 019).
+var reranker = builder.Configuration["Parameters:reranking"] == "true"
+    ? builder.AddContainer("reranker", "huggingface/text-embeddings-inference", builder.Configuration["Parameters:reranker-tag"] ?? RerankerImageTag)
+        .WithImageRegistry("ghcr.io")
+        // One call carries every candidate (Documents:Retrieval:Reranking:Candidates, at most 100); TEI's default limit is 32.
+        .WithArgs("--model-id", RerankerModel, "--max-client-batch-size", "100")
+        .WithVolume("ragassistant-tei-models", "/data")
+        .WithHttpEndpoint(targetPort: 80, name: "http")
+        .WithHttpHealthCheck("/health")
+        .WithLifetime(ContainerLifetime.Persistent)
+    : null;
 var chat = demoChat || hostedChat ? null : ollama.AddModel("chat", chatModel);
 
 var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("migrations")
@@ -75,6 +92,15 @@ var api = builder.AddProject<Projects.RagAssistant_Api>("api")
     .WaitFor(database)
     .WaitFor(keycloak)
     .WaitForCompletion(migrations);
+if (reranker is not null)
+{
+    // Service discovery gives the API http://reranker; the switch turns reranking on (spec 019). Before ApiEnvironment, so a run
+    // can still override any of it.
+    api.WithReference(reranker.GetEndpoint("http"))
+        .WithEnvironment("Reranker__Model", RerankerModel)
+        .WithEnvironment("Documents__Retrieval__Reranking__Enabled", "true");
+}
+
 // Spec 021: every ApiEnvironment:<NAME> setting reaches the API as the environment variable <NAME>, so a run can change API options
 // without a parameter per option. The nightly evaluation raises the chat deadlines for a CPU runner, e.g.
 // --ApiEnvironment:Chat__Generation__FirstTokenTimeout=00:02:00 on the command line.

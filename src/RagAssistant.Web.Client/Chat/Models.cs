@@ -70,7 +70,8 @@ public sealed record AnswerSource(
     int? PageStart,
     int? PageEnd,
     double Score = 0,
-    string? Language = null);
+    string? Language = null,
+    string? AdmittedBy = null);
 
 /// <summary>The filters a question was searched under (spec 015).</summary>
 public sealed record ScopeInfo(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid> DocumentIds);
@@ -88,7 +89,9 @@ public sealed record RetrievalCompleted(
     double? MinScore = null,
     double? ConfidentScore = null,
     int? RetrievalMs = null,
-    double? BestScore = null) : AnswerEvent;
+    double? BestScore = null,
+    string? Mode = null,
+    string? Rerank = null) : AnswerEvent;
 
 /// <summary>What retrieval searches for; differs from the question for a follow-up (spec 014).</summary>
 public sealed record RetrievalStarted(string Query) : AnswerEvent;
@@ -134,8 +137,17 @@ public sealed record ScopeStep(string? Language, IReadOnlyList<string> Tags, IRe
 
 public sealed record ScopeDocument(Guid Id, string? Title, bool Available);
 
+/// <param name="Mode"><c>vector</c> or <c>hybrid</c> (spec 019); null on older answers.</param>
+/// <param name="Rerank"><c>off</c>, <c>applied</c> or <c>skipped</c> (spec 019).</param>
 public sealed record RetrievalStep(
-    string? Outcome, double? MinScore, double? ConfidentScore, int? Ms, IReadOnlyList<PassageStep> Passages, double? BestScore = null);
+    string? Outcome,
+    double? MinScore,
+    double? ConfidentScore,
+    int? Ms,
+    IReadOnlyList<PassageStep> Passages,
+    double? BestScore = null,
+    string? Mode = null,
+    string? Rerank = null);
 
 public sealed record PassageStep(
     int Rank,
@@ -147,7 +159,8 @@ public sealed record PassageStep(
     int? VersionNumber,
     IReadOnlyList<string> SectionPath,
     int? PageStart,
-    int? PageEnd);
+    int? PageEnd,
+    string? AdmittedBy = null);
 
 public sealed record AnswerStep(
     bool ModelCalled,

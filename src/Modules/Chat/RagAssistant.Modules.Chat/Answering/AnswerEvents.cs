@@ -33,12 +33,15 @@ internal static class AnswerEvents
         int? PageStart,
         int? PageEnd,
         double Score,
-        string? Language = null);
+        string? Language = null,
+        string? AdmittedBy = null);
 
     /// <summary>The filters this question was searched under (spec 015).</summary>
     public sealed record ScopeInfo(string? Language, IReadOnlyList<string> Tags, IReadOnlyList<Guid> DocumentIds);
 
     /// <param name="LeftOut">Chosen documents retrieval could not use.</param>
+    /// <param name="Mode"><c>vector</c> or <c>hybrid</c> (spec 019).</param>
+    /// <param name="Rerank"><c>off</c>, <c>applied</c> or <c>skipped</c> (spec 019).</param>
     public sealed record RetrievalCompleted(
         string Outcome,
         IReadOnlyList<Source> Sources,
@@ -47,7 +50,9 @@ internal static class AnswerEvents
         double MinScore,
         double ConfidentScore,
         int? RetrievalMs,
-        double? BestScore = null);
+        double? BestScore = null,
+        string? Mode = null,
+        string? Rerank = null);
 
     public sealed record AnswerDelta(string Text);
 

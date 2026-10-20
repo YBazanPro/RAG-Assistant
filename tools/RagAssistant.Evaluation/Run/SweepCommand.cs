@@ -23,10 +23,14 @@ internal static class SweepCommand
 
         var shingles = passages.ToDictionary(p => p.Key, p => Shingles(p.Value.Text));
         var topK = report.Configuration.TopK;
-        var current = new Thresholds(report.Configuration.MinScore, report.Configuration.ConfidentScore, report.Configuration.DuplicateOverlap);
+        // Spec 019: when the run reranked, the pools carry rerank scores and the rerank thresholds are the ones to calibrate.
+        var reranked = report.Configuration.Reranking == true && report.Configuration.RerankMinScore is not null;
+        var current = reranked
+            ? new Thresholds(report.Configuration.RerankMinScore!.Value, report.Configuration.RerankConfidentScore!.Value, report.Configuration.DuplicateOverlap)
+            : new Thresholds(report.Configuration.MinScore, report.Configuration.ConfidentScore, report.Configuration.DuplicateOverlap);
 
         var results = new List<Setting>();
-        foreach (var thresholds in Grid(current))
+        foreach (var thresholds in reranked ? RerankGrid(current) : Grid(current))
         {
             results.Add(Evaluate(thresholds, cases, shingles, topK));
         }
@@ -108,8 +112,9 @@ internal static class SweepCommand
             }
         }
 
+        // The best kept score, as EvidenceRules does since spec 019: in hybrid order the first passage need not score best.
         var outcome = kept.Count == 0 ? Outcome.NoEvidence
-            : kept[0].Candidate.Score < t.ConfidentScore ? Outcome.LowConfidence
+            : kept.Max(k => k.Candidate.Score) < t.ConfidentScore ? Outcome.LowConfidence
             : Outcome.Sufficient;
         return (outcome, [.. kept.Select(k => k.Candidate)]);
     }
@@ -120,6 +125,22 @@ internal static class SweepCommand
         for (var min = 0.40; min <= 0.7001; min += 0.025)
         {
             for (var confident = min; confident <= 0.8001; confident += 0.025)
+            {
+                foreach (var overlap in overlaps)
+                {
+                    yield return new Thresholds(Math.Round(min, 3), Math.Round(confident, 3), overlap);
+                }
+            }
+        }
+    }
+
+    /// <summary>Rerank scores are sigmoid probabilities that spread over the whole of 0..1, unlike cosines (spec 019).</summary>
+    private static IEnumerable<Thresholds> RerankGrid(Thresholds current)
+    {
+        double[] overlaps = [.. new[] { 0.7, 0.8, 0.9, current.DuplicateOverlap }.Distinct()];
+        for (var min = 0.0; min <= 0.6001; min += 0.05)
+        {
+            for (var confident = min; confident <= 0.9501; confident += 0.05)
             {
                 foreach (var overlap in overlaps)
                 {

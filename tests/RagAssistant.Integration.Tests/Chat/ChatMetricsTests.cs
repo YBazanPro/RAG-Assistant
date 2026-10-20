@@ -80,9 +80,10 @@ public sealed class ChatMetricsTests(PostgresFixture postgres)
         var results = seen.Where(m => m.Name == "ragassistant.chat.retrieval.results").Select(m => m.Value).Order().ToList();
         await Assert.That(results.SequenceEqual([0d, 1d])).IsTrue();
 
-        // No label may carry an id or text; question.language is en, fr or other (spec 018).
-        var allowed = new HashSet<string> { "status", "evidence_outcome", "reason", "stage", "error_code", "question.language" };
+        // No label may carry an id or text; question.language is en, fr or other (spec 018); retrieval.mode is vector, hybrid or none (spec 019).
+        var allowed = new HashSet<string> { "status", "evidence_outcome", "reason", "stage", "error_code", "question.language", "retrieval.mode" };
         await Assert.That(seen.SelectMany(m => m.Tags.Keys).All(allowed.Contains)).IsTrue();
+        await Assert.That(seen.Where(m => m.Tags.ContainsKey("retrieval.mode")).Select(m => m.Tags["retrieval.mode"]).Distinct().All(v => v is "vector" or "none")).IsTrue();
     }
 
     [Test]

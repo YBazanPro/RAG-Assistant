@@ -41,8 +41,10 @@ internal sealed class ChatMetrics
         var outcome = trace.EvidenceOutcome ?? "none";
         // Spec 018: en, fr, or "other"; never an open-ended code, so the label stays low-cardinality.
         var language = trace.QuestionLanguage is "en" or "fr" ? trace.QuestionLanguage : "other";
-        _requests.Add(1, Tag("status", status), Tag("evidence_outcome", outcome), Tag("question.language", language));
-        _requestDuration.Record(trace.TotalMs / 1000d, Tag("status", status));
+        // Spec 019: vector or hybrid, "none" when retrieval never answered.
+        var mode = trace.RetrievalMode ?? "none";
+        _requests.Add(1, Tag("status", status), Tag("evidence_outcome", outcome), Tag("question.language", language), Tag("retrieval.mode", mode));
+        _requestDuration.Record(trace.TotalMs / 1000d, Tag("status", status), Tag("retrieval.mode", mode));
 
         if (trace.RefusalReason is { } reason)
         {
@@ -56,7 +58,7 @@ internal sealed class ChatMetrics
 
         if (trace.FirstTokenMs is { } firstToken)
         {
-            _firstToken.Record(firstToken / 1000d);
+            _firstToken.Record(firstToken / 1000d, Tag("retrieval.mode", mode));
         }
 
         foreach (var (stage, code) in ErrorStages.Of(trace))

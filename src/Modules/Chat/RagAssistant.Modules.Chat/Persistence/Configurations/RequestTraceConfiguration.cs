@@ -25,6 +25,9 @@ internal sealed class RequestTraceConfiguration : IEntityTypeConfiguration<Reque
         builder.Property(t => t.RetrievalQuery).HasMaxLength(1000);
         builder.Property(t => t.RewritePromptVersion).HasMaxLength(32);
         builder.Property(t => t.RetrievedPassages).HasColumnType("jsonb");
+        builder.Property(t => t.RetrievalMode).HasMaxLength(16);
+        builder.Property(t => t.RerankStatus).HasMaxLength(16);
+        builder.Property(t => t.RerankModel).HasMaxLength(200);
 
         builder.HasIndex(t => new { t.AssistantMessageId, t.Attempt }).IsUnique();
         builder.HasIndex(t => t.StartedAt);
