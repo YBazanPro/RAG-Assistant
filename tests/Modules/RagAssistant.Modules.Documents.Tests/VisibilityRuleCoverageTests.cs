@@ -21,6 +21,13 @@ public sealed partial class VisibilityRuleCoverageTests
         ["DocumentTitles.cs"] = "filters on Visibility.Shared itself and takes no viewer",
     };
 
+    // Spec 020: citation source states must see documents the viewer lost access to, to call them "unavailable". The rule is
+    // applied inline to decide that state; titles and passage text never leave, only a state per cited passage.
+    private static readonly Dictionary<string, string> StateOnly = new(StringComparer.Ordinal)
+    {
+        ["DocumentSources.cs"] = "applies Shared-or-CreatedBy inline; returns states, never titles or text",
+    };
+
     private static readonly string[] Folders = ["Features", "Retrieval", "Common"];
 
     private static string ModuleFolder()
@@ -64,6 +71,16 @@ public sealed partial class VisibilityRuleCoverageTests
                 if (PassageAccess().IsMatch(text))
                 {
                     offenders.Add($"{name} (a metadata-only view must not read passages)");
+                }
+
+                continue;
+            }
+
+            if (StateOnly.ContainsKey(name))
+            {
+                if (!text.Contains("d.Visibility == Visibility.Shared || d.CreatedBy == viewerSub", StringComparison.Ordinal))
+                {
+                    offenders.Add($"{name} (a state-only view must still apply the rule inline)");
                 }
 
                 continue;

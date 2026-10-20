@@ -23,4 +23,12 @@ public interface IDocumentsApi
     Task<ApiResult<DocumentInfo>> ArchiveAsync(Guid documentId, CancellationToken cancellationToken);
 
     Task<ApiResult<DocumentInfo>> RestoreAsync(Guid documentId, CancellationToken cancellationToken);
+
+    /// <summary>Spec 020: suggested questions drawn at random from readable documents.</summary>
+    Task<ApiResult<IReadOnlyList<SuggestedQuestion>>> GetSuggestionsAsync(int count, CancellationToken cancellationToken);
+
+    Task<ApiResult<CorpusSummary>> GetSummaryAsync(CancellationToken cancellationToken);
+
+    /// <param name="revision">The document's current revision; sent as <c>If-Match</c>.</param>
+    Task<ApiResult<DocumentInfo>> UpdateSuggestionsAsync(Guid documentId, int revision, IReadOnlyList<string> questions, CancellationToken cancellationToken);
 }

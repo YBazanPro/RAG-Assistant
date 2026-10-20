@@ -248,7 +248,7 @@ public class AdminUiTests
 
     // AC-2
     [Test]
-    public async Task Page_lists_theSixTabs_andLoadsOnlyTheSelectedOne()
+    public async Task Page_lists_theSevenTabs_andLoadsOnlyTheSelectedOne()
     {
         var (ctx, api, _, _) = NewContext();
         using var _c = ctx;
@@ -257,7 +257,7 @@ public class AdminUiTests
         cut.WaitForState(() => cut.Markup.Contains("Wrong threshold"), TimeSpan.FromSeconds(5));
 
         var tabs = cut.FindComponents<FluentTab>().Select(t => t.Instance.Header).ToArray();
-        await Assert.That(tabs.SequenceEqual(["Overview", "Requests", "Ingestion failures", "Feedback", "Private documents", "Configuration"])).IsTrue();
+        await Assert.That(tabs.SequenceEqual(["Overview", "Requests", "Ingestion failures", "Feedback", "Private documents", "Evaluation", "Configuration"])).IsTrue();
         await Assert.That(api.SummaryCalls.Count).IsEqualTo(0);
         await Assert.That(api.RequestCalls.Count).IsEqualTo(0);
     }

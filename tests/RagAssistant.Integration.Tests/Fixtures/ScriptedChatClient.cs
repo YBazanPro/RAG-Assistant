@@ -30,6 +30,12 @@ public sealed class ScriptedChatClient : IChatClient
     private bool _rewriteThrows;
     private bool _rewriteTimesOutInTheClient;
 
+    // Suggested questions (spec 020) are a third, structured call, recognised by its system prompt.
+    private const string SuggestionMarker = "You write suggested questions";
+    private readonly ConcurrentQueue<IReadOnlyList<ChatMessage>> _suggestionCalls = [];
+    private readonly ConcurrentQueue<string> _suggestionReplies = [];
+    private bool _suggestionsThrow;
+
     public IReadOnlyList<IReadOnlyList<ChatMessage>> Calls => [.. _calls];
 
     public int CallCount => _calls.Count;
@@ -37,6 +43,16 @@ public sealed class ScriptedChatClient : IChatClient
 
     /// <summary>Every rewrite prompt received, oldest first.</summary>
     public IReadOnlyList<IReadOnlyList<ChatMessage>> RewriteCalls => [.. _rewriteCalls];
+
+    /// <summary>Every suggestion prompt received (spec 020), oldest first; not counted in <see cref="RewriteCalls"/>.</summary>
+    public IReadOnlyList<IReadOnlyList<ChatMessage>> SuggestionCalls => [.. _suggestionCalls];
+
+    /// <summary>The next suggestion call replies with these questions; without a script it replies with none.</summary>
+    public void ScriptSuggestions(params string[] questions) =>
+        _suggestionReplies.Enqueue(System.Text.Json.JsonSerializer.Serialize(new { questions }));
+
+    /// <summary>Every following suggestion call throws a transport failure.</summary>
+    public void ThrowOnSuggestions() => _suggestionsThrow = true;
 
     /// <summary>The next rewrite replies with this standalone question.</summary>
     public void ScriptRewrite(string standaloneQuestion) =>
@@ -81,10 +97,26 @@ public sealed class ScriptedChatClient : IChatClient
     /// <summary>Completes when a call observed its cancellation token.</summary>
     public Task CancellationObserved => _cancelled.Task;
 
-    /// <summary>Only the follow-up rewrite uses this call; the answer itself streams. Without a script it returns the current question unchanged.</summary>
+    /// <summary>
+    /// The follow-up rewrite and the suggested questions use this call; the answer itself streams. Without a script the rewrite returns
+    /// the current question unchanged.
+    /// </summary>
     public async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
         var prompt = messages.ToList();
+        if (prompt.Any(m => m.Role == ChatRole.System && m.Text.Contains(SuggestionMarker, StringComparison.Ordinal)))
+        {
+            _suggestionCalls.Enqueue(prompt);
+            await Task.Yield();
+            if (_suggestionsThrow)
+            {
+                throw new HttpRequestException("Scripted suggestion failure.");
+            }
+
+            var reply = _suggestionReplies.TryDequeue(out var questions) ? questions : """{"questions":[]}""";
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, reply)) { ModelId = ModelId };
+        }
+
         _rewriteCalls.Enqueue(prompt);
 
         if (_rewriteGate is { } gate)

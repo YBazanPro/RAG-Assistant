@@ -62,10 +62,24 @@ public sealed class FakeChatApi : IChatApi
         return Task.FromResult(OnCreate());
     }
 
-    public Task<ApiResult<ConversationPage>> ListConversationsAsync(int page, int pageSize, CancellationToken cancellationToken)
+    public List<string?> SearchCalls { get; } = [];
+
+    public List<(Guid Id, string Title)> RenameCalls { get; } = [];
+
+    public Func<Guid, string, ApiResult<ConversationSummary>> OnRename { get; set; } = (id, title) =>
+        ApiResult.Ok(new ConversationSummary(id, title.Trim().Length == 0 ? "First question" : title.Trim(), DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, title.Trim().Length > 0));
+
+    public Task<ApiResult<ConversationPage>> ListConversationsAsync(int page, int pageSize, string? search, CancellationToken cancellationToken)
     {
         ListCalls.Add(page);
+        SearchCalls.Add(search);
         return Task.FromResult(OnList(page));
+    }
+
+    public Task<ApiResult<ConversationSummary>> RenameConversationAsync(Guid conversationId, string title, CancellationToken cancellationToken)
+    {
+        RenameCalls.Add((conversationId, title));
+        return Task.FromResult(OnRename(conversationId, title));
     }
 
     public Task<ApiResult<Done>> DeleteConversationAsync(Guid conversationId, CancellationToken cancellationToken)
@@ -219,12 +233,28 @@ public class ChatPageTests
         ChatPageHarness.WaitFor(cut, "Ask about 7 active documents.");
 
         await Assert.That(h.Api.CreateCalls).IsEqualTo(0);
+        // No document suggests anything here, so the configured questions stand in (spec 020).
         var suggestions = cut.FindAll(".suggested-questions fluent-button").Select(b => b.TextContent.Trim()).ToArray();
         await Assert.That(suggestions).IsEquivalentTo(["What is the approval limit?", "Who signs off exceptions?"]);
-
-        cut.FindAll(".suggested-questions fluent-button")[0].Click();
-        await Assert.That(cut.FindComponent<QuestionInput>().Instance.Text).IsEqualTo("What is the approval limit?");
         await Assert.That(h.Answers.AskCalls.Count).IsEqualTo(0);
+    }
+
+    // Spec 020, AC-9
+    [Test]
+    public async Task NewChat_showsTheDocumentsSuggestedQuestions_andAClickAsksIt()
+    {
+        await using var h = new ChatPageHarness();
+        h.Documents.OnSuggestions = _ => ApiResult.Ok<IReadOnlyList<SuggestedQuestion>>(
+            [new SuggestedQuestion("When is travel booked?", Guid.NewGuid(), "Travel Policy", "en")]);
+        h.Answers.OnAsk = _ => FakeAnswerEvents.Failure(503);
+
+        var cut = h.Render();
+        ChatPageHarness.WaitFor(cut, "When is travel booked?");
+        cut.Find(".suggested-questions fluent-button").Click();
+        cut.WaitForState(() => h.Answers.AskCalls.Count == 1, TimeSpan.FromSeconds(5));
+
+        await Assert.That(h.Api.CreateCalls).IsEqualTo(1);
+        await Assert.That(h.Answers.AskCalls[0].Question).IsEqualTo("When is travel booked?");
     }
 
     // AC-1

@@ -1,0 +1,345 @@
+@using System.Globalization
+@using System.Text.Json
+@inject IEvaluationApi Api
+
+@* Spec 020: evaluation runs the harness uploaded. A list with headline metrics, one run in detail, or two runs compared. *@
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="12">
+    <div aria-live="polite">
+        @if (_message is not null)
+        {
+            <FluentMessageBar Intent="@(_messageIsError ? MessageBarIntent.Error : MessageBarIntent.Success)" AllowDismiss="false">@_message</FluentMessageBar>
+        }
+    </div>
+
+    @if (_detail is { } detail)
+    {
+        <div class="admin-toolbar">
+            <FluentButton Id="evaluation-back" Appearance="ButtonAppearance.Outline" OnClick="BackAsync">Back to runs</FluentButton>
+        </div>
+        <section aria-labelledby="evaluation-detail-title">
+            <FluentText As="TextTag.H2" Id="evaluation-detail-title" Size="TextSize.Size500" Weight="TextWeight.Semibold">Run @detail.Run.Id</FluentText>
+            <FluentText Block="true">
+                @(detail.Run.ChatModel ?? "—") · @(detail.Run.RetrievalMode ?? "vector")@(detail.Run.Rerank ? " + rerank" : "")
+                · started <time datetime="@detail.Run.StartedAt.ToString("O")">@Formatting.Local(detail.Run.StartedAt)</time>
+                @if (!detail.Run.Valid)
+                {
+                    <FluentBadge Appearance="BadgeAppearance.Tint" Class="evaluation-invalid">⚠ Invalid run</FluentBadge>
+                }
+            </FluentText>
+
+            <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">Metrics per category</FluentText>
+            <MetricTable Caption="Metrics per category" Groups="@Groups(detail.Metrics, "byCategory")" Overall="@Object(detail.Metrics, "overall")" />
+
+            <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">Metrics per question language</FluentText>
+            <MetricTable Caption="Metrics per question language" Groups="@Groups(detail.Metrics, "byQuestionLanguage")" Overall="@Object(detail.Metrics, "overall")" />
+
+            @if (Object(detail.Judge, "overall") is { } judged)
+            {
+                <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">Judged by @detail.Run.JudgeModel</FluentText>
+                <MetricTable Caption="Judge metrics" Groups="@Groups(detail.Judge, "byCategory")" Overall="@judged" />
+            }
+
+            <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">Configuration</FluentText>
+            <table class="admin-table evaluation-configuration">
+                <caption class="visually-hidden">Configuration</caption>
+                <tbody>
+                    @foreach (var property in detail.Configuration.EnumerateObject())
+                    {
+                        <tr><th scope="row">@property.Name</th><td><code>@Text(property.Value)</code></td></tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (Array(detail.Metrics, "brokenCases") is { Count: > 0 } broken)
+            {
+                <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">Broken cases</FluentText>
+                <ul>
+                    @foreach (var item in broken)
+                    {
+                        <li><code>@Text(Property(item, "id"))</code>: @Text(Property(item, "reason"))</li>
+                    }
+                </ul>
+            }
+
+            <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">Cases</FluentText>
+            <table class="admin-table evaluation-cases">
+                <caption class="visually-hidden">Per-case results</caption>
+                <thead><tr><th scope="col">Case</th><th scope="col">Category</th><th scope="col">Language</th><th scope="col">Expected</th><th scope="col">Status</th><th scope="col">R@5</th><th scope="col">Behaviour</th></tr></thead>
+                <tbody>
+                    @foreach (var item in detail.Cases.EnumerateArray())
+                    {
+                        var metrics = Property(item, "metrics");
+                        <tr>
+                            <td><code>@Text(Property(item, "id"))</code></td>
+                            <td>@Text(Property(item, "category"))</td>
+                            <td>@Text(Property(item, "questionLanguage"))</td>
+                            <td>@Text(Property(item, "expectedBehaviour"))</td>
+                            <td>@Text(Property(item, "status"))@(Property(item, "error") is { ValueKind: JsonValueKind.String } error ? $" ({error.GetString()})" : "")</td>
+                            <td>@Num(Number(metrics, "recallAt5"))</td>
+                            <td>@(Property(metrics, "behaviourCorrect") is { ValueKind: JsonValueKind.True } ? "✓ correct" : Property(metrics, "behaviourCorrect") is { ValueKind: JsonValueKind.False } ? "✗ wrong" : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
+    else if (_comparison is { } comparison)
+    {
+        <div class="admin-toolbar">
+            <FluentButton Id="evaluation-back" Appearance="ButtonAppearance.Outline" OnClick="BackAsync">Back to runs</FluentButton>
+        </div>
+        <section aria-labelledby="evaluation-compare-title">
+            <FluentText As="TextTag.H2" Id="evaluation-compare-title" Size="TextSize.Size500" Weight="TextWeight.Semibold">A = @comparison.A.Id, B = @comparison.B.Id</FluentText>
+            @if (comparison.DatasetDiffers)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false">The runs used different golden datasets: their metrics are not directly comparable.</FluentMessageBar>
+            }
+            @if (comparison.CorpusDiffers)
+            {
+                <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false">The runs searched different corpora.</FluentMessageBar>
+            }
+            <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">Configuration differences</FluentText>
+            @if (comparison.ConfigurationDifferences.Count == 0)
+            {
+                <FluentText Block="true">Configuration: identical.</FluentText>
+            }
+            else
+            {
+                <table class="admin-table">
+                    <caption class="visually-hidden">Configuration differences</caption>
+                    <thead><tr><th scope="col">Setting</th><th scope="col">A</th><th scope="col">B</th></tr></thead>
+                    <tbody>
+                        @foreach (var difference in comparison.ConfigurationDifferences)
+                        {
+                            <tr class="evaluation-difference"><th scope="row">⚠ @difference.Key</th><td><code>@Text(difference.A)</code></td><td><code>@Text(difference.B)</code></td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            @foreach (var group in comparison.Groups)
+            {
+                <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold">@group.Name</FluentText>
+                <table class="admin-table">
+                    <caption class="visually-hidden">@group.Name metrics, A against B</caption>
+                    <thead><tr><th scope="col">Metric</th><th scope="col">A</th><th scope="col">B</th><th scope="col">B − A</th></tr></thead>
+                    <tbody>
+                        @foreach (var metric in group.Metrics)
+                        {
+                            <tr><th scope="row">@metric.Name</th><td>@Num(metric.A)</td><td>@Num(metric.B)</td><td>@Delta(metric.Delta)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
+    else
+    {
+        <AdminLoader @ref="_loader" TValue="PagedResult<EvaluationRunSummary>" Label="evaluation runs" Load="LoadAsync">
+            <Toolbar>
+                @if (_compareIds.Count == 2)
+                {
+                    <FluentButton Appearance="ButtonAppearance.Primary" OnClick="CompareAsync">Compare the 2 selected runs</FluentButton>
+                }
+                else
+                {
+                    <span class="admin-hint">Select two runs to compare them.</span>
+                }
+            </Toolbar>
+            <ChildContent Context="result">
+                @if (result.TotalCount == 0)
+                {
+                    <EmptyState Title="No evaluation runs" Description="The evaluation harness uploads its report here after 'run' and 'judge'; 'upload <report>' sends an older one." />
+                }
+                else
+                {
+                    <FluentDataGrid TGridItem="EvaluationRunSummary" Items="@result.Items.AsQueryable()" ItemKey="@(r => r.Id)" ShowHover="true"
+                                    aria-label="@($"Evaluation runs, {result.TotalCount} results")" GridTemplateColumns="0.5fr 1.4fr 1.2fr 1fr 0.9fr 0.6fr 0.6fr 0.7fr 0.7fr 0.7fr 1.2fr">
+                        <TemplateColumn Title="Compare">
+                            <FluentCheckbox CheckState="@_compareIds.Contains(context.Id)" CheckStateChanged="@(v => ToggleCompare(context.Id, v))"
+                                            aria-label="@($"Select run {context.Id} for comparison")" />
+                        </TemplateColumn>
+                        <TemplateColumn Title="Started">
+                            <time datetime="@context.StartedAt.ToString("O")" title="@Formatting.UtcTooltip(context.StartedAt)">@Formatting.Local(context.StartedAt)</time>
+                            @if (!context.Valid)
+                            {
+                                <FluentBadge Appearance="BadgeAppearance.Tint">⚠ Invalid</FluentBadge>
+                            }
+                        </TemplateColumn>
+                        <TemplateColumn Title="Chat model">@(context.ChatModel ?? "—")</TemplateColumn>
+                        <TemplateColumn Title="Retrieval">@(context.RetrievalMode ?? "vector")@(context.Rerank ? " + rerank" : "")</TemplateColumn>
+                        <TemplateColumn Title="Dataset / corpus"><code title="@($"{context.DatasetHash} / {context.CorpusHash}")">@Short(context.DatasetHash) / @Short(context.CorpusHash)</code></TemplateColumn>
+                        <TemplateColumn Title="R@5">@Num(context.Headline.RecallAt5)</TemplateColumn>
+                        <TemplateColumn Title="MRR">@Num(context.Headline.Mrr)</TemplateColumn>
+                        <TemplateColumn Title="Behaviour">@Num(context.Headline.BehaviourCorrectness)</TemplateColumn>
+                        <TemplateColumn Title="Citation precision">@Num(context.Headline.CitationPrecision)</TemplateColumn>
+                        <TemplateColumn Title="Grounded">@Num(context.Headline.Groundedness)</TemplateColumn>
+                        <TemplateColumn Title="Actions">
+                            <FluentButton Id="@RowId(context.Id)" Appearance="ButtonAppearance.Outline" Size="ButtonSize.Small" OnClick="@(() => OpenAsync(context.Id))"
+                                          aria-label="@($"View run {context.Id}")">View</FluentButton>
+                            <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" OnClick="@(() => _deleteTarget = context.Id)"
+                                          aria-label="@($"Delete run {context.Id}")" title="Delete"><TrashIcon /></FluentButton>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                    <FluentPaginator State="_pagination" CurrentPageIndexChanged="OnPageIndexChangedAsync" />
+                }
+            </ChildContent>
+        </AdminLoader>
+    }
+</FluentStack>
+
+<ConfirmDialog Open="@(_deleteTarget is not null)" Title="Delete evaluation run" Message="@($"Delete run {_deleteTarget}? Its report stays on the disk where the harness wrote it, but the app keeps nothing.")"
+               ConfirmLabel="Delete" Destructive="true" OnConfirm="DeleteAsync" OnCancel="@(() => _deleteTarget = null)" />
+
+@code {
+    private readonly PaginationState _pagination = new() { ItemsPerPage = 20 };
+    private readonly List<string> _compareIds = [];
+    private AdminLoader<PagedResult<EvaluationRunSummary>>? _loader;
+    private int _page = 1;
+    private EvaluationRunDetail? _detail;
+    private EvaluationComparison? _comparison;
+    private string? _deleteTarget;
+    private string? _message;
+    private bool _messageIsError;
+
+    public static string RowId(string id) => $"evaluation-run-{string.Concat(id.Where(char.IsAsciiLetterOrDigit))}";
+
+    private async Task<ApiResult<PagedResult<EvaluationRunSummary>>> LoadAsync(CancellationToken cancellationToken)
+    {
+        var result = await Api.ListRunsAsync(_page, cancellationToken);
+        if (result.IsSuccess)
+        {
+            _pagination.ItemsPerPage = Math.Max(1, result.Value.PageSize);
+            await _pagination.SetTotalItemCountAsync(result.Value.TotalCount);
+        }
+
+        return result;
+    }
+
+    private async Task OnPageIndexChangedAsync(int index)
+    {
+        if (index + 1 == _page)
+        {
+            return;
+        }
+
+        _page = index + 1;
+        if (_loader is not null)
+        {
+            await _loader.RefreshAsync();
+        }
+    }
+
+    private void ToggleCompare(string id, bool? selected)
+    {
+        if (selected == true && !_compareIds.Contains(id))
+        {
+            // Two at most: a third choice replaces the oldest.
+            if (_compareIds.Count == 2)
+            {
+                _compareIds.RemoveAt(0);
+            }
+
+            _compareIds.Add(id);
+        }
+        else if (selected != true)
+        {
+            _compareIds.Remove(id);
+        }
+    }
+
+    private async Task OpenAsync(string id)
+    {
+        _message = null;
+        var result = await Api.GetRunAsync(id, CancellationToken.None);
+        if (result.IsSuccess)
+        {
+            _detail = result.Value;
+        }
+        else
+        {
+            Show(result.Error!.IsNotFound ? "The run no longer exists." : "The run could not be loaded.", error: true);
+        }
+    }
+
+    private async Task CompareAsync()
+    {
+        _message = null;
+        var result = await Api.CompareAsync(_compareIds[0], _compareIds[1], CancellationToken.None);
+        if (result.IsSuccess)
+        {
+            _comparison = result.Value;
+        }
+        else
+        {
+            Show("The runs could not be compared.", error: true);
+        }
+    }
+
+    private Task BackAsync()
+    {
+        _detail = null;
+        _comparison = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_deleteTarget is not { } id)
+        {
+            return;
+        }
+
+        _deleteTarget = null;
+        var result = await Api.DeleteRunAsync(id, CancellationToken.None);
+        if (result.IsSuccess || result.Error!.IsNotFound)
+        {
+            _compareIds.Remove(id);
+            Show($"Run {id} deleted.", error: false);
+            if (_loader is not null)
+            {
+                await _loader.RefreshAsync();
+            }
+        }
+        else
+        {
+            Show("The run could not be deleted. Try again.", error: true);
+        }
+    }
+
+    private void Show(string message, bool error)
+    {
+        _message = message;
+        _messageIsError = error;
+    }
+
+    private static string Short(string hash) => hash.Length > 8 ? hash[..8] : hash;
+
+    private static string Num(double? value) => value is { } v ? v.ToString("0.00", CultureInfo.InvariantCulture) : "—";
+
+    private static string Delta(double? value) => value switch
+    {
+        null => "—",
+        > 0 => $"+{value.Value.ToString("0.00", CultureInfo.InvariantCulture)}",
+        _ => value.Value.ToString("0.00", CultureInfo.InvariantCulture),
+    };
+
+    private static JsonElement? Property(JsonElement? element, string name) =>
+        element is { ValueKind: JsonValueKind.Object } e && e.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null ? value : null;
+
+    private static JsonElement? Object(JsonElement? element, string name) => Property(element, name) is { ValueKind: JsonValueKind.Object } o ? o : null;
+
+    private static List<JsonElement>? Array(JsonElement? element, string name) =>
+        Property(element, name) is { ValueKind: JsonValueKind.Array } a ? [.. a.EnumerateArray()] : null;
+
+    private static double? Number(JsonElement? element, string name) => Property(element, name) is { ValueKind: JsonValueKind.Number } n ? n.GetDouble() : null;
+
+    private static IReadOnlyList<(string Name, JsonElement Metrics)> Groups(JsonElement? element, string name) =>
+        Object(element, name) is { } groups ? [.. groups.EnumerateObject().Select(p => (p.Name, p.Value))] : [];
+
+    private static string Text(JsonElement? value) => value switch
+    {
+        null => "—",
+        { ValueKind: JsonValueKind.String } s => s.GetString() ?? "",
+        var v => v.Value.GetRawText(),
+    };
+}

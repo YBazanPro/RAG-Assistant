@@ -18,6 +18,9 @@ internal sealed class Passage
 
     public required string Text { get; set; }
 
+    /// <summary><c>PassageTextHash</c> of <see cref="Text"/> (spec 020): how a citation finds the same text in a newer version.</summary>
+    public required string TextHash { get; set; }
+
     public int CharCount { get; set; }
 
     public int TokenEstimate { get; set; }

@@ -32,6 +32,8 @@ public sealed class IngestionHarness : WebApplicationFactory<Program>
         ["Documents:Ingestion:EmbeddingTimeout"] = "00:00:05",
         // Tiny test documents must not be merged into each other; the chunker has its own unit tests.
         ["Documents:Chunking:MinTokens"] = "1",
+        // Suggested questions (spec 020) call the chat model after every ingestion; SuggestedQuestionsTests turns them on.
+        ["Documents:Suggestions:Enabled"] = "false",
     };
 
     private const string StorageKey = "Documents:Storage:Path";

@@ -12,6 +12,7 @@ using RagAssistant.Modules.Documents.Pdf;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.Modules.Documents.Retrieval;
 using RagAssistant.Modules.Documents.Storage;
+using RagAssistant.Modules.Documents.Suggestions;
 using RagAssistant.SharedKernel.Common.Behaviors;
 using RagAssistant.SharedKernel.Common.Extensions;
 using RagAssistant.SharedKernel.Contracts.Documents;
@@ -86,9 +87,15 @@ public static class DocumentsModule
             .Validate(
                 o => o.IsConsistent,
                 "Documents:Retrieval: DefaultTopK must not exceed MaxTopK, MaxCandidates must be at least MaxTopK, "
-                + "ConfidentScore must be at least MinScore, and both durations must be greater than zero; Hybrid:RrfK must be at least 1; "
+                + "ConfidentScore must be at least MinScore, and both durations must be greater than zero; Hybrid:RrfK must be at least 1 and Hybrid:MinKeywordCoverage between 0 and 1; "
                 + "Reranking:Candidates must be 1 to 100, its scores between 0 and 1 with ConfidentScore at least MinScore, and its "
                 + "Timeout greater than zero.")
+            .ValidateOnStart();
+
+        services.AddOptions<SuggestionOptions>()
+            .Bind(configuration.GetSection(SuggestionOptions.Section))
+            .ValidateDataAnnotations()
+            .Validate(o => o.Timeout > TimeSpan.Zero, "Documents:Suggestions:Timeout must be greater than zero.")
             .ValidateOnStart();
 
         services.AddOptions<DocumentsAdminOptions>()
@@ -113,6 +120,7 @@ public static class DocumentsModule
         services.AddSingleton<ISourceExtractor, PlainTextSourceExtractor>();
         services.AddSingleton<ISourceExtractor, PdfSourceExtractor>();
         services.AddScoped<PassageEmbedder>();
+        services.AddScoped<SuggestionGenerator>();
         services.AddScoped<IngestionRunProcessor>();
         services.AddHostedService<IngestionWorker>();
 
@@ -125,6 +133,7 @@ public static class DocumentsModule
         services.AddScoped<IDocumentSearch, DocumentSearch>();
         services.AddScoped<IDocumentCatalog, DocumentCatalog>();
         services.AddScoped<IDocumentTitles, DocumentTitles>();
+        services.AddScoped<IDocumentSources, DocumentSources>();
         return services;
     }
 }

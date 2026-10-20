@@ -4,7 +4,7 @@
 
 <PageTitle>Admin · RagAssistant</PageTitle>
 
-<PageHeader Title="Administration" Description="Read-only views for maintainers: requests, ingestion, feedback and configuration." />
+<PageHeader Title="Administration" Description="Views for maintainers: requests, ingestion, feedback, evaluation runs and configuration." />
 
 <div class="@(_requestId is null ? "admin-layout" : "admin-layout with-panel")">
     <div class="admin-main">
@@ -40,6 +40,12 @@
                     <PrivateDocumentsTab />
                 }
             </FluentTab>
+            <FluentTab Id="evaluation" Header="Evaluation">
+                @if (ActiveTab == "evaluation")
+                {
+                    <EvaluationTab />
+                }
+            </FluentTab>
             <FluentTab Id="configuration" Header="Configuration">
                 @if (ActiveTab == "configuration")
                 {
@@ -56,7 +62,7 @@
 </div>
 
 @code {
-    private static readonly string[] Tabs = ["overview", "requests", "failures", "feedback", "private", "configuration"];
+    private static readonly string[] Tabs = ["overview", "requests", "failures", "feedback", "private", "evaluation", "configuration"];
 
     private Guid? _requestId;
 

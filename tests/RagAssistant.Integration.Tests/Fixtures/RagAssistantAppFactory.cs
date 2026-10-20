@@ -47,6 +47,8 @@ public sealed class RagAssistantAppFactory : WebApplicationFactory<Program>, IAs
     {
         builder.UseSetting("ConnectionStrings:ragassistant", Postgres.ConnectionString);
         builder.UseSetting("Documents:Storage:Path", StoragePath);
+        // Suggested questions (spec 020) would call the shared fake chat model after every ingestion; their own tests turn them on.
+        builder.UseSetting("Documents:Suggestions:Enabled", "false");
         builder.UseSetting("Logging:LogLevel:Microsoft.AspNetCore.Diagnostics", "Debug");
         builder.ConfigureLogging(logging => logging.AddProvider(Logs));
         builder.ConfigureServices(services =>

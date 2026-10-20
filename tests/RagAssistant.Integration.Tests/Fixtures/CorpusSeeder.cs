@@ -1,5 +1,6 @@
 using System.Globalization;
 using Npgsql;
+using RagAssistant.SharedKernel.Common.Text;
 
 namespace RagAssistant.Integration.Tests.Fixtures;
 
@@ -73,10 +74,11 @@ public sealed class CorpusSeeder(NpgsqlDataSource db)
         {
             await ExecuteAsync(
                 """
-                INSERT INTO documents.passages (id, version_id, position, section_path, section_ordinal, text, char_count, token_estimate)
-                VALUES ($1, $2, $3, $4, 0, $5, 10, 3)
+                INSERT INTO documents.passages (id, version_id, position, section_path, section_ordinal, text, text_hash, char_count, token_estimate)
+                VALUES ($1, $2, $3, $4, 0, $5, $6, 10, 3)
                 """,
-                Guid.CreateVersion7(), versionId, position, new[] { "Section", $"Part {position}" }, $"Passage {position} <script>");
+                Guid.CreateVersion7(), versionId, position, new[] { "Section", $"Part {position}" }, $"Passage {position} <script>",
+                PassageTextHash.Compute($"Passage {position} <script>"));
         }
 
         return versionId;
@@ -98,11 +100,11 @@ public sealed class CorpusSeeder(NpgsqlDataSource db)
             await ExecuteAsync(
                 """
                 INSERT INTO documents.passages
-                    (id, version_id, position, section_path, section_ordinal, text, char_count, token_estimate, page_start, page_end, embedding)
-                VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, $9, $10::vector)
+                    (id, version_id, position, section_path, section_ordinal, text, text_hash, char_count, token_estimate, page_start, page_end, embedding)
+                VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, $9, $10, $11::vector)
                 """,
-                ids[i], versionId, position + i, passage.SectionPath ?? ["Section"], passage.Text, passage.Text.Length, (passage.Text.Length + 3) / 4,
-                passage.PageStart, passage.PageEnd, literal);
+                ids[i], versionId, position + i, passage.SectionPath ?? ["Section"], passage.Text, PassageTextHash.Compute(passage.Text), passage.Text.Length,
+                (passage.Text.Length + 3) / 4, passage.PageStart, passage.PageEnd, literal);
         }
 
         return ids;

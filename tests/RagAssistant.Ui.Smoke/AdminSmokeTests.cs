@@ -65,7 +65,8 @@ public sealed class AdminSmokeTests(BrowserFixture browser)
 
         var panel = page.Locator("aside.request-panel");
         await Expect(panel).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        await Expect(panel.GetByText(question)).ToBeVisibleAsync(new() { Timeout = 30_000 });
+        // The question shows twice: as the question and as the retrieval query (spec 014).
+        await Expect(panel.GetByText(question).First).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await page.Context.CloseAsync();
     }
 }

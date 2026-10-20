@@ -7,6 +7,9 @@ internal static partial class ConversationTitle
 {
     public const int MaxLength = 80;
 
+    /// <summary>A title the owner chose (spec 020).</summary>
+    public const int MaxRenamedLength = 200;
+
     public static string From(string question)
     {
         var collapsed = Whitespace().Replace(question.Trim(), " ");

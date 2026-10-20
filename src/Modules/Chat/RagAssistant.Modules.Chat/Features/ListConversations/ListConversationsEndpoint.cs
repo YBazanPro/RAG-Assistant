@@ -19,10 +19,11 @@ public sealed class ListConversationsEndpoint : IEndpointGroup
             .MapGet("/conversations", async (
                 string? page,
                 string? pageSize,
+                string? q,
                 ClaimsPrincipal user,
                 ModuleMediator mediator,
                 CancellationToken cancellationToken) =>
-                (await mediator.Send(new ListConversations.Query(user.GetSubject(), page, pageSize), cancellationToken)).ToHttpResult())
+                (await mediator.Send(new ListConversations.Query(user.GetSubject(), page, pageSize, q), cancellationToken)).ToHttpResult())
             .RequireAuthorization(PolicyNames.KnowledgeSeeker)
             .WithName("ListConversations")
             .Produces<Page<ConversationSummary>>();

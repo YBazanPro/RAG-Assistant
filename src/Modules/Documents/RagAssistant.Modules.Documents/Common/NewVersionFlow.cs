@@ -14,8 +14,10 @@ internal static class NewVersionFlow
     internal sealed record Guard(int LatestNumber, VersionStatus LatestStatus, string LatestContentHash);
 
     /// <param name="NewLatestHash">The hash to store on the document, or null to leave it (reprocess).</param>
+    /// <param name="EditedSuggestions">Questions the owner set on the version being reprocessed, kept on the new one (spec 020); null for none.</param>
     internal sealed record Source(
-        string? Content, string? StorageKey, string Hash, SourceFormat Format, string FileName, string? ContentType, int SizeBytes, string? NewLatestHash);
+        string? Content, string? StorageKey, string Hash, SourceFormat Format, string FileName, string? ContentType, int SizeBytes, string? NewLatestHash,
+        string[]? EditedSuggestions = null);
 
     public static async Task<Result<Guard>> GuardAsync(DocumentsDbContext db, Guid documentId, string viewerSub, CancellationToken cancellationToken)
     {
@@ -86,6 +88,12 @@ internal static class NewVersionFlow
             CreatedAt = now,
             CreatedBy = userId,
         };
+        if (source.EditedSuggestions is { } edited)
+        {
+            version.SuggestedQuestions = edited;
+            version.SuggestionsStatus = SuggestionsStatus.Edited;
+        }
+
         var run = new IngestionRun
         {
             Id = Guid.CreateVersion7(),

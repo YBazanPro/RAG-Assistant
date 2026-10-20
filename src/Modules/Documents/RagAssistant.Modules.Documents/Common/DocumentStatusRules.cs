@@ -31,5 +31,7 @@ internal static class DocumentStatusRules
 
     public static string? ToApi(this LanguageConfidence? confidence) => confidence?.ToString().ToLowerInvariant();
 
+    public static string? ToApi(this SuggestionsStatus? status) => status?.ToString().ToLowerInvariant();
+
     public static string ToApi(this SourceFormat format) => format.ToString().ToLowerInvariant();
 }

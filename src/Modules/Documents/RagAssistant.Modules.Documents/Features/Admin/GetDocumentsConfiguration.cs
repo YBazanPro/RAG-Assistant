@@ -53,6 +53,7 @@ internal static class GetDocumentsConfiguration
                     retrieval.Value.Reranking.Candidates,
                     retrieval.Value.Reranking.MinScore,
                     retrieval.Value.Reranking.ConfidentScore,
-                    retrieval.Value.Reranking.Timeout.TotalSeconds)));
+                    retrieval.Value.Reranking.Timeout.TotalSeconds,
+                    retrieval.Value.Hybrid.MinKeywordCoverage)));
     }
 }

@@ -63,7 +63,8 @@ public class DocumentDetailTests
         await Assert.That(cut.Find(".detail-summary").TextContent).Contains("Version 1");
         await Assert.That(cut.Find(".meta-card").TextContent).Contains("Finance");
         await Assert.That(cut.Find(".meta-card").TextContent).Contains("user-a");
-        await Assert.That(cut.FindComponents<Microsoft.FluentUI.AspNetCore.Components.FluentTab>().Count).IsEqualTo(3);
+        // Metadata, passages, suggested questions (spec 020) and history.
+        await Assert.That(cut.FindComponents<Microsoft.FluentUI.AspNetCore.Components.FluentTab>().Count).IsEqualTo(4);
         await Assert.That(cut.FindComponent<Microsoft.FluentUI.AspNetCore.Components.FluentTabs>().Instance.ActiveTabId).IsEqualTo("metadata");
 
         await cut.SelectTabAsync("history");

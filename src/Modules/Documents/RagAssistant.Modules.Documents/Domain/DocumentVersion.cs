@@ -51,5 +51,14 @@ internal sealed class DocumentVersion
 
     public DateTimeOffset? IndexedAt { get; set; }
 
+    /// <summary>Questions this version's passages answer (spec 020), 0 to 3; generated after indexing or set by the owner.</summary>
+    public string[] SuggestedQuestions { get; set; } = [];
+
+    /// <summary>Null until the version is indexed (and on versions indexed before spec 020).</summary>
+    public SuggestionsStatus? SuggestionsStatus { get; set; }
+
+    /// <summary>Why generation failed (<c>SuggestionErrorCodes</c>); null unless <see cref="SuggestionsStatus"/> is failed.</summary>
+    public string? SuggestionsError { get; set; }
+
     public List<IngestionRun> Runs { get; } = [];
 }

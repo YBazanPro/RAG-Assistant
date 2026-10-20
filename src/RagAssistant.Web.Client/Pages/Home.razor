@@ -1,11 +1,138 @@
 @page "/"
 @attribute [Authorize]
+@implements IDisposable
+@inject IDocumentsApi Documents
+@inject IAuthorizationService Authorization
 
 <PageTitle>Home · RagAssistant</PageTitle>
 
 <PageHeader Title="RagAssistant"
-            Description="Get answers grounded in your documents, with the sources to check them." />
+            Description="Ask questions about your documents. Every answer shows the passages it comes from, so you can check it." />
 
+@* Spec 020: the same page for every role; actions a role lacks are hidden. The primary action needs no data, so it shows at once. *@
 <AuthorizeView Policy="@PolicyNames.KnowledgeSeeker">
-    <FluentAnchorButton Href="chat" Appearance="ButtonAppearance.Primary">Ask a question</FluentAnchorButton>
+    <div class="home-actions">
+        <FluentAnchorButton Href="chat" Appearance="ButtonAppearance.Primary">Ask a question</FluentAnchorButton>
+        <a href="@ReadmeUrl" target="_blank" rel="noopener" class="readme-link">How this demo works (README)</a>
+    </div>
 </AuthorizeView>
+
+@* Prerendering stops at the shell: both reads run after the first interactive render (spec 005). *@
+@if (!_loaded)
+{
+    <LoadingState Label="Loading the corpus summary" />
+}
+else if (_summary is null)
+{
+    <ErrorState Title="The corpus summary could not be loaded" Message="The server could not be reached. Try again in a moment." Retry="LoadAsync" />
+}
+else if (_summary.ActiveDocuments == 0)
+{
+    <EmptyState Title="No documents yet" Description="Answers come from imported documents. Once one is indexed, you can ask about it here.">
+        <Action>
+            @if (_canImport)
+            {
+                <FluentAnchorButton Href="documents" Appearance="ButtonAppearance.Primary">Import a document</FluentAnchorButton>
+            }
+        </Action>
+    </EmptyState>
+}
+else
+{
+    <div class="home-grid">
+        @if (_suggestions.Count > 0)
+        {
+            <section class="home-section" aria-labelledby="home-suggestions">
+                <FluentText As="TextTag.H2" Id="home-suggestions" Size="TextSize.Size500" Weight="TextWeight.Semibold">Try asking</FluentText>
+                <ul class="suggested-questions">
+                    @foreach (var suggestion in _suggestions)
+                    {
+                        <li>
+                            @* A link, so the question opens a new conversation and is asked there (the chat page reads ?ask=). *@
+                            <FluentAnchorButton Href="@AskLink(suggestion.Question)" Appearance="ButtonAppearance.Outline"
+                                                aria-label="@($"Ask: {suggestion.Question} (from {suggestion.DocumentTitle})")">@suggestion.Question</FluentAnchorButton>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+
+        <section class="home-section" aria-labelledby="home-corpus">
+            <FluentText As="TextTag.H2" Id="home-corpus" Size="TextSize.Size500" Weight="TextWeight.Semibold">What you can ask about</FluentText>
+            <FluentText Block="true" Class="home-corpus-count">@CorpusLine</FluentText>
+            @if (_summary.LastIngestedAt is { } last)
+            {
+                <FluentText Block="true">Last indexed <time datetime="@last.ToString("O")" title="@Formatting.UtcTooltip(last)">@Formatting.Local(last)</time></FluentText>
+            }
+            <FluentText As="TextTag.H3" Size="TextSize.Size400" Weight="TextWeight.Semibold" Class="home-recent-title">Recently updated</FluentText>
+            <ul class="home-recent">
+                @foreach (var document in _summary.Recent)
+                {
+                    <li>
+                        <FluentLink Href="@($"documents/{document.Id}")">@document.Title</FluentLink>
+                        <FluentBadge Appearance="BadgeAppearance.Outline" aria-label="@Formatting.LanguageName(document.Language)">@document.Language.ToUpperInvariant()</FluentBadge>
+                        <time class="home-recent-time" datetime="@document.UpdatedAt.ToString("O")" title="@Formatting.UtcTooltip(document.UpdatedAt)">@Formatting.Local(document.UpdatedAt)</time>
+                    </li>
+                }
+            </ul>
+            <FluentLink Href="documents">Browse all documents</FluentLink>
+        </section>
+    </div>
+}
+
+@code {
+    public const string ReadmeUrl = "https://github.com/YBazanPro/RAG-Assistant#readme";
+
+    private readonly CancellationTokenSource _lifetime = new();
+    private bool _loaded;
+    private bool _canImport;
+    private CorpusSummary? _summary;
+    private IReadOnlyList<SuggestedQuestion> _suggestions = [];
+
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string CorpusLine
+    {
+        get
+        {
+            var count = _summary!.ActiveDocuments;
+            var languages = string.Join(", ", _summary.ByLanguage.Select(l => $"{l.Count} in {Formatting.LanguageName(l.Language)}"));
+            return $"{count} active {(count == 1 ? "document" : "documents")}{(languages.Length > 0 ? $": {languages}" : "")}.";
+        }
+    }
+
+    public static string AskLink(string question) => $"chat?ask={Uri.EscapeDataString(question)}";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (AuthenticationState is not null)
+        {
+            var user = (await AuthenticationState).User;
+            _canImport = (await Authorization.AuthorizeAsync(user, PolicyNames.ContentOwner)).Succeeded;
+        }
+
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task LoadAsync()
+    {
+        var summary = Documents.GetSummaryAsync(_lifetime.Token);
+        var suggestions = Documents.GetSuggestionsAsync(6, _lifetime.Token);
+        await Task.WhenAll(summary, suggestions);
+        _summary = summary.Result.IsSuccess ? summary.Result.Value : null;
+        _suggestions = suggestions.Result.IsSuccess ? suggestions.Result.Value : [];
+        _loaded = true;
+    }
+
+    public void Dispose()
+    {
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+}

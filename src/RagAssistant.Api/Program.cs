@@ -4,6 +4,7 @@ using RagAssistant.Api.Chat;
 using RagAssistant.Api.Retrieval;
 using RagAssistant.Modules.Chat;
 using RagAssistant.Modules.Documents;
+using RagAssistant.Modules.Evaluation;
 using RagAssistant.SharedKernel.Common.Extensions;
 using RagAssistant.SharedKernel.Contracts.Retrieval;
 
@@ -29,6 +30,11 @@ var chat = builder.Configuration["Chat:Provider"] switch
             builder.Configuration.GetValue(OllamaRequestOptions.ContextWindowConfigurationKey, OllamaRequestOptions.DefaultContextWindowTokens))),
 };
 chat.UseOpenTelemetry(sourceName: "RagAssistant.Chat.Model").UseLogging();
+if (builder.Configuration["Chat:Provider"] == "Demo")
+{
+    // The demo client only extracts passages, so it has no questions to suggest (spec 020): every version is "skipped".
+    builder.Configuration["Documents:Suggestions:Enabled"] = "false";
+}
 
 // The reranker exists only when the AppHost started one (launch profile https-rerank, spec 019, ADR 0010). Without it the Documents
 // module's fallback makes every rerank "skipped", so a search never fails for it.
@@ -46,6 +52,7 @@ builder.Services.AddApiAuthentication(builder.Environment);
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 builder.Services.AddDocumentsModule(builder.Configuration);
 builder.Services.AddChatModule(builder.Configuration);
+builder.Services.AddEvaluationModule(builder.Configuration);
 
 var app = builder.Build();
 

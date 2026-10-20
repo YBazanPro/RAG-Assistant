@@ -38,7 +38,7 @@ internal static class GetConversation
     public sealed record ConversationDetail(
         Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<MessageView> Messages, ConversationScope Scope);
 
-    internal sealed class Handler(ChatDbContext db, IDocumentCatalog catalog) : IRequestHandler<Query, Result<ConversationDetail>>
+    internal sealed class Handler(ChatDbContext db, IDocumentCatalog catalog, IDocumentSources sources) : IRequestHandler<Query, Result<ConversationDetail>>
     {
         public async ValueTask<Result<ConversationDetail>> Handle(Query query, CancellationToken cancellationToken)
         {
@@ -67,17 +67,31 @@ internal static class GetConversation
             var citedIds = conversation.Messages.SelectMany(m => m.Citations).Select(c => c.DocumentId).Distinct().ToArray();
             var availability = await catalog.CheckAsync([.. conversation.ScopeDocumentIds, .. citedIds], query.UserId, cancellationToken);
             var scope = ConversationScope.From(conversation.ScopeDocumentIds, conversation.ScopeTags, availability);
+            var states = await SourceStatesAsync(sources, conversation, query.UserId, cancellationToken);
 
             return new ConversationDetail(
                 conversation.Id,
                 conversation.Title,
                 conversation.CreatedAt,
                 conversation.LastActivityAt,
-                [.. conversation.Messages.Select(m => ToView(m, ratings, reportCounts, availability.Known))],
+                [.. conversation.Messages.Select(m => ToView(m, ratings, reportCounts, availability.Known, states))],
                 scope);
         }
 
-        private static MessageView ToView(Message m, Dictionary<Guid, FeedbackRating> ratings, Dictionary<Guid, int> reportCounts, IReadOnlySet<Guid> readable) => m.Role == MessageRole.User
+        /// <summary>One call for the whole conversation (spec 020: one query per read).</summary>
+        internal static async Task<IReadOnlyDictionary<CitedPassage, SourceState>> SourceStatesAsync(
+            IDocumentSources sources, Conversation conversation, string viewerSub, CancellationToken cancellationToken) =>
+            await sources.GetStatesAsync(
+                [.. conversation.Messages.SelectMany(m => m.Citations).Select(Cited).Distinct()], viewerSub, cancellationToken);
+
+        internal static CitedPassage Cited(CitationSnapshot s) => new(s.DocumentId, s.VersionId, s.TextHash);
+
+        private static MessageView ToView(
+            Message m,
+            Dictionary<Guid, FeedbackRating> ratings,
+            Dictionary<Guid, int> reportCounts,
+            IReadOnlySet<Guid> readable,
+            IReadOnlyDictionary<CitedPassage, SourceState> states) => m.Role == MessageRole.User
             ? new MessageView(
                 m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, new MessageFilters(m.FilterLanguage, m.FilterTags),
                 m.RetrievalQuery ?? m.Text, null, null, null, null, null, null, null, QuestionLanguage: m.QuestionLanguage)
@@ -88,7 +102,8 @@ internal static class GetConversation
                 m.ErrorCode,
                 m.Status == AnswerStatus.Failed && m.ErrorCode is { } code ? ChatErrors.IsRetryable(code) : null,
                 m.CompletedAt,
-                [.. m.Citations.Select(c => CitationView.From(c, readable.Contains(c.DocumentId)))],
+                [.. m.Citations.Select(c => CitationView.From(
+                    c, readable.Contains(c.DocumentId), states.GetValueOrDefault(Cited(c), SourceState.Current)))],
                 ratings.TryGetValue(m.Id, out var rating) ? rating.ToApi() : null,
                 reportCounts.GetValueOrDefault(m.Id));
     }

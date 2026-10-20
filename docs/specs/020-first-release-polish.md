@@ -1,6 +1,6 @@
 # Spec 020: First-release polish
 
-**Status:** Approved (2026-10-18)
+**Status:** Implemented (2026-10-20); AC-27 and AC-28 pending a manual check
 **Date:** 2026-10-18
 **Roadmap:** Phase 5.3 and Phase 6 · **Builds on:** specs [005](005-web-shell.md), [009](009-document-lifecycle.md), [012](012-chat-conversations-and-grounded-answers.md), [013](013-chat-ui.md), [014](014-follow-ups-feedback-and-deletion.md), [016](016-private-and-shared-documents.md), [017](017-diagnose-traces-admin-and-metrics.md), [018](018-evaluation-and-french-english.md) · **Decision records:** [ADR 0004](../adr/0004-document-versioning.md) (citations of superseded or archived sources)
 
@@ -223,3 +223,30 @@ Mutating calls go through the BFF's `X-Requested-With` CSRF rule as today. The h
 ## Open Questions
 
 None.
+
+## Implementation notes
+
+- **Suggestions run in the ingestion worker, after the commit** that makes the version searchable (`Suggestions/SuggestionGenerator`), so a slow model delays the next run on that worker slot, never the version. A host that stops mid-step leaves the version `pending`; startup marks it `failed (interrupted)`, and reprocessing runs the step again. Without a chat client, or with `Documents:Suggestions:Enabled = false` (the API sets it in demo mode), the version is `skipped` and the stage log gets no `suggestions` event. The detail page polls the document while its suggestions are pending, because the ingestion stream is done with the page at `completed`.
+- **The text hash** is `PassageTextHash` in the shared kernel: NFC, runs of ASCII whitespace collapsed to one space, trimmed, SHA-256. Only ASCII whitespace is collapsed so that both migrations can backfill existing passages and snapshots in SQL with exactly the same rule (`CitationSourceStateTests` checks the SQL expression against the code).
+- **`IDocumentSources` reads documents the viewer can no longer read**, to call them `unavailable`. It applies the visibility rule inline and returns only states; `VisibilityRuleCoverageTests` lists it as a state-only exception.
+- **The Evaluation module reads the report as JSON** and binds none of the harness's types; metrics are stored as `jsonb`, so their keys come back in PostgreSQL's order, not the harness's. The upload strips the report's corpus passages (only the offline sweep and judge need them). The harness uploads with the maintainer dev user; a failed upload only warns, since the report is on disk.
+- **The empty state of a new conversation** falls back to `Chat:SuggestedQuestions` (configuration) when no document has suggestions, for example in demo mode; a click asks the question in both cases.
+- **The export link is a plain `<a download>`**: a Fluent anchor button's inner link has no `download` attribute, and Blazor's router then treats the click as a page change (found by the smoke test).
+
+## Verification
+
+**2026-10-20.** `dotnet build` with 0 warnings, `dotnet format --verify-no-changes` clean, `dotnet test --solution RagAssistant.slnx` 1,348 passed (new: `SuggestedQuestionsTests`, `CitationSourceStateTests`, `ConversationConveniencesTests`, `EvaluationRunsTests`, the Evaluation module's boundary test, `ExportSlugTests`, and the bUnit `SourceStateAndCopyTests`, `ChatConveniencesUiTests`, `EvaluationTabTests`, `HomeAndSuggestionsUiTests`). The 21 Playwright smoke tests passed against the AppHost in `https-demo` (new: `FirstReleaseSmokeTests`), and the new migrations applied to the existing dev database, hash backfills included.
+
+| Criteria | How | Result |
+|---|---|---|
+| AC-1 to AC-7 | Integration tests (fake chat client and scripted vectors), bUnit for the panel and the home page | Pass |
+| AC-8 | bUnit (`?ask=` asks once in a new conversation) and smoke (`AskLink_opensANewConversationAndAsksOnce`) | Pass. In demo mode no question is generated, so the click on a *generated* suggestion was not seen live; the link it uses was |
+| AC-9 | bUnit | Pass |
+| AC-10 to AC-14 | Integration tests per state; bUnit for badges and the preview; smoke for *Newer version* after a reprocess | Pass |
+| AC-15 to AC-18 | Integration tests; bUnit; smoke for rename by keyboard and the Markdown download | Pass |
+| AC-19 | bUnit (format, blocked clipboard); smoke (real clipboard) | Pass |
+| AC-20 to AC-24 | Integration tests; bUnit for the confirmation; two real harness reports uploaded with `upload`, one with its judge result, and uploaded again (replaced) | Pass |
+| AC-25 | bUnit | Pass |
+| AC-26 | Smoke: keyboard paths through the home page, asking, opening a citation (Escape returns focus, existing `ChatSmokeTests`), rename (focus returns to *Rename*), the document lifecycle and import dialogs (existing smoke tests); accessible names of citations from Playwright's snapshot, of Fluent buttons (*Copy reference*, icon-only *Delete conversation*) from Chromium's own accessibility tree, which Playwright's snapshot does not read for them | Pass |
+| AC-27 | Manual checklist: contrast of the new badges in light and dark, NVDA reading a citation and an answer status | **Not done yet.** The badges use Fluent status tokens and carry text and a glyph; the checklist needs a person with NVDA |
+| AC-28 | README rewritten (prerequisites, GPU note, the three profiles, users, `seed`, a French and English demo script, tests, smoke tests, harness) | **Not verified from a fresh clone.** The steps were run on this machine's existing clone only |

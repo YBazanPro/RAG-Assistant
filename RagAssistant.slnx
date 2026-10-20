@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Modules/Chat/RagAssistant.Modules.Chat/RagAssistant.Modules.Chat.csproj" />
     <Project Path="src/Modules/Documents/RagAssistant.Modules.Documents/RagAssistant.Modules.Documents.csproj" />
+    <Project Path="src/Modules/Evaluation/RagAssistant.Modules.Evaluation/RagAssistant.Modules.Evaluation.csproj" />
     <Project Path="src/RagAssistant.AppHost/RagAssistant.AppHost.csproj" />
     <Project Path="src/RagAssistant.Api/RagAssistant.Api.csproj" />
     <Project Path="src/RagAssistant.MigrationService/RagAssistant.MigrationService.csproj" />
@@ -13,6 +14,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Modules/RagAssistant.Modules.Chat.Tests/RagAssistant.Modules.Chat.Tests.csproj" />
     <Project Path="tests/Modules/RagAssistant.Modules.Documents.Tests/RagAssistant.Modules.Documents.Tests.csproj" />
+    <Project Path="tests/Modules/RagAssistant.Modules.Evaluation.Tests/RagAssistant.Modules.Evaluation.Tests.csproj" />
     <Project Path="tests/RagAssistant.Integration.Tests/RagAssistant.Integration.Tests.csproj" />
     <Project Path="tests/RagAssistant.Web.Tests/RagAssistant.Web.Tests.csproj" />
   </Folder>

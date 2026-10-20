@@ -18,13 +18,15 @@ internal sealed class RunCommand(
     SeedCommand seed,
     RagAssistantApi api,
     ReportWriter reports,
+    UploadCommand upload,
     IOptions<EvaluationOptions> options,
     TimeProvider clock)
 {
     private EvaluationOptions Settings => options.Value;
 
     /// <param name="variants">Also measure retrieval for vector, hybrid and hybrid + rerank on the same queries (spec 019).</param>
-    public async Task<int> RunAsync(TextWriter output, CancellationToken cancellationToken, bool variants = false)
+    /// <param name="uploadReport">Send the report to the app's admin area when it is written (spec 020); a failed upload only warns.</param>
+    public async Task<int> RunAsync(TextWriter output, CancellationToken cancellationToken, bool variants = false, bool uploadReport = true)
     {
         var started = clock.GetUtcNow();
         await seed.RunAsync(output, cancellationToken);
@@ -92,6 +94,11 @@ internal sealed class RunCommand(
         }
         var folder = await reports.WriteAsync(report, cancellationToken);
         await output.WriteLineAsync($"Report: {folder}");
+        if (uploadReport)
+        {
+            await upload.RunAsync(folder, output, cancellationToken);
+        }
+
         return invalid is null ? 0 : 3;
     }
 
@@ -229,7 +236,8 @@ internal sealed class RunCommand(
             stages?.GetProperty("rerankCandidates").GetInt32(),
             stages is { } r && r.GetProperty("rerankerModel").ValueKind == JsonValueKind.String ? r.GetProperty("rerankerModel").GetString() : null,
             stages?.GetProperty("rerankMinScore").GetDouble(),
-            stages?.GetProperty("rerankConfidentScore").GetDouble());
+            stages?.GetProperty("rerankConfidentScore").GetDouble(),
+            stages is { } k && k.TryGetProperty("minKeywordCoverage", out var coverage) ? coverage.GetDouble() : null);
     }
 
     private static string CorpusHash(string corpusPath, CorpusManifest manifest)

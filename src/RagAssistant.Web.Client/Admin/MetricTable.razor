@@ -1,0 +1,59 @@
+@using System.Globalization
+@using System.Text.Json
+
+@* A row per group (category, language) and a column per numeric metric the harness wrote, with the overall row first. *@
+<table class="admin-table evaluation-metrics">
+    <caption class="visually-hidden">@Caption</caption>
+    <thead>
+        <tr>
+            <th scope="col">Group</th>
+            @foreach (var column in Columns)
+            {
+                <th scope="col">@column</th>
+            }
+        </tr>
+    </thead>
+    <tbody>
+        @if (Overall is { } overall)
+        {
+            <tr class="evaluation-overall">
+                <th scope="row">all</th>
+                @foreach (var column in Columns)
+                {
+                    <td>@Cell(overall, column)</td>
+                }
+            </tr>
+        }
+        @foreach (var (name, metrics) in Groups)
+        {
+            <tr>
+                <th scope="row">@name</th>
+                @foreach (var column in Columns)
+                {
+                    <td>@Cell(metrics, column)</td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired] public string Caption { get; set; } = "";
+
+    [Parameter] public JsonElement? Overall { get; set; }
+
+    [Parameter] public IReadOnlyList<(string Name, JsonElement Metrics)> Groups { get; set; } = [];
+
+    private IEnumerable<string> Columns =>
+        (Overall is { } o ? [o] : Groups.Select(g => g.Metrics))
+            .Where(e => e.ValueKind == JsonValueKind.Object)
+            .SelectMany(e => e.EnumerateObject())
+            .Where(p => p.Value.ValueKind == JsonValueKind.Number)
+            .Select(p => p.Name)
+            .Distinct(StringComparer.Ordinal);
+
+    private static string Cell(JsonElement metrics, string column) =>
+        metrics.ValueKind == JsonValueKind.Object && metrics.TryGetProperty(column, out var value) && value.ValueKind == JsonValueKind.Number
+            ? value.TryGetInt32(out var whole) ? whole.ToString(CultureInfo.InvariantCulture) : value.GetDouble().ToString("0.00", CultureInfo.InvariantCulture)
+            : "—";
+}

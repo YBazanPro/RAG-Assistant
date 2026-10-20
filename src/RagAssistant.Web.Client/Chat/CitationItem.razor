@@ -14,6 +14,11 @@
             @* The accessible name already says the language; the badge is for sighted readers. *@
             <FluentBadge Appearance="BadgeAppearance.Outline" Class="citation-language" aria-hidden="true">@language.ToUpperInvariant()</FluentBadge>
         }
+        @if (SourceStates.Badge(Citation.SourceState) is { } state)
+        {
+            @* Spec 020: text and glyph, never colour alone; the accessible name above already says it. *@
+            <FluentBadge Appearance="BadgeAppearance.Tint" Class="@($"citation-state citation-state-{Citation.SourceState}")" aria-hidden="true">@StateGlyph @state</FluentBadge>
+        }
     </button>
     <CopyReference Citation="@Citation" />
 </div>
@@ -29,4 +34,6 @@
     [Parameter] public EventCallback<int> OnSelected { get; set; }
 
     public string ElementId => $"{IdPrefix}citation-{Citation.Marker}";
+
+    private string StateGlyph => Citation.SourceState == SourceStates.NewerUnchanged ? "↻" : "⚠";
 }

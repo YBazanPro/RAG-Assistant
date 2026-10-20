@@ -7,7 +7,11 @@ public interface IChatApi
 {
     Task<ApiResult<ConversationSummary>> CreateConversationAsync(CancellationToken cancellationToken);
 
-    Task<ApiResult<ConversationPage>> ListConversationsAsync(int page, int pageSize, CancellationToken cancellationToken);
+    /// <param name="search">Spec 020: only conversations whose title or a question contains it, ignoring case and accents; null for all.</param>
+    Task<ApiResult<ConversationPage>> ListConversationsAsync(int page, int pageSize, string? search, CancellationToken cancellationToken);
+
+    /// <summary>Spec 020: an empty or blank title goes back to the first question.</summary>
+    Task<ApiResult<ConversationSummary>> RenameConversationAsync(Guid conversationId, string title, CancellationToken cancellationToken);
 
     Task<ApiResult<ConversationDetail>> GetConversationAsync(Guid conversationId, CancellationToken cancellationToken);
 

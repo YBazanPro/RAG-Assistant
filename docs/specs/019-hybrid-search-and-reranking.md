@@ -23,7 +23,7 @@ Success: the harness compares vector, hybrid, and hybrid + rerank on the same ru
   - `search_vector` (`tsvector`), a stored generated column `to_tsvector(search_config, text)` with a GIN index.
   The `french_unaccent` configuration (French stemmer plus `unaccent`) and the `unaccent` extension are created by the Documents migration. The generated column backfills existing passages.
 - **The passage's config follows its document's language.** When a document's language changes (edit, detection, spec 018), its passages' `search_config` is updated in the same transaction.
-- **Keyword query in the question's written language.** The config follows the detected question language from spec 018 (with its conversation fallback), never the requested answer language. `websearch_to_tsquery(config, query)`, ranked with `ts_rank_cd`. `IDocumentSearch` receives the language through `SearchFilters.QueryLanguage` (nullable → `simple`). French questions therefore get keyword matches from French passages only. Vector search still covers every language.
+- **Keyword query in the question's written language.** The config follows the detected question language from spec 018 (with its conversation fallback), never the requested answer language. The question's distinct lexemes (`to_tsvector(config, query)`) are OR-ed into one `tsquery`, ranked with `ts_rank_cd`. *Revised after the first variants run:* the original `websearch_to_tsquery` ANDs every word, so a natural-language question matched almost no passage and hybrid equalled vector. Each match also records its **coverage**: the share of the question's distinct lexemes the passage contains. `IDocumentSearch` receives the language through `SearchFilters.QueryLanguage` (nullable → `simple`). French questions therefore get keyword matches from French passages only. Vector search still covers every language.
 - **Reciprocal rank fusion.** The vector pool and the keyword pool (same pool size, same filters and `ReadableBy`) are merged with `score = Σ 1 / (k + rank)`, where `k = Documents:Retrieval:Hybrid:RrfK` (default 60).
 - **Switch:** `Documents:Retrieval:Hybrid:Enabled`.
 
@@ -37,7 +37,7 @@ Success: the harness compares vector, hybrid, and hybrid + rerank on the same ru
   3. near-duplicate reduction and `topK` apply after reranking.
 - **Evidence gate:**
   - **Reranking on:** `MinScore` and `ConfidentScore` apply to the rerank score. Their settings are `Documents:Retrieval:Reranking:MinScore` and `…:ConfidentScore`, calibrated by the sweep.
-  - **Reranking off or skipped:** cosine is the gate, as today. A passage found only by keywords is admitted when its cosine is ≥ `MinScore`.
+  - **Reranking off or skipped:** cosine is the gate, as today, except for strong keyword matches: a passage whose keyword coverage is ≥ `Documents:Retrieval:Hybrid:MinKeywordCoverage` (default 0.5) passes the cosine floor, whichever pool found it. `ConfidentScore` still applies to its cosine, so evidence found by keywords alone is low-confidence. *Revised:* the floor used to drop every keyword-only hit below `MinScore`, which are the exact-term matches hybrid search exists for. One common word ("office") is not evidence, hence the coverage condition.
 - **Fallback:** on timeout (`Documents:Retrieval:Reranking:Timeout`, default 2 s), an error or an unreachable TEI, retrieval continues without reranking and is gated by cosine. The trace, activity and metrics record `rerank: skipped (unavailable)`. A question never fails because of the reranker.
 - **Switch:** `Documents:Retrieval:Reranking:Enabled`. The AppHost adds the TEI resource only with the launch profile `https-rerank` (or the parameter `reranking=true`), which also sets the switch. The default clone-and-run is unchanged.
 
@@ -77,7 +77,7 @@ Success: the harness compares vector, hybrid, and hybrid + rerank on the same ru
 | `Passage` (`documents.passages`) | `search_config regconfig NOT NULL` (from the document language), `search_vector tsvector` generated stored, GIN index. |
 | Migration | `CREATE EXTENSION unaccent`; `CREATE TEXT SEARCH CONFIGURATION french_unaccent (COPY = french)` with `unaccent, french_stem` for word tokens; backfill `search_config` from each passage's document language. |
 | `SearchFilters` (contract) | `QueryLanguage` (two letters, nullable). |
-| `RetrievedChunk` (contract) | `Stages` record: `VectorRank`, `Cosine`, `KeywordRank`, `KeywordScore`, `FusedScore`, `RerankScore` (all nullable), `AdmittedBy`. `Score` stays the gating score (rerank score when reranked, else cosine). |
+| `RetrievedChunk` (contract) | `Stages` record: `VectorRank`, `Cosine`, `KeywordRank`, `KeywordScore`, `FusedScore`, `RerankScore`, `KeywordCoverage` (all nullable), `AdmittedBy`. `Score` stays the gating score (rerank score when reranked, else cosine). |
 | `SearchResult` (contract) | `Mode` (`vector` \| `hybrid`), `Rerank` (`applied` \| `off` \| `skipped`). |
 | `RequestTrace` / trace passages (`chat`) | Stage fields per passage; `RetrievalMode`, `RerankStatus`, `RerankMs`, `RerankModel`. |
 
@@ -104,7 +104,9 @@ There are no new policies. Keyword and fused pools apply the same `ReadableBy(vi
 |---|---|
 | Query with only stop-words or punctuation (empty tsquery) | Keyword pool is empty; hybrid equals vector. |
 | French question, only English documents | No keyword hits; vector results only; `admittedBy = vector`. |
-| Keyword-only hit with cosine < `MinScore`, rerank off | Not admitted. |
+| Keyword match with cosine < `MinScore`, rerank off, coverage ≥ `MinKeywordCoverage` | Admitted; the outcome is `LowConfidence` unless another kept passage reaches `ConfidentScore`. |
+| Keyword match with cosine < `MinScore`, rerank off, coverage below it | Not admitted (`minScore`). |
+| Question sharing only some words with a passage | Still a keyword match (OR), ranked lower by `ts_rank_cd`; its coverage tells how much it shares. |
 | Keyword-only hit, rerank on, rerank score ≥ rerank `MinScore` | Admitted. |
 | TEI timeout, 5xx or connection refused | Fallback to cosine gating, `rerank: skipped (unavailable)`, a `documents.rerank.skipped` counter, a warning log without query text. |
 | TEI returns a score count different from the texts sent | Treated as unavailable (fallback). |
@@ -151,6 +153,9 @@ There are no new policies. Keyword and fused pools apply the same `ReadableBy(vi
 - **AC-7** Given a query of only stop-words, then hybrid returns the vector result and no error.
 - **AC-8** Given filters `DocumentIds`, tags and language, then the keyword pool applies the same filters.
 - **AC-9** Given `k = 60` and known ranks, then the fused score equals `1/(60+rv) + 1/(60+rk)` (unit test).
+- **AC-23** Given a passage holding three of the four lexemes of "budget BX-204 for travel" (`budget`, `bx`, `-204`, `travel`), when hybrid search runs, then it is a keyword match with coverage 0.75.
+- **AC-24** Given a passage containing every term of "budget BX-204 approval" with cosine 0.3 < `MinScore`, then hybrid search keeps it with outcome `LowConfidence`, and vector search returns `NoEvidence`.
+- **AC-25** Given a passage sharing only "budget" with that query (coverage 0.25) and cosine below `MinScore`, then it is dropped by the floor and the outcome is `NoEvidence`.
 
 ### Reranking
 

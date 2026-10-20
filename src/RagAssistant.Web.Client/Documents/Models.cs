@@ -67,7 +67,20 @@ public sealed record DocumentInfo(
     bool IsOwner = false,
     string LanguageSource = "owner",
     string? DetectedLanguage = null,
-    string? LanguageDetection = null);
+    string? LanguageDetection = null,
+    IReadOnlyList<string>? SuggestedQuestions = null,
+    string? SuggestionsStatus = null,
+    string? SuggestionsError = null);
+
+/// <summary>A suggested question of a readable document (spec 020).</summary>
+public sealed record SuggestedQuestion(string Question, Guid DocumentId, string DocumentTitle, string Language);
+
+public sealed record LanguageCount(string Language, int Count);
+
+public sealed record RecentDocument(Guid Id, string Title, DateTimeOffset UpdatedAt, string Language);
+
+/// <summary>What the home page says about the corpus the user can read (spec 020).</summary>
+public sealed record CorpusSummary(int ActiveDocuments, IReadOnlyList<LanguageCount> ByLanguage, DateTimeOffset? LastIngestedAt, IReadOnlyList<RecentDocument> Recent);
 
 public sealed record VersionItem(
     Guid Id,

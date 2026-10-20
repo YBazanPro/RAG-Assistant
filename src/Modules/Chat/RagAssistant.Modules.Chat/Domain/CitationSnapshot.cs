@@ -36,4 +36,7 @@ internal sealed class CitationSnapshot
 
     /// <summary>The full passage text.</summary>
     public required string Text { get; set; }
+
+    /// <summary><c>PassageTextHash</c> of <see cref="Text"/> (spec 020): finds the same text in a newer version of the document.</summary>
+    public string? TextHash { get; set; }
 }

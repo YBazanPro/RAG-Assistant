@@ -21,13 +21,14 @@ namespace RagAssistant.Evaluation.Run;
 /// judge directly. The result is written next to the report as <c>judge-&lt;model&gt;.json</c> and <c>.md</c>; the report itself is
 /// never changed.
 /// </summary>
-internal sealed class JudgeCommand(IHttpClientFactory httpClients, IOptions<EvaluationOptions> options, TimeProvider clock)
+internal sealed class JudgeCommand(IHttpClientFactory httpClients, UploadCommand upload, IOptions<EvaluationOptions> options, TimeProvider clock)
 {
     public const string HttpClientName = "ollama-judge";
 
     private EvaluationOptions Settings => options.Value;
 
-    public async Task<int> RunAsync(string reportPath, TextWriter output, CancellationToken cancellationToken)
+    /// <param name="uploadReport">Send the report with this judge result to the app when done (spec 020); a failed upload only warns.</param>
+    public async Task<int> RunAsync(string reportPath, TextWriter output, CancellationToken cancellationToken, bool uploadReport = true)
     {
         var report = ReportWriter.Read(reportPath);
         var judgeModel = Settings.JudgeModel;
@@ -99,6 +100,11 @@ internal sealed class JudgeCommand(IHttpClientFactory httpClients, IOptions<Eval
         await File.WriteAllTextAsync(Path.Combine(folder, $"{name}.json"), JsonSerializer.Serialize(result, ReportWriter.Json), cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(folder, $"{name}.md"), Markdown(result), cancellationToken);
         await output.WriteLineAsync($"Judged {judged.Count} answers with {judgeModel}: {Path.Combine(folder, name)}.md");
+        if (uploadReport)
+        {
+            await upload.RunAsync(folder, output, cancellationToken);
+        }
+
         return 0;
     }
 

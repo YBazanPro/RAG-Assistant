@@ -54,7 +54,10 @@ internal static class GetDocument
         bool IsOwner,
         string LanguageSource,
         string? DetectedLanguage,
-        string? LanguageDetection);
+        string? LanguageDetection,
+        IReadOnlyList<string> SuggestedQuestions,
+        string? SuggestionsStatus,
+        string? SuggestionsError);
 
     internal sealed class Handler(DocumentsDbContext db) : IRequestHandler<Query, Result<Response>>
     {
@@ -72,10 +75,11 @@ internal static class GetDocument
                         .OrderByDescending(v => v.Number)
                         .Select(v => new VersionRow(v.Id, v.Number, v.Status, v.SourceFormat, v.OriginalFileName, v.SizeBytes, v.PassageCount, v.CreatedAt, v.PagesWithoutText))
                         .FirstOrDefault(),
-                    // What the active version detected, so the detail page can offer it when the owner chose otherwise (spec 018).
-                    Detection = d.Versions
+                    // What the active version detected, so the detail page can offer it when the owner chose otherwise (spec 018),
+                    // and its suggested questions, which are the document's (spec 020).
+                    Active = d.Versions
                         .Where(v => v.Id == d.ActiveVersionId)
-                        .Select(v => new DetectionRow(v.DetectedLanguage, v.LanguageDetection))
+                        .Select(v => new ActiveRow(v.DetectedLanguage, v.LanguageDetection, v.SuggestedQuestions, v.SuggestionsStatus, v.SuggestionsError))
                         .FirstOrDefault(),
                     Run = d.Versions
                         .OrderByDescending(v => v.Number)
@@ -108,13 +112,15 @@ internal static class GetDocument
                 d.ActiveVersionId, latest, run, d.CreatedAt,
                 // The raw sub is the access identity: only its owner gets it back (spec 016).
                 isOwner ? d.CreatedBy : null, d.UpdatedAt, isOwner || d.UpdatedBy == query.ViewerSub ? d.UpdatedBy : null, d.Revision,
-                d.Visibility.ToApi(), isOwner, d.LanguageSource.ToApi(), row.Detection?.Language, row.Detection?.Confidence.ToApi());
+                d.Visibility.ToApi(), isOwner, d.LanguageSource.ToApi(), row.Active?.Language, row.Active?.Confidence.ToApi(),
+                row.Active?.Questions ?? [], row.Active?.Status.ToApi(), row.Active?.Error);
         }
 
         private sealed record VersionRow(
             Guid Id, int Number, VersionStatus Status, SourceFormat SourceFormat, string OriginalFileName, int SizeBytes, int? PassageCount, DateTimeOffset CreatedAt, int[]? PagesWithoutText);
 
-        private sealed record DetectionRow(string? Language, LanguageConfidence? Confidence);
+        private sealed record ActiveRow(
+            string? Language, LanguageConfidence? Confidence, string[] Questions, SuggestionsStatus? Status, string? Error);
 
         private sealed record RunRow(
             Guid Id, int Attempt, RunStatus Status, IngestionStage Stage, string? ErrorCode, string? ErrorMessage,

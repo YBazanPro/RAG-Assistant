@@ -13,6 +13,7 @@ using RagAssistant.Modules.Chat.Features.AskQuestion;
 using RagAssistant.Modules.Chat.Domain;
 using RagAssistant.Modules.Chat.Options;
 using RagAssistant.Modules.Chat.Persistence;
+using RagAssistant.SharedKernel.Common.Text;
 using RagAssistant.SharedKernel.Contracts.Documents;
 
 namespace RagAssistant.Modules.Chat.Answering;
@@ -492,6 +493,7 @@ internal sealed partial class AnswerPipeline(
         Score = chunk.Score,
         Language = chunk.Language,
         Text = chunk.Text,
+        TextHash = PassageTextHash.Compute(chunk.Text),
     };
 
     private int Milliseconds(long since) => (int)Math.Min(clock.GetElapsedTime(since).TotalMilliseconds, int.MaxValue);

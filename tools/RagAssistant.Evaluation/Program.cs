@@ -21,6 +21,8 @@ const string Usage = """
       compare   compare <reportA> <reportB>: every metric side by side, configuration differences flagged.
       sweep     sweep <report>: replay retrieval thresholds over the report's candidate pools and recommend the best.
       judge     judge <report>: score the stored answers with Evaluation:JudgeModel (groundedness, relevance, requested language).
+      upload    upload <report>: send a report (and its newest judge result) to the app's admin area (spec 020).
+                run and judge upload by themselves when they finish; --no-upload turns that off.
       render    Write the generated sample PDFs to .data/evaluation/pdf, to look at them.
 
     A report is a run folder or its report.json.
@@ -36,9 +38,11 @@ var command = args[0];
 // Positional arguments (report paths) come first; --Key=value settings follow.
 string[] positional = [.. args[1..].TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal))];
 string[] options = [.. args[1..].Skip(positional.Length)];
-// The one flag (spec 019): run --variants also measures retrieval for vector, hybrid and hybrid + rerank.
+// The flags: run --variants also measures retrieval for vector, hybrid and hybrid + rerank (spec 019); --no-upload keeps run and
+// judge from sending their report to the app (spec 020).
 var variants = options.Contains("--variants", StringComparer.Ordinal);
-string[] settings = [.. options.Where(o => o != "--variants")];
+var upload = !options.Contains("--no-upload", StringComparer.Ordinal);
+string[] settings = [.. options.Where(o => o is not "--variants" and not "--no-upload")];
 var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 {
     Args = settings,
@@ -61,6 +65,7 @@ builder.Services.AddTransient<SeedCommand>();
 builder.Services.AddTransient<RunCommand>();
 builder.Services.AddTransient<ReportWriter>();
 builder.Services.AddTransient<JudgeCommand>();
+builder.Services.AddTransient<UploadCommand>();
 // Loading a judge model into memory, then scoring a long answer, takes minutes on a laptop; the default 100 s is too short.
 builder.Services.AddHttpClient(JudgeCommand.HttpClientName, http => http.Timeout = TimeSpan.FromMinutes(10))
     .AddHttpMessageHandler(services => new JudgeTraceHandler(services.GetRequiredService<IOptions<EvaluationOptions>>().Value.JudgeTrace));
@@ -81,7 +86,7 @@ try
             await host.Services.GetRequiredService<SeedCommand>().RunAsync(Console.Out, cancellation.Token);
             return 0;
         case "run":
-            return await host.Services.GetRequiredService<RunCommand>().RunAsync(Console.Out, cancellation.Token, variants);
+            return await host.Services.GetRequiredService<RunCommand>().RunAsync(Console.Out, cancellation.Token, variants, upload);
         case "compare" when positional.Length == 2:
             {
                 var a = ReportWriter.Read(Resolve(positional[0]));
@@ -108,7 +113,10 @@ try
             }
 
         case "judge" when positional.Length == 1:
-            return await host.Services.GetRequiredService<JudgeCommand>().RunAsync(Resolve(positional[0]), Console.Out, cancellation.Token);
+            return await host.Services.GetRequiredService<JudgeCommand>().RunAsync(Resolve(positional[0]), Console.Out, cancellation.Token, upload);
+
+        case "upload" when positional.Length == 1:
+            return await host.Services.GetRequiredService<UploadCommand>().RunAsync(Resolve(positional[0]), Console.Out, cancellation.Token);
 
         case "render":
             return Render(host.Services.GetRequiredService<IOptions<EvaluationOptions>>().Value);

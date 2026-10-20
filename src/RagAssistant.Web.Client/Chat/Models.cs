@@ -2,7 +2,8 @@ namespace RagAssistant.Web.Client.Chat;
 
 // The client owns its copy of the chat API's JSON (spec 012); members the client does not read are simply absent.
 
-public sealed record ConversationSummary(Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt);
+/// <param name="TitleEdited">The owner renamed it (spec 020); otherwise the title is the first question.</param>
+public sealed record ConversationSummary(Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, bool TitleEdited = false);
 
 public sealed record ConversationPage(IReadOnlyList<ConversationSummary> Items, int Page, int PageSize, int TotalCount);
 
@@ -22,7 +23,8 @@ public sealed record Citation(
     int? PageEnd,
     string? Text,
     bool DocumentReadable = true,
-    string? Language = null)
+    string? Language = null,
+    string SourceState = SourceStates.Current)
 {
     public static Citation FromSource(AnswerSource s) =>
         new(s.Marker, s.PassageId, s.DocumentId, Guid.Empty, s.VersionNumber, s.DocumentTitle, s.SectionPath, s.PageStart, s.PageEnd, null, Language: s.Language);
