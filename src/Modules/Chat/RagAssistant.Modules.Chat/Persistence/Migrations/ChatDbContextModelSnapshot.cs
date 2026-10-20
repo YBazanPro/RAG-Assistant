@@ -408,6 +408,10 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("owner_sub");
 
+                    b.Property<int?>("PromptTokenEstimate")
+                        .HasColumnType("integer")
+                        .HasColumnName("prompt_token_estimate");
+
                     b.Property<string>("PromptVersion")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
@@ -493,6 +497,10 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                     b.Property<int>("TotalMs")
                         .HasColumnType("integer")
                         .HasColumnName("total_ms");
+
+                    b.Property<int>("TrimmedPassageCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("trimmed_passage_count");
 
                     b.PrimitiveCollection<Guid[]>("UnavailableDocumentIds")
                         .IsRequired()

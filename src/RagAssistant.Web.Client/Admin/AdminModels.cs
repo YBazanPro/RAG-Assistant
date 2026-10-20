@@ -78,7 +78,9 @@ public sealed record RequestGeneration(
     int StrippedMarkerCount,
     int? FirstTokenMs,
     int TotalMs,
-    string? AnswerLanguage = null);
+    string? AnswerLanguage = null,
+    int TrimmedPassageCount = 0,
+    int? PromptTokenEstimate = null);
 
 public sealed record RequestResult(string FinalStatus, string? RefusalReason, string? ErrorCode);
 
@@ -116,6 +118,7 @@ public sealed record ChatConfiguration(
     int MaxMessagesPerConversation,
     int MaxReportsPerAnswer,
     int MaxOutputTokens,
+    int ContextWindowTokens,
     double FirstTokenTimeoutSeconds,
     double TotalTimeoutSeconds,
     double RewriteTimeoutSeconds,
@@ -131,7 +134,8 @@ public sealed record DocumentsHealth(
     int QueuedVersions,
     double? OldestPendingSeconds,
     int StaleShared,
-    int StaleAfterDays);
+    int StaleAfterDays,
+    int OutdatedEmbeddings = 0);
 
 public sealed record FailureItem(
     Guid DocumentId,

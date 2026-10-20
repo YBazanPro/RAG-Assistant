@@ -75,6 +75,17 @@ var api = builder.AddProject<Projects.RagAssistant_Api>("api")
     .WaitFor(database)
     .WaitFor(keycloak)
     .WaitForCompletion(migrations);
+// Spec 021: every ApiEnvironment:<NAME> setting reaches the API as the environment variable <NAME>, so a run can change API options
+// without a parameter per option. The nightly evaluation raises the chat deadlines for a CPU runner, e.g.
+// --ApiEnvironment:Chat__Generation__FirstTokenTimeout=00:02:00 on the command line.
+foreach (var setting in builder.Configuration.GetSection("ApiEnvironment").GetChildren())
+{
+    if (setting.Value is { } value)
+    {
+        api.WithEnvironment(setting.Key, value);
+    }
+}
+
 // A request's detail in /admin links to its trace in the Aspire dashboard (spec 017). The dashboard is served on the AppHost's own
 // first https address; without one the admin page shows the trace id only.
 var dashboardUrl = (builder.Configuration["ASPNETCORE_URLS"] ?? "").Split(';').FirstOrDefault(u => u.StartsWith("https://", StringComparison.Ordinal));

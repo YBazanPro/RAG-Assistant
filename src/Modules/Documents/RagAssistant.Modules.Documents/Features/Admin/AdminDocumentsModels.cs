@@ -7,7 +7,8 @@ internal sealed record DocumentsHealth(
     int QueuedVersions,
     double? OldestPendingSeconds,
     int StaleShared,
-    int StaleAfterDays);
+    int StaleAfterDays,
+    int OutdatedEmbeddings);
 
 internal sealed record DocumentCounts(int ActiveShared, int ActivePrivate, int ArchivedShared, int ArchivedPrivate);
 

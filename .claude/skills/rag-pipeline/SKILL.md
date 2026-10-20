@@ -18,6 +18,7 @@ Spec 012 is the contract; this skill says where things live and what not to brea
   1. `question.accepted`
   2. the follow-up rewrite (spec 014, below), then `retrieval.started {query}`
   3. `IDocumentSearch.SearchAsync` under the scope (below) and for the conversation owner's `sub` (spec 016: private documents of others never enter retrieval; retries use the owner too), then `retrieval.completed` with numbered sources (each with its `score`), the `scope`, the `leftOut` documents, the thresholds and `retrievalMs`
+     - **Context budget (spec 021), before that event:** `PromptBudget.Fit` builds the real prompt and drops the lowest-ranked passage while its estimate (characters / 3, plus 8 per message) plus `MaxOutputTokens` exceeds `Chat:Generation:ContextWindowTokens`; the best passage always stays. The search result is replaced by the passages sent, so sources, markers, snapshots and the trace agree. The trace records `TrimmedPassageCount` and `PromptTokenEstimate`. The API sends the same window to Ollama as `num_ctx` (`OllamaRequestOptions`, with `think`).
   4. `NoEvidence` → refuse without a model call
   5. otherwise build the prompt and stream it through the filter as `answer.delta` events
   6. one finalize transaction (message, snapshots, trace), then `answer.completed`

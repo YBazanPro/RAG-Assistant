@@ -49,6 +49,12 @@ internal sealed partial class RagAssistantApi(HttpClient http, DevTokens tokens)
         await SendAsync<Accepted>(
             user, new HttpRequestMessage(HttpMethod.Post, $"api/documents/{documentId}/versions") { Content = Form(file, []) }, cancellationToken);
 
+    public async Task<ApiResponse<VersionList>> ListVersionsAsync(string user, Guid documentId, CancellationToken cancellationToken) =>
+        await SendAsync<VersionList>(user, new HttpRequestMessage(HttpMethod.Get, $"api/documents/{documentId}/versions"), cancellationToken);
+
+    public async Task<ApiResponse<Accepted>> ReprocessAsync(string user, Guid documentId, CancellationToken cancellationToken) =>
+        await SendAsync<Accepted>(user, new HttpRequestMessage(HttpMethod.Post, $"api/documents/{documentId}/reprocess"), cancellationToken);
+
     public async Task<ApiResponse<DocumentDetail>> RestoreAsync(string user, Guid documentId, CancellationToken cancellationToken) =>
         await SendAsync<DocumentDetail>(user, new HttpRequestMessage(HttpMethod.Post, $"api/documents/{documentId}/restore"), cancellationToken);
 
@@ -143,6 +149,11 @@ internal sealed record DocumentDetail(
     string LanguageSource);
 
 internal sealed record Accepted(Guid DocumentId, Guid VersionId, Guid IngestionRunId);
+
+/// <param name="EmbeddingInputOutdated">Spec 021: embedded with an older input than ingestion uses now; null when not embedded.</param>
+internal sealed record VersionItem(Guid Id, int Number, string Status, bool IsActive, bool? EmbeddingInputOutdated);
+
+internal sealed record VersionList(IReadOnlyList<VersionItem> Items);
 
 internal sealed record MetadataUpdate(
     string Title, string OwnerName, string Language, string[] Tags, string? EffectiveDate, string? Source, string? Visibility);

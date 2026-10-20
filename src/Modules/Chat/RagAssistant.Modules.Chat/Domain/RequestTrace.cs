@@ -83,6 +83,12 @@ internal sealed class RequestTrace
 
     public long? OutputTokens { get; set; }
 
+    /// <summary>Retrieved passages the context budget left out of the prompt (spec 021); they are not in <see cref="RetrievedPassages"/>.</summary>
+    public int TrimmedPassageCount { get; set; }
+
+    /// <summary>The budget's token estimate for the prompt that was sent (spec 021); null when no prompt was built.</summary>
+    public int? PromptTokenEstimate { get; set; }
+
     public bool SentinelHit { get; set; }
 
     public int StrippedMarkerCount { get; set; }

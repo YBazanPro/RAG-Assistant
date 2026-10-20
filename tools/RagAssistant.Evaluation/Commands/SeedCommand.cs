@@ -11,7 +11,8 @@ namespace RagAssistant.Evaluation.Commands;
 /// <summary>
 /// <c>seed</c> (spec 018): brings the sample corpus into the running app, idempotently. A manifest document is found by its title
 /// among the documents tagged <c>sample</c>; a missing one is imported, an archived one restored, a changed last file uploaded as a
-/// new version and different metadata saved. Unchanged content is recognised by the API's duplicate guard. Nothing is deleted.
+/// new version and different metadata saved, and one embedded with an older input reprocessed (spec 021). Unchanged content is
+/// recognised by the API's duplicate guard. Nothing is deleted.
 /// </summary>
 internal sealed class SeedCommand(RagAssistantApi api, IOptions<EvaluationOptions> options, TimeProvider clock)
 {
@@ -89,7 +90,29 @@ internal sealed class SeedCommand(RagAssistantApi api, IOptions<EvaluationOption
             changed = true;
         }
 
+        if (await ReprocessIfOutdatedAsync(document, found.Id, cancellationToken))
+        {
+            changed = true;
+        }
+
         return changed ? SeedOutcome.Updated : SeedOutcome.Unchanged;
+    }
+
+    /// <summary>
+    /// Spec 021: a sample document embedded with an older input is reprocessed, so every passage of a run is embedded the same way
+    /// and two reports stay comparable. After a metadata update, so the new embeddings carry the manifest title.
+    /// </summary>
+    private async Task<bool> ReprocessIfOutdatedAsync(ManifestDocument document, Guid documentId, CancellationToken cancellationToken)
+    {
+        var versions = (await api.ListVersionsAsync(Settings.OwnerUser, documentId, cancellationToken)).Require($"list the versions of '{document.Key}'");
+        if (versions.Items.FirstOrDefault(v => v.IsActive) is not { EmbeddingInputOutdated: true })
+        {
+            return false;
+        }
+
+        var accepted = (await api.ReprocessAsync(Settings.OwnerUser, documentId, cancellationToken)).Require($"reprocess '{document.Key}'");
+        await WaitForIndexingAsync(document, accepted, cancellationToken);
+        return true;
     }
 
     /// <summary>The API refuses a version identical to the latest one (spec 009); for the same document that means "unchanged".</summary>

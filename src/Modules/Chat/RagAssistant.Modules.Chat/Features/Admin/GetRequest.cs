@@ -96,7 +96,8 @@ internal static partial class GetRequest
                     trace.EmbeddingModel, trace.RetrievalMs, passages),
                 new RequestGeneration(
                     trace.ChatModel, trace.PromptVersion, trace.InputTokens, trace.OutputTokens, trace.SentinelHit,
-                    trace.StrippedMarkerCount, trace.FirstTokenMs, trace.TotalMs, trace.AnswerLanguage),
+                    trace.StrippedMarkerCount, trace.FirstTokenMs, trace.TotalMs, trace.AnswerLanguage, trace.TrimmedPassageCount,
+                    trace.PromptTokenEstimate),
                 new RequestResult(trace.FinalStatus.ToApi(), trace.RefusalReason?.ToApi(), trace.ErrorCode),
                 new RequestFeedback(
                     rating?.ToApi(),

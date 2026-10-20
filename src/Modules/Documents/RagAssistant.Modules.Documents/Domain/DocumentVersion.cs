@@ -35,6 +35,9 @@ internal sealed class DocumentVersion
 
     public int? EmbeddingDimensions { get; set; }
 
+    /// <summary>How passage inputs were built (<c>EmbeddingInput.Version</c>, spec 021); null until indexed.</summary>
+    public int? EmbeddingInputVersion { get; set; }
+
     public int? PassageCount { get; set; }
 
     /// <summary>The language ingestion detected (spec 018), or its best guess when <see cref="LanguageDetection"/> is uncertain; null before detection ran or when the text gave no signal.</summary>

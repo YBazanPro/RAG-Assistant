@@ -25,6 +25,7 @@
                         <FluentText Block="true" Weight="TextWeight.Bold">Attention</FluentText>
                         <MetaRow Label="Waiting to index">@(health.OldestPendingSeconds is { } age ? $"oldest {AdminFormat.Duration(age)}" : "nothing waiting")</MetaRow>
                         <MetaRow Label="Stale documents">@health.StaleShared <span class="admin-hint">(shared, not updated for @health.StaleAfterDays days)</span></MetaRow>
+                        <MetaRow Label="Outdated embeddings">@health.OutdatedEmbeddings <span class="admin-hint">(active documents embedded the old way; reprocess to update)</span></MetaRow>
                     </FluentCard>
                 </div>
             </ChildContent>

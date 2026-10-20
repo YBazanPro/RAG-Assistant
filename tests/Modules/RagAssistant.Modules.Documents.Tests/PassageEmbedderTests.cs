@@ -32,15 +32,30 @@ internal sealed class PassageEmbedderTests
             NullLogger<PassageEmbedder>.Instance);
 
     [Test]
-    public async Task Build_emptyPath_returnsTextOnly()
+    public async Task Build_emptyPath_startsWithTheTitleAlone()
     {
-        await Assert.That(EmbeddingInput.Build([], "body")).IsEqualTo("body");
+        await Assert.That(EmbeddingInput.Build("IT Equipment Policy", [], "body")).IsEqualTo("IT Equipment Policy\n\nbody");
     }
 
     [Test]
-    public async Task Build_withPath_joinsHeadingsAndSeparatesWithBlankLine()
+    public async Task Build_withPath_putsTheTitleBeforeTheHeadingsAndSeparatesWithBlankLine()
     {
-        await Assert.That(EmbeddingInput.Build(["A", "B"], "body")).IsEqualTo("A > B\n\nbody");
+        await Assert.That(EmbeddingInput.Build("Policy", ["A", "B"], "body")).IsEqualTo("Policy > A > B\n\nbody");
+    }
+
+    [Test]
+    [Arguments("Budget Exception Policy")]
+    [Arguments(" budget exception policy ")]
+    public async Task Build_firstHeadingEqualToTheTitle_writesTheTitleOnce(string title)
+    {
+        await Assert.That(EmbeddingInput.Build(title, ["Budget Exception Policy", "Approval"], "body"))
+            .IsEqualTo("Budget Exception Policy > Approval\n\nbody");
+    }
+
+    [Test]
+    public async Task Build_blankTitleAndNoPath_returnsTextOnly()
+    {
+        await Assert.That(EmbeddingInput.Build(" ", [], "body")).IsEqualTo("body");
     }
 
     [Test]

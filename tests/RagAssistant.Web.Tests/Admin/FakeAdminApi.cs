@@ -55,7 +55,7 @@ public sealed class FakeAdminApi : IAdminApi
         Task.FromResult(OnFeedback(page));
 
     public Task<ApiResult<ChatConfiguration>> GetChatConfigurationAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(ApiResult.Ok(new ChatConfiguration("Demo", "demo-chat", "014.1", "rw.014.1", 8, 3, 1000, 1000, 200, 10, 1000, 30, 120, 10, true)));
+        Task.FromResult(ApiResult.Ok(new ChatConfiguration("Demo", "demo-chat", "014.1", "rw.014.1", 8, 3, 1000, 1000, 200, 10, 1000, 8192, 30, 120, 10, true)));
 
     public Task<ApiResult<DocumentsHealth>> GetHealthAsync(CancellationToken cancellationToken) => Task.FromResult(OnHealth());
 

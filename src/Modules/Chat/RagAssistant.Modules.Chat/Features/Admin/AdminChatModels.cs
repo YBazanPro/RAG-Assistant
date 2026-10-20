@@ -84,7 +84,9 @@ internal sealed record RequestGeneration(
     int StrippedMarkerCount,
     int? FirstTokenMs,
     int TotalMs,
-    string? AnswerLanguage);
+    string? AnswerLanguage,
+    int TrimmedPassageCount,
+    int? PromptTokenEstimate);
 
 internal sealed record RequestResult(string FinalStatus, string? RefusalReason, string? ErrorCode);
 
@@ -127,6 +129,7 @@ internal sealed record ChatConfiguration(
     int MaxMessagesPerConversation,
     int MaxReportsPerAnswer,
     int MaxOutputTokens,
+    int ContextWindowTokens,
     double FirstTokenTimeoutSeconds,
     double TotalTimeoutSeconds,
     double RewriteTimeoutSeconds,

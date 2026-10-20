@@ -30,7 +30,7 @@ internal sealed partial class IngestionRunProcessor(
 {
     private const string UnexpectedMessage = "Unexpected error; see logs";
 
-    private sealed record VersionInput(Guid DocumentId, int Number, string? Content, string? StorageKey, SourceFormat Format);
+    private sealed record VersionInput(Guid DocumentId, int Number, string? Content, string? StorageKey, SourceFormat Format, string Title);
 
     public async Task ProcessAsync(Guid runId, CancellationToken cancellationToken)
     {
@@ -57,7 +57,9 @@ internal sealed partial class IngestionRunProcessor(
         {
             var version = await db.Versions.AsNoTracking()
                 .Where(v => v.Id == run.VersionId)
-                .Select(v => new VersionInput(v.DocumentId, v.Number, v.Content, v.StorageKey, v.SourceFormat))
+                .Select(v => new VersionInput(
+                    v.DocumentId, v.Number, v.Content, v.StorageKey, v.SourceFormat,
+                    db.Documents.Where(d => d.Id == v.DocumentId).Select(d => d.Title).First()))
                 .SingleAsync(cancellationToken);
 
             var (extracted, detection) = await RunStageAsync(runId, stage, () => ExtractAsync(version, runId, run.VersionId, cancellationToken), cancellationToken);
@@ -82,7 +84,7 @@ internal sealed partial class IngestionRunProcessor(
                 async () =>
                 {
                     var batchSize = ingestion.Value.EmbeddingBatchSize;
-                    var inputs = passages.Select(p => EmbeddingInput.Build(p.SectionPath, p.Text)).ToArray();
+                    var inputs = passages.Select(p => EmbeddingInput.Build(version.Title, p.SectionPath, p.Text)).ToArray();
                     var tracker = new ProgressTracker(inputs.Length);
                     var result = await embedder.EmbedAsync(
                         inputs,
@@ -304,6 +306,7 @@ internal sealed partial class IngestionRunProcessor(
                     .SetProperty(v => v.PassageCount, passageCount)
                     .SetProperty(v => v.EmbeddingModel, modelId)
                     .SetProperty(v => v.EmbeddingDimensions, embedding.Dimensions)
+                    .SetProperty(v => v.EmbeddingInputVersion, EmbeddingInput.Version)
                     .SetProperty(v => v.IndexedAt, now),
                 cancellationToken);
         // Deliberately leaves Document.UpdatedAt alone: ingestion is the system's work, not an edit by a user.

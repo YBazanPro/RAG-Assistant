@@ -139,6 +139,24 @@ internal sealed partial class AnswerPipeline(
         }
 
         var found = result.Value;
+        if (found.Outcome != EvidenceOutcome.NoEvidence)
+        {
+            // Spec 021: trimmed before the sources are announced, so markers, snapshots and the trace number only what is sent.
+            var language = attempt.RequestedLanguage ?? answer.QuestionLanguage;
+            var budgeted = PromptBudget.Fit(
+                found.Chunks,
+                chunks => PromptBuilder.Build(query, chunks, found.Outcome, Generation.Sentinel, answer.Question, language),
+                Generation.ContextWindowTokens,
+                Generation.MaxOutputTokens);
+            attempt.TrimmedPassageCount = budgeted.Trimmed;
+            attempt.PromptTokenEstimate = budgeted.EstimatedTokens;
+            found = found with { Chunks = budgeted.Sent };
+            if (budgeted.Trimmed > 0)
+            {
+                LogPassagesTrimmed(logger, budgeted.Trimmed, answer.AssistantMessageId);
+            }
+        }
+
         attempt.Search = found;
         var sources = found.Chunks
             .Select((c, i) => new AnswerEvents.Source(i + 1, c.PassageId, c.DocumentId, c.DocumentTitle, c.VersionNumber, c.SectionPath, c.PageStart, c.PageEnd, c.Score, c.Language))
@@ -433,6 +451,8 @@ internal sealed partial class AnswerPipeline(
             PromptVersion = attempt.PromptVersion,
             InputTokens = attempt.InputTokens,
             OutputTokens = attempt.OutputTokens,
+            TrimmedPassageCount = attempt.TrimmedPassageCount,
+            PromptTokenEstimate = attempt.PromptTokenEstimate,
             SentinelHit = attempt.Filter?.SentinelHit ?? false,
             StrippedMarkerCount = attempt.Filter?.StrippedMarkerCount ?? 0,
             FinalStatus = status,
@@ -467,6 +487,9 @@ internal sealed partial class AnswerPipeline(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The follow-up rewrite fell back to the original question for answer {AssistantMessageId}: {Reason}")]
     private static partial void LogRewriteFallback(ILogger logger, Guid assistantMessageId, RewriteFallback reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The context budget left {Trimmed} passage(s) out of the prompt for answer {AssistantMessageId}")]
+    private static partial void LogPassagesTrimmed(ILogger logger, int trimmed, Guid assistantMessageId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Retrieval failed with {Code} for answer {AssistantMessageId}")]
     private static partial void LogRetrievalFailed(ILogger logger, string code, Guid assistantMessageId);
@@ -532,5 +555,11 @@ internal sealed partial class AnswerPipeline(
         public long? InputTokens { get; set; }
 
         public long? OutputTokens { get; set; }
+
+        /// <summary>Retrieved passages left out of the prompt by the context budget (spec 021).</summary>
+        public int TrimmedPassageCount { get; set; }
+
+        /// <summary>The budget's estimate for the prompt that is sent; null when no prompt is built.</summary>
+        public int? PromptTokenEstimate { get; set; }
     }
 }

@@ -184,6 +184,10 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("embedding_dimensions");
 
+                    b.Property<int?>("EmbeddingInputVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("embedding_input_version");
+
                     b.Property<string>("EmbeddingModel")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")

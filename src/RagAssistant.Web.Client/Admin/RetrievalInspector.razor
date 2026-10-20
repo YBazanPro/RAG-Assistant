@@ -128,6 +128,11 @@
                     <MetaRow Label="Answer language instruction">@answerLanguage</MetaRow>
                 }
                 <MetaRow Label="Tokens">@Tokens(d.Generation.InputTokens, d.Generation.OutputTokens)</MetaRow>
+                @if (d.Generation.PromptTokenEstimate is { } estimate)
+                {
+                    <MetaRow Label="Prompt estimate">@estimate tokens</MetaRow>
+                }
+                <MetaRow Label="Passages trimmed">@d.Generation.TrimmedPassageCount</MetaRow>
                 <MetaRow Label="Sentinel hit">@(d.Generation.SentinelHit ? "yes" : "no")</MetaRow>
                 <MetaRow Label="Markers removed">@d.Generation.StrippedMarkerCount</MetaRow>
                 <MetaRow Label="First token">@AdminFormat.Ms(d.Generation.FirstTokenMs)</MetaRow>

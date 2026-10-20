@@ -21,7 +21,10 @@ var chat = builder.Configuration["Chat:Provider"] switch
     "Demo" => builder.Services.AddChatClient(services => new DemoChatClient(services.GetRequiredService<TimeProvider>())),
     OpenAICompatibleChat.ProviderName => builder.Services.AddOpenAICompatibleChat(builder.Configuration),
     _ => builder.AddOllamaApiClient("chat").AddChatClient()
-        .Use(inner => new OllamaThinking(inner, builder.Configuration.GetValue<bool>(OllamaThinking.ConfigurationKey))),
+        .Use(inner => new OllamaRequestOptions(
+            inner,
+            builder.Configuration.GetValue<bool>(OllamaRequestOptions.ThinkConfigurationKey),
+            builder.Configuration.GetValue(OllamaRequestOptions.ContextWindowConfigurationKey, OllamaRequestOptions.DefaultContextWindowTokens))),
 };
 chat.UseOpenTelemetry(sourceName: "RagAssistant.Chat.Model").UseLogging();
 
