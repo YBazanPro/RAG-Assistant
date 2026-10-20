@@ -248,6 +248,21 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("storage_key");
 
+                    b.PrimitiveCollection<string[]>("SuggestedQuestions")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("suggested_questions");
+
+                    b.Property<string>("SuggestionsError")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("suggestions_error");
+
+                    b.Property<string>("SuggestionsStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("suggestions_status");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentId", "Number")
@@ -407,6 +422,12 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("text");
 
+                    b.Property<string>("TextHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("text_hash");
+
                     b.Property<int>("TokenEstimate")
                         .HasColumnType("integer")
                         .HasColumnName("token_estimate");
@@ -424,6 +445,8 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
 
                     b.HasIndex("VersionId", "Position")
                         .IsUnique();
+
+                    b.HasIndex("VersionId", "TextHash");
 
                     b.ToTable("passages", "documents");
                 });

@@ -32,6 +32,7 @@ internal sealed class DocumentsMetrics
     public const string KeywordHitsName = "documents.search.keyword_hits";
     public const string RerankDurationName = "documents.rerank.duration";
     public const string RerankSkippedName = "documents.rerank.skipped";
+    public const string SuggestionsName = "documents.suggestions";
 
     private readonly Counter<long> _imported;
     private readonly Counter<long> _rejected;
@@ -51,6 +52,7 @@ internal sealed class DocumentsMetrics
     private readonly Histogram<long> _keywordHits;
     private readonly Histogram<double> _rerankDuration;
     private readonly Counter<long> _rerankSkipped;
+    private readonly Counter<long> _suggestions;
 
     public DocumentsMetrics(IMeterFactory meterFactory)
     {
@@ -73,6 +75,8 @@ internal sealed class DocumentsMetrics
         _keywordHits = meter.CreateHistogram<long>(KeywordHitsName, description: "Keyword matches per hybrid search (spec 019).");
         _rerankDuration = meter.CreateHistogram<double>(RerankDurationName, unit: "s", description: "Reranker calls that returned scores (spec 019).");
         _rerankSkipped = meter.CreateCounter<long>(RerankSkippedName, description: "Searches that asked for reranking and went on without it, by reason (spec 019).");
+        _suggestions = meter.CreateCounter<long>(
+            SuggestionsName, description: "Suggested questions by outcome: generated, kept, dropped, or failed with a reason (spec 020).");
     }
 
     public void Imported(SourceFormat format) =>
@@ -126,6 +130,16 @@ internal sealed class DocumentsMetrics
     public void RerankCompleted(TimeSpan duration) => _rerankDuration.Record(duration.TotalSeconds);
 
     public void RerankSkipped(string reason) => _rerankSkipped.Add(1, new KeyValuePair<string, object?>("reason", reason));
+
+    public void SuggestionsGenerated(int generated, int kept)
+    {
+        _suggestions.Add(generated, new KeyValuePair<string, object?>("outcome", "generated"));
+        _suggestions.Add(kept, new KeyValuePair<string, object?>("outcome", "kept"));
+        _suggestions.Add(generated - kept, new KeyValuePair<string, object?>("outcome", "dropped"));
+    }
+
+    public void SuggestionsFailed(string reason) =>
+        _suggestions.Add(1, new KeyValuePair<string, object?>("outcome", "failed"), new KeyValuePair<string, object?>("reason", reason));
 
     public void SearchFailed(string reason, TimeSpan duration)
     {

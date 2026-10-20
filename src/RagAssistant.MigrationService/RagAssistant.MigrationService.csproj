@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Modules\Chat\RagAssistant.Modules.Chat\RagAssistant.Modules.Chat.csproj" />
     <ProjectReference Include="..\Modules\Documents\RagAssistant.Modules.Documents\RagAssistant.Modules.Documents.csproj" />
+    <ProjectReference Include="..\Modules\Evaluation\RagAssistant.Modules.Evaluation\RagAssistant.Modules.Evaluation.csproj" />
     <ProjectReference Include="..\RagAssistant.ServiceDefaults\RagAssistant.ServiceDefaults.csproj" />
     <ProjectReference Include="..\RagAssistant.SharedKernel\RagAssistant.SharedKernel.csproj" />
   </ItemGroup>

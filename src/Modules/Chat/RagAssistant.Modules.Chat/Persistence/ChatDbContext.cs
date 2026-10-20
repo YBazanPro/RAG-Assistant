@@ -23,6 +23,8 @@ internal sealed class ChatDbContext(DbContextOptions<ChatDbContext> options) : D
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
+        // Conversation search (spec 020) folds accents; Documents creates the same extension, whichever migrates first.
+        modelBuilder.HasPostgresExtension("unaccent");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChatDbContext).Assembly);
         modelBuilder.UseSnakeCaseColumns();
     }

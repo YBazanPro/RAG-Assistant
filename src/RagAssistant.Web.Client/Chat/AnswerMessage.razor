@@ -29,6 +29,7 @@
         case "complete":
             <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectFromTextAsync" />
             <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectFromListAsync" />
+            <CopyAnswer Text="@View.Text" Cited="@View.Cited" />
             break;
         case "partial":
             @if (View.Cited.Count > 0)
@@ -36,6 +37,7 @@
                 <FluentMessageBar Intent="MessageBarIntent.Warning" AllowDismiss="false" role="status">Based on limited evidence. Check the sources.</FluentMessageBar>
                 <AnswerText Text="@View.Text" Sources="@View.Sources" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnCitationSelected="SelectFromTextAsync" />
                 <CitationList Citations="@View.Cited" IdPrefix="@IdPrefix" SelectedMarker="@SelectedMarker" OnSelected="SelectFromListAsync" />
+                <CopyAnswer Text="@View.Text" Cited="@View.Cited" />
             }
             else
             {

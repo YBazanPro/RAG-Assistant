@@ -62,6 +62,24 @@ public sealed class DocumentsApi(Func<HttpClient> httpClient) : IDocumentsApi
     public Task<ApiResult<DocumentInfo>> RestoreAsync(Guid documentId, CancellationToken cancellationToken) =>
         SendAsync<DocumentInfo>(() => Http.PostAsync($"api/documents/{documentId}/restore", content: null, cancellationToken), cancellationToken);
 
+    public Task<ApiResult<IReadOnlyList<SuggestedQuestion>>> GetSuggestionsAsync(int count, CancellationToken cancellationToken) =>
+        GetAsync<IReadOnlyList<SuggestedQuestion>>($"api/documents/suggestions?count={count.ToString(CultureInfo.InvariantCulture)}", cancellationToken);
+
+    public Task<ApiResult<CorpusSummary>> GetSummaryAsync(CancellationToken cancellationToken) =>
+        GetAsync<CorpusSummary>("api/documents/summary", cancellationToken);
+
+    public Task<ApiResult<DocumentInfo>> UpdateSuggestionsAsync(
+        Guid documentId, int revision, IReadOnlyList<string> questions, CancellationToken cancellationToken) =>
+        SendAsync<DocumentInfo>(() =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Put, $"api/documents/{documentId}/suggestions")
+            {
+                Content = JsonContent.Create(new { questions }, options: Json),
+            };
+            request.Headers.TryAddWithoutValidation("If-Match", $"\"{revision.ToString(CultureInfo.InvariantCulture)}\"");
+            return Http.SendAsync(request, cancellationToken);
+        }, cancellationToken);
+
     private Task<ApiResult<T>> GetAsync<T>(string url, CancellationToken cancellationToken) =>
         SendAsync<T>(() => Http.GetAsync(url, cancellationToken), cancellationToken);
 

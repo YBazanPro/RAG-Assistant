@@ -66,6 +66,13 @@ internal sealed partial class RagAssistantApi(HttpClient http, DevTokens tokens)
         return await SendAsync<DocumentDetail>(user, request, cancellationToken);
     }
 
+    /// <summary>Spec 020: a report (and optionally its judge result) into the Evaluation module; 201 new, 200 replaced.</summary>
+    public async Task<ApiResponse<JsonElement>> UploadReportAsync(string user, System.Text.Json.Nodes.JsonObject report, CancellationToken cancellationToken) =>
+        await SendAsync<JsonElement>(
+            user,
+            new HttpRequestMessage(HttpMethod.Post, "api/admin/evaluation/runs") { Content = JsonContent.Create(report, options: Json) },
+            cancellationToken);
+
     private static MultipartFormDataContent Form(SourceFile file, IEnumerable<KeyValuePair<string, string>> fields)
     {
         var form = new MultipartFormDataContent();

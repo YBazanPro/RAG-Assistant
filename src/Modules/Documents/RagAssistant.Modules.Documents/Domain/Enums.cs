@@ -37,6 +37,20 @@ internal enum VersionStatus
     Superseded,
 }
 
+/// <summary>Where a version's suggested questions stand (spec 020); generation never fails the ingestion run.</summary>
+internal enum SuggestionsStatus
+{
+    Pending,
+    Ready,
+    Failed,
+
+    /// <summary>Nothing was generated: demo mode, or generation is switched off.</summary>
+    Skipped,
+
+    /// <summary>The owner set them; kept on reprocess.</summary>
+    Edited,
+}
+
 internal enum VersionOrigin
 {
     Upload,
@@ -66,6 +80,9 @@ internal enum IngestionStage
     Embedding,
     Storing,
     Completed,
+
+    /// <summary>After <see cref="Completed"/>: the suggested questions step (spec 020), recorded only when it ran.</summary>
+    Suggestions,
 }
 
 internal enum EventStatus

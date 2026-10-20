@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject IAuthorizationService Authorization
 @inject AuthenticationStateProvider AuthenticationState
+@inject TimeProvider Clock
 
 <PageTitle>@(_document?.Title ?? "Document") · RagAssistant</PageTitle>
 
@@ -116,6 +117,13 @@ else
                 }
             }
         </FluentTab>
+        <FluentTab Id="questions" Header="Suggested questions">
+            @if (ActiveTab == "questions")
+            {
+                <SuggestedQuestionsPanel Document="_document" CanEdit="_isOwner" OnSaved="OnMetadataSaved"
+                                         OnSessionExpired="@(() => { _state = LoadState.SessionExpired; StateHasChanged(); })" />
+            }
+        </FluentTab>
         <FluentTab Id="history" Header="History">
             @if (ActiveTab == "history")
             {
@@ -196,7 +204,7 @@ else
         _ => "",
     };
 
-    private string ActiveTab => Tab is "passages" or "history" ? Tab : "metadata";
+    private string ActiveTab => Tab is "passages" or "history" or "questions" ? Tab : "metadata";
 
     private Guid? PassageId => Guid.TryParse(Passage, out var id) ? id : null;
 
@@ -266,6 +274,7 @@ else
 
         _document = document.Value;
         _versions = versions.Value.Items;
+        WatchSuggestions();
         _state = LoadState.Loaded;
     }
 
@@ -372,6 +381,60 @@ else
         var url = $"documents/{DocumentId}" + (parts.Count == 0 ? "" : "?" + string.Join('&', parts));
         Navigation.NavigateTo(url, new NavigationOptions { ReplaceHistoryEntry = true });
     }
+
+    // Spec 020: suggested questions are written after the run has completed, when the ingestion stream is already done with the page.
+    // While they are pending the page looks again now and then, and takes only those fields, so an edit in progress is not reset.
+    private bool _pollingSuggestions;
+
+    private void WatchSuggestions()
+    {
+        if (_document?.SuggestionsStatus == "pending" && !_pollingSuggestions)
+        {
+            _pollingSuggestions = true;
+            _ = PollSuggestionsAsync(_lifetime.Token);
+        }
+    }
+
+    private async Task PollSuggestionsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(SuggestionsPollInterval, Clock, cancellationToken);
+                var result = await Api.GetAsync(DocumentId, cancellationToken);
+                if (!result.IsSuccess)
+                {
+                    return;
+                }
+
+                if (result.Value.SuggestionsStatus != "pending")
+                {
+                    await InvokeAsync(() =>
+                    {
+                        _document = _document is null ? null : _document with
+                        {
+                            SuggestedQuestions = result.Value.SuggestedQuestions,
+                            SuggestionsStatus = result.Value.SuggestionsStatus,
+                            SuggestionsError = result.Value.SuggestionsError,
+                        };
+                        StateHasChanged();
+                    });
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page is gone.
+        }
+        finally
+        {
+            _pollingSuggestions = false;
+        }
+    }
+
+    private static readonly TimeSpan SuggestionsPollInterval = TimeSpan.FromSeconds(3);
 
     public void Dispose()
     {

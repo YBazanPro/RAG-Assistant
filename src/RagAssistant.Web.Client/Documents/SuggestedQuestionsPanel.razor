@@ -1,0 +1,103 @@
+@inject IDocumentsApi Api
+
+@* Spec 020: the questions this document answers, generated after indexing and checked by retrieval; only the owner edits them. *@
+<section class="suggested-questions-panel" aria-labelledby="suggestions-heading">
+    <FluentText As="TextTag.H2" Id="suggestions-heading" Size="TextSize.Size500" Weight="TextWeight.Semibold">Suggested questions</FluentText>
+    <FluentText Block="true" Class="suggestions-status">@StatusLine</FluentText>
+
+    @if (_editing)
+    {
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+            @for (var i = 0; i < _drafts.Length; i++)
+            {
+                var index = i;
+                <FluentTextInput Label="@($"Question {index + 1}")" Value="@_drafts[index]" ValueChanged="@(v => _drafts[index] = v ?? "")" MaxLength="200"
+                                 Message="@_error" MessageCondition="@(_ => index == 0 && _error is not null)" MessageState="MessageState.Error" />
+            }
+            <FluentText Block="true" Class="admin-hint">Leave a box empty to remove a question. Reprocessing keeps these; a new version suggests new ones.</FluentText>
+            <FluentStack Orientation="Orientation.Horizontal" HorizontalGap="8">
+                <FluentButton Appearance="ButtonAppearance.Primary" Disabled="_saving" OnClick="SaveAsync">Save questions</FluentButton>
+                <FluentButton Appearance="ButtonAppearance.Outline" Disabled="_saving" OnClick="Cancel">Cancel</FluentButton>
+            </FluentStack>
+        </FluentStack>
+    }
+    else
+    {
+        @if (Questions.Count > 0)
+        {
+            <ul class="suggested-questions">
+                @foreach (var question in Questions)
+                {
+                    <li><FluentAnchorButton Href="@Pages.Home.AskLink(question)" Appearance="ButtonAppearance.Outline" aria-label="@($"Ask: {question}")">@question</FluentAnchorButton></li>
+                }
+            </ul>
+        }
+        @if (CanEdit && Document.ActiveVersionId is not null)
+        {
+            <FluentButton Appearance="ButtonAppearance.Outline" OnClick="Edit">Edit questions</FluentButton>
+        }
+    }
+</section>
+
+@code {
+    private bool _editing;
+    private bool _saving;
+    private string[] _drafts = [];
+    private string? _error;
+
+    [Parameter, EditorRequired] public DocumentInfo Document { get; set; } = default!;
+
+    [Parameter] public bool CanEdit { get; set; }
+
+    [Parameter] public EventCallback<DocumentInfo> OnSaved { get; set; }
+
+    [Parameter] public EventCallback OnSessionExpired { get; set; }
+
+    private IReadOnlyList<string> Questions => Document.SuggestedQuestions ?? [];
+
+    private string StatusLine => Document.SuggestionsStatus switch
+    {
+        "pending" => "Suggesting questions…",
+        "ready" when Questions.Count == 0 => "No suggested question passed the retrieval check.",
+        "ready" => "Suggested from the document and checked against search.",
+        "edited" => "Set by the document's owner.",
+        "failed" => $"Questions could not be suggested ({Document.SuggestionsError ?? "error"}). Reprocessing tries again.",
+        "skipped" => "Questions are not suggested in demo mode.",
+        _ => Document.ActiveVersionId is null ? "Questions are suggested once the document is indexed." : "No suggested questions for this version.",
+    };
+
+    private void Edit()
+    {
+        _drafts = [.. Questions, .. Enumerable.Repeat("", Math.Max(0, 3 - Questions.Count))];
+        _error = null;
+        _editing = true;
+    }
+
+    private void Cancel() => _editing = false;
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        var result = await Api.UpdateSuggestionsAsync(
+            Document.Id, Document.Revision, [.. _drafts.Where(q => !string.IsNullOrWhiteSpace(q))], CancellationToken.None);
+        _saving = false;
+        if (result.IsSuccess)
+        {
+            _editing = false;
+            await OnSaved.InvokeAsync(result.Value);
+            return;
+        }
+
+        _error = result.Error! switch
+        {
+            { IsUnauthenticated: true } => null,
+            { Status: 412 } => "The document was changed by someone else. Reload it and try again.",
+            { Status: 400 } e => e.Fields.Values.SelectMany(v => v).FirstOrDefault() ?? e.Message,
+            var e => e.Message,
+        };
+        if (result.Error!.IsUnauthenticated)
+        {
+            await OnSessionExpired.InvokeAsync();
+        }
+    }
+}

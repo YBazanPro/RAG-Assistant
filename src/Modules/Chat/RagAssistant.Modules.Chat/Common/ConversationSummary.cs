@@ -15,5 +15,6 @@ internal sealed record ConversationScope(Guid[] DocumentIds, string[] Tags, Guid
 
 internal sealed record ScopeDocumentView(Guid Id, string? Title, bool Available);
 
-/// <summary>A conversation in a list; returned by create and list (spec 012).</summary>
-public sealed record ConversationSummary(Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt);
+/// <summary>A conversation in a list; returned by create, list and rename (spec 012, 020).</summary>
+/// <param name="TitleEdited">The owner chose the title; otherwise it is the first question.</param>
+public sealed record ConversationSummary(Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, bool TitleEdited = false);

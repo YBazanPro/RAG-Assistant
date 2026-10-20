@@ -8,8 +8,11 @@ internal sealed class Conversation
     /// <summary>The creator's <c>sub</c> claim, never a username or email.</summary>
     public required string OwnerSub { get; set; }
 
-    /// <summary>Null until the first question, then fixed.</summary>
+    /// <summary>Null until the first question, which names it; then changed only by a rename (spec 020).</summary>
     public string? Title { get; set; }
+
+    /// <summary>The owner renamed it, so <see cref="Title"/> is theirs; an empty rename goes back to the first question's title.</summary>
+    public bool TitleEdited { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

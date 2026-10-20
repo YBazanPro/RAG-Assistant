@@ -599,7 +599,19 @@ html, body {
 
 .chat-header {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
+    gap: 8px;
+}
+
+.chat-header .conversation-heading {
+    margin-inline-end: auto;
+    overflow-wrap: anywhere;
+}
+
+.chat-header .rename-input {
+    flex: 1 1 16rem;
 }
 
 .searched-for,
@@ -883,4 +895,118 @@ html > body {
         position: static;
         max-height: none;
     }
+}
+
+/* Spec 020: citation source states. Text and a glyph carry the meaning; the tint only reinforces it, in both themes. */
+.citation-state {
+    margin-inline-start: 4px;
+}
+
+.citation-state-newer-changed,
+.citation-state-archived,
+.citation-state-unavailable {
+    color: var(--colorStatusWarningForeground1);
+    background: var(--colorStatusWarningBackground1);
+    border-color: var(--colorStatusWarningBorder1);
+}
+
+.citation-state-newer-unchanged {
+    color: var(--colorNeutralForeground2);
+    background: var(--colorNeutralBackground3);
+}
+
+.copy-answer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-block-start: 4px;
+}
+
+.copy-answer .copy-fallback {
+    flex-basis: 100%;
+}
+
+.conversation-search {
+    margin-block: 8px;
+}
+
+/* Home page (spec 020). */
+.home-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-block-end: 24px;
+}
+
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 24px;
+}
+
+.home-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.home-recent {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.home-recent li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.home-recent-time {
+    color: var(--colorNeutralForeground3);
+    font-size: 0.9em;
+}
+
+.suggested-questions-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 48rem;
+}
+
+/* Evaluation tab (spec 020). */
+.admin-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-block: 8px 16px;
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-table th,
+.admin-table td {
+    text-align: start;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--colorNeutralStroke2);
+    vertical-align: top;
+}
+
+.evaluation-overall th,
+.evaluation-overall td {
+    font-weight: 600;
+}
+
+.evaluation-difference th {
+    color: var(--colorStatusWarningForeground1);
+}
+
+.evaluation-cases,
+.evaluation-metrics {
+    display: block;
+    overflow-x: auto;
 }

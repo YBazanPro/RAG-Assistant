@@ -21,6 +21,7 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "unaccent");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("RagAssistant.Modules.Chat.Domain.CitationSnapshot", b =>
@@ -78,6 +79,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("text");
 
+                    b.Property<string>("TextHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("text_hash");
+
                     b.Property<Guid>("VersionId")
                         .HasColumnType("uuid")
                         .HasColumnName("version_id");
@@ -128,9 +134,13 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnName("scope_tags");
 
                     b.Property<string>("Title")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("title");
+
+                    b.Property<bool>("TitleEdited")
+                        .HasColumnType("boolean")
+                        .HasColumnName("title_edited");
 
                     b.HasKey("Id");
 

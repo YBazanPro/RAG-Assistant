@@ -11,6 +11,7 @@
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @inject TimeProvider Clock
+@inject IThreadScroller Scroller
 
 <PageTitle>Chat · RagAssistant</PageTitle>
 
@@ -59,7 +60,7 @@ else
                     </FluentMessageBar>
                 }
                 <ConversationList Items="_conversations" Total="_conversationTotal" CurrentId="ConversationId" Loading="_loadingList"
-                                  OnNew="StartNewAsync" OnLoadMore="LoadMoreAsync" OnDelete="AskDelete" />
+                                  Search="@_search" OnSearch="SearchAsync" OnNew="StartNewAsync" OnLoadMore="LoadMoreAsync" OnDelete="AskDelete" />
             </div>
         }
 
@@ -67,6 +68,24 @@ else
             @if (_currentId is not null)
             {
                 <div class="chat-header">
+                    @if (_renaming)
+                    {
+                        @* Spec 020: an empty title goes back to the first question. *@
+                        <FluentTextInput @ref="_renameInput" Label="Conversation title" Value="@_renameText" ValueChanged="@(v => _renameText = v ?? "")"
+                                         Immediate="true" ImmediateDelay="0" MaxLength="200"
+                                         Message="@_renameError" MessageCondition="@(_ => _renameError is not null)" MessageState="MessageState.Error"
+                                         @onkeydown="OnRenameKeyDownAsync" Class="rename-input" />
+                        <FluentButton Appearance="ButtonAppearance.Primary" Size="ButtonSize.Small" OnClick="SaveRenameAsync">Save</FluentButton>
+                        <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" OnClick="CancelRenameAsync">Cancel</FluentButton>
+                    }
+                    else
+                    {
+                        <FluentText As="TextTag.H2" Size="TextSize.Size400" Weight="TextWeight.Semibold" Class="conversation-heading">@(_detail?.Title ?? "New conversation")</FluentText>
+                        <FluentButton Id="rename-conversation" Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" OnClick="StartRename">Rename</FluentButton>
+                        @* A plain anchor with download: Blazor's router leaves it alone, so the BFF serves the file (a Fluent anchor button's inner
+                           link has no download attribute, and the router would treat the click as a page change). *@
+                        <a href="@ChatApi.ExportLink(_currentId.Value)" download class="export-conversation">Export as Markdown</a>
+                    }
                     <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" Class="delete-conversation" OnClick="@(() => AskDelete(_currentId.Value))"><TrashIcon /> Delete conversation</FluentButton>
                 </div>
             }
@@ -97,6 +116,7 @@ else
                     }
                     @if (_suggestions.Length > 0)
                     {
+                        @* Spec 020: drawn from the readable documents; a click asks the question here. *@
                         <ul class="suggested-questions" aria-label="Suggested questions">
                             @foreach (var suggestion in _suggestions)
                             {
@@ -177,6 +197,13 @@ else
     private bool _loadingList;
     private int? _corpusCount;
     private string[] _suggestions = [];
+    private bool _suggestionsLoaded;
+    private string? _search;
+
+    private bool _renaming;
+    private string _renameText = "";
+    private string? _renameError;
+    private FluentTextInput? _renameInput;
 
     private string _text = "";
     private QuestionInput? _input;
@@ -207,6 +234,9 @@ else
 
     [Parameter] public Guid? ConversationId { get; set; }
 
+    /// <summary>A question to ask at once in a new conversation: the home page's suggested questions link here (spec 020).</summary>
+    [SupplyParameterFromQuery(Name = "ask")] public string? Ask { get; set; }
+
     private IReadOnlyList<ChatMessage> VisibleMessages =>
         _detail is null ? [] : _retryingId is null ? _detail.Messages : [.. _detail.Messages.Where(m => m.Id != _retryingId)];
 
@@ -229,13 +259,18 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_focusRename)
+        {
+            _focusRename = false;
+            await Scroller.FocusAsync("rename-conversation", CancellationToken.None);
+        }
+
         if (!firstRender)
         {
             return;
         }
 
         _started = true;
-        _suggestions = [.. Configuration.GetSection("Chat:SuggestedQuestions").GetChildren().Select(c => c.Value).OfType<string>()];
         await Viewport.WatchNarrowAsync(OnNarrowChangedAsync);
         await LoadListPageAsync(first: true);
         if (_state != PageState.SessionExpired)
@@ -244,6 +279,13 @@ else
         }
 
         StateHasChanged();
+        if (ConversationId is null && !string.IsNullOrWhiteSpace(Ask) && _state == PageState.Ready)
+        {
+            // Asked once: the query goes, so a reload or Back does not ask again.
+            var question = Ask.Trim();
+            Navigation.NavigateTo("chat", new NavigationOptions { ReplaceHistoryEntry = true });
+            await SendAsync(question);
+        }
     }
 
     private async Task SwitchConversationAsync()
@@ -267,6 +309,7 @@ else
         _pendingScope = ConversationScope.Empty;
         _scopePickerOpen = false;
         _scopeError = null;
+        _renaming = false;
         _text = await Drafts.LoadAsync(DraftKey(ConversationId)) ?? "";
 
         if (ConversationId is null)
@@ -283,6 +326,21 @@ else
         {
             await LoadCorpusCountAsync();
         }
+
+        if (!HasThread && _state == PageState.Ready && !_suggestionsLoaded)
+        {
+            await LoadSuggestionsAsync();
+        }
+    }
+
+    // Spec 020: the documents' suggested questions; the configured ones only when the corpus has none (or they cannot be read).
+    private async Task LoadSuggestionsAsync()
+    {
+        _suggestionsLoaded = true;
+        var result = await DocumentsApi.GetSuggestionsAsync(6, _lifetime.Token);
+        _suggestions = result.IsSuccess && result.Value.Count > 0
+            ? [.. result.Value.Select(s => s.Question)]
+            : [.. Configuration.GetSection("Chat:SuggestedQuestions").GetChildren().Select(c => c.Value).OfType<string>()];
     }
 
     private async Task LoadCorpusCountAsync()
@@ -339,7 +397,7 @@ else
     {
         _loadingList = true;
         var page = first ? 1 : _loadedPages + 1;
-        var result = await Api.ListConversationsAsync(page, ListPageSize, _lifetime.Token);
+        var result = await Api.ListConversationsAsync(page, ListPageSize, _search, _lifetime.Token);
         _loadingList = false;
         if (_lifetime.IsCancellationRequested)
         {
@@ -375,6 +433,73 @@ else
 
     private Task LoadMoreAsync() => LoadListPageAsync(first: false);
 
+    private async Task SearchAsync(string? search)
+    {
+        _search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        await LoadListPageAsync(first: true);
+    }
+
+    private void StartRename()
+    {
+        _renameText = _detail?.Title ?? "";
+        _renameError = null;
+        _renaming = true;
+    }
+
+    private async Task OnRenameKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CancelRenameAsync();
+        }
+        else if (e.Key == "Enter")
+        {
+            await SaveRenameAsync();
+        }
+    }
+
+    // The Rename button only exists again after the next render, so focus moves there in OnAfterRenderAsync.
+    private bool _focusRename;
+
+    private Task CancelRenameAsync()
+    {
+        _renaming = false;
+        _focusRename = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveRenameAsync()
+    {
+        if (_currentId is not { } id)
+        {
+            return;
+        }
+
+        var result = await Api.RenameConversationAsync(id, _renameText, _lifetime.Token);
+        if (_lifetime.IsCancellationRequested || id != _currentId)
+        {
+            return;
+        }
+
+        if (!result.IsSuccess)
+        {
+            _renameError = result.Error!.Status == 400
+                ? result.Error.Fields.Values.SelectMany(v => v).FirstOrDefault() ?? result.Error.Message
+                : "The conversation could not be renamed. Try again.";
+            return;
+        }
+
+        _detail = _detail is null ? null : _detail with { Title = result.Value.Title };
+        var index = _conversations.FindIndex(c => c.Id == id);
+        if (index >= 0)
+        {
+            _conversations[index] = result.Value;
+        }
+
+        _announcement = "Conversation renamed";
+        await CancelRenameAsync();
+    }
+
     private Task StartNewAsync()
     {
         Navigation.NavigateTo("chat");
@@ -400,15 +525,7 @@ else
         return Drafts.SaveAsync(DraftKey(_currentId), text);
     }
 
-    private async Task UseSuggestionAsync(string suggestion)
-    {
-        _text = suggestion;
-        await Drafts.SaveAsync(DraftKey(_currentId), suggestion);
-        if (_input is not null)
-        {
-            await _input.FocusAsync();
-        }
-    }
+    private Task UseSuggestionAsync(string suggestion) => SendAsync(suggestion);
 
     private async Task AskAgainAsync(string question)
     {

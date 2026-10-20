@@ -75,15 +75,17 @@ internal static class StreamIngestionEvents
         var lastSent = clock.GetTimestamp();
         while (true)
         {
-            // Status first, events second: a terminal status is committed with its last event, so nothing can be missed.
+            // Status first, events second: a terminal status is committed with its last event, so nothing can be missed. The
+            // suggestion step (spec 020) commits its outcome with its event the same way, after the run has succeeded.
             var status = await db.IngestionRuns.AsNoTracking()
                 .Where(r => r.Id == target.RunId)
-                .Select(r => r.Status)
+                .Select(r => new { r.Status, Suggestions = db.Versions.Where(v => v.Id == target.VersionId).Select(v => v.SuggestionsStatus).First() })
                 .SingleAsync(cancellationToken);
             var events = await db.IngestionEvents.AsNoTracking()
                 .Where(e => e.RunId == target.RunId && e.Id > lastEventId)
                 .OrderBy(e => e.Id)
                 .ToListAsync(cancellationToken);
+            var suggestionsPending = status.Suggestions == SuggestionsStatus.Pending;
 
             foreach (var e in events)
             {
@@ -97,13 +99,16 @@ internal static class StreamIngestionEvents
                     EventId = e.Id.ToString(CultureInfo.InvariantCulture),
                 };
 
-                if (e.Status == EventStatus.Failed || (e.Stage == IngestionStage.Completed && e.Status == EventStatus.Completed))
+                // After "completed" the stream stays open only while suggested questions are being generated.
+                if (e.Status == EventStatus.Failed
+                    || e.Stage == IngestionStage.Suggestions
+                    || (e.Stage == IngestionStage.Completed && e.Status == EventStatus.Completed && !suggestionsPending))
                 {
                     yield break;
                 }
             }
 
-            if (events.Count == 0 && status is RunStatus.Succeeded or RunStatus.Failed)
+            if (events.Count == 0 && status.Status is (RunStatus.Succeeded or RunStatus.Failed) && !suggestionsPending)
             {
                 yield break;
             }

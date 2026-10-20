@@ -21,6 +21,9 @@ internal static class DocumentErrors
     public static readonly Error NotReprocessable =
         Error.Conflict("documents.not_reprocessable", "Only a document whose latest version is indexed can be reprocessed.");
 
+    public static readonly Error NotIndexed =
+        Error.Conflict("documents.not_indexed", "The document has no indexed version yet. Try again when it has finished.");
+
     public static readonly Error AlreadyArchived = Error.Conflict("documents.already_archived", "The document is already archived.");
 
     public static readonly Error NotArchived = Error.Conflict("documents.not_archived", "The document is not archived.");

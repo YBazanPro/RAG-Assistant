@@ -3,9 +3,11 @@
 <nav class="conversation-list" aria-label="Conversations">
     <FluentText Block="true" Class="panel-title">Conversations</FluentText>
     <FluentButton Appearance="ButtonAppearance.Outline" Size="ButtonSize.Small" OnClick="OnNew" Class="new-conversation">New conversation</FluentButton>
+    @* Spec 020: searched on the server (titles and questions, case and accents ignored) when the value changes: Enter or leaving the box. *@
+    <FluentTextInput Label="Search conversations" TextInputType="TextInputType.Search" Value="@Search" ValueChanged="OnSearch" Class="conversation-search" />
     @if (Items.Count == 0 && !Loading)
     {
-        <FluentText Block="true" Class="conversation-list-empty">No conversations yet.</FluentText>
+        <FluentText Block="true" Class="conversation-list-empty">@(string.IsNullOrWhiteSpace(Search) ? "No conversations yet." : "No conversations match.")</FluentText>
     }
     else
     {
@@ -43,6 +45,11 @@
     [Parameter] public EventCallback OnNew { get; set; }
 
     [Parameter] public EventCallback OnLoadMore { get; set; }
+
+    /// <summary>The search the list shows; empty for every conversation.</summary>
+    [Parameter] public string? Search { get; set; }
+
+    [Parameter] public EventCallback<string> OnSearch { get; set; }
 
     /// <summary>Asks to delete a conversation; the page confirms first.</summary>
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
+using RagAssistant.Modules.Documents.Suggestions;
 
 namespace RagAssistant.Modules.Documents.Ingestion;
 
@@ -83,6 +84,13 @@ internal sealed partial class IngestionWorker(
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
+
+        // A suggestion step the last host did not finish (spec 020): its run succeeded, so nothing re-queues it; reprocess runs it again.
+        await db.Versions.Where(v => v.SuggestionsStatus == SuggestionsStatus.Pending)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(v => v.SuggestionsStatus, SuggestionsStatus.Failed)
+                    .SetProperty(v => v.SuggestionsError, SuggestionErrorCodes.Interrupted),
+                cancellationToken);
 
         var queued = await db.IngestionRuns
             .Where(r => r.Status == RunStatus.Queued)

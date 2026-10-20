@@ -228,6 +228,28 @@ public sealed class FakeDocumentsApi : IDocumentsApi
         return Task.FromResult(OnRestore(documentId));
     }
 
+    /// <summary>Spec 020: none by default, so pages fall back as they do on an empty corpus.</summary>
+    public Func<int, ApiResult<IReadOnlyList<SuggestedQuestion>>> OnSuggestions { get; set; } = _ => ApiResult.Ok<IReadOnlyList<SuggestedQuestion>>([]);
+
+    public Func<ApiResult<CorpusSummary>> OnSummary { get; set; } = () => ApiResult.Ok(new CorpusSummary(0, [], null, []));
+
+    public Func<Guid, int, IReadOnlyList<string>, ApiResult<DocumentInfo>> OnUpdateSuggestions { get; set; } =
+        (id, _, questions) => ApiResult.Ok(Samples.Detail(id) with { SuggestedQuestions = questions, SuggestionsStatus = "edited" });
+
+    public List<(Guid Id, int Revision, IReadOnlyList<string> Questions)> SuggestionUpdateCalls { get; } = [];
+
+    public Task<ApiResult<IReadOnlyList<SuggestedQuestion>>> GetSuggestionsAsync(int count, CancellationToken cancellationToken) =>
+        Task.FromResult(OnSuggestions(count));
+
+    public Task<ApiResult<CorpusSummary>> GetSummaryAsync(CancellationToken cancellationToken) => Task.FromResult(OnSummary());
+
+    public Task<ApiResult<DocumentInfo>> UpdateSuggestionsAsync(
+        Guid documentId, int revision, IReadOnlyList<string> questions, CancellationToken cancellationToken)
+    {
+        SuggestionUpdateCalls.Add((documentId, revision, questions));
+        return Task.FromResult(OnUpdateSuggestions(documentId, revision, questions));
+    }
+
 }
 
 /// <summary>Stands in for the browser's file upload: records the request, can report progress, hold the upload open and be aborted.</summary>

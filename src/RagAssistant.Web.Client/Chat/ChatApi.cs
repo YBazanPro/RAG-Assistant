@@ -13,12 +13,24 @@ public sealed class ChatApi(Func<HttpClient> httpClient) : IChatApi
     public Task<ApiResult<ConversationSummary>> CreateConversationAsync(CancellationToken cancellationToken) =>
         DocumentsApi.SendAsync<ConversationSummary>(() => httpClient().PostAsync("api/chat/conversations", content: null, cancellationToken), cancellationToken);
 
-    public Task<ApiResult<ConversationPage>> ListConversationsAsync(int page, int pageSize, CancellationToken cancellationToken) =>
-        DocumentsApi.SendAsync<ConversationPage>(
-            () => httpClient().GetAsync(
-                $"api/chat/conversations?page={page.ToString(CultureInfo.InvariantCulture)}&pageSize={pageSize.ToString(CultureInfo.InvariantCulture)}",
-                cancellationToken),
+    public Task<ApiResult<ConversationPage>> ListConversationsAsync(int page, int pageSize, string? search, CancellationToken cancellationToken)
+    {
+        var url = $"api/chat/conversations?page={page.ToString(CultureInfo.InvariantCulture)}&pageSize={pageSize.ToString(CultureInfo.InvariantCulture)}";
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            url += $"&q={Uri.EscapeDataString(search.Trim())}";
+        }
+
+        return DocumentsApi.SendAsync<ConversationPage>(() => httpClient().GetAsync(url, cancellationToken), cancellationToken);
+    }
+
+    public Task<ApiResult<ConversationSummary>> RenameConversationAsync(Guid conversationId, string title, CancellationToken cancellationToken) =>
+        DocumentsApi.SendAsync<ConversationSummary>(
+            () => httpClient().PatchAsJsonAsync($"api/chat/conversations/{conversationId}", new { title }, Json, cancellationToken),
             cancellationToken);
+
+    /// <summary>The Markdown export (spec 020): a plain link the browser downloads through the BFF.</summary>
+    public static string ExportLink(Guid conversationId) => $"api/chat/conversations/{conversationId}/export";
 
     public Task<ApiResult<ConversationDetail>> GetConversationAsync(Guid conversationId, CancellationToken cancellationToken) =>
         DocumentsApi.SendAsync<ConversationDetail>(() => httpClient().GetAsync($"api/chat/conversations/{conversationId}", cancellationToken), cancellationToken);

@@ -88,6 +88,7 @@ Spec 012 is the contract; this skill says where things live and what not to brea
 ## Persistence
 
 - `CitationSnapshot` copies the passage (ids, version, title, section, pages, score, **full text**). It is never updated, and nothing references the `documents` schema.
+- Spec 020: the snapshot also stores `TextHash` (`PassageTextHash.Compute` of its text, the same hash Documents keeps on every passage). Reading a conversation asks `IDocumentSources` once for all its citations and returns a `sourceState` per citation (current, newer-unchanged, newer-changed, archived, unavailable); a live answer cites the active versions, so its citations are `current`. Change the hash rule only together with both migrations' SQL backfill (`PassageTextHash.SqlExpression` and `CitationSourceStateTests` check they agree).
 - `RequestTrace` holds decision data only: question text, filters, outcome and thresholds, each kept passage (`passageId`, `versionId`, `score`, `rank`, `marker`, `cited`) as jsonb, models, prompt version, tokens, sentinel, stripped count, status, timings, OTel trace id. **No passage text and no prompt (ADR 0004 D4).**
 
 ## Providers

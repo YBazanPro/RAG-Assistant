@@ -24,6 +24,7 @@ public static class UiServiceExtensions
         services.AddScoped<IFileUploader, BrowserFileUploader>();
         services.AddScoped<IChatApi>(sp => new ChatApi(sp.GetRequiredService<HttpClient>));
         services.AddScoped<IAdminApi>(sp => new AdminApi(sp.GetRequiredService<HttpClient>));
+        services.AddScoped<IEvaluationApi>(sp => new EvaluationApi(sp.GetRequiredService<HttpClient>));
         services.AddScoped<BrowserChatInterop>();
         services.AddScoped<IClipboard>(sp => sp.GetRequiredService<BrowserChatInterop>());
         services.AddScoped<IThreadScroller>(sp => sp.GetRequiredService<BrowserChatInterop>());

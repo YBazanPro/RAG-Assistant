@@ -30,6 +30,12 @@ public static class CitationText
             parts.Add($"in {LanguageName(language)}");
         }
 
+        // Spec 020: the state is part of the name, so a screen reader hears it with the citation, not as a separate badge.
+        if (SourceStates.Badge(c.SourceState) is { } state)
+        {
+            parts.Add(state.ToLowerInvariant());
+        }
+
         return $"Source {c.Marker}: {string.Join(", ", parts)}";
     }
 
@@ -51,6 +57,9 @@ public static class CitationText
 
     /// <summary>The route of the document detail page, focused on the cited passage of the cited version.</summary>
     public static string DocumentLink(Citation c) => $"documents/{c.DocumentId}?version={c.VersionNumber}&passage={c.PassageId}";
+
+    /// <summary>The document detail page at its active version (spec 020, "Open current version").</summary>
+    public static string CurrentDocumentLink(Citation c) => $"documents/{c.DocumentId}";
 
     public static string OriginalFileLink(Citation c) => $"api/documents/{c.DocumentId}/versions/{c.VersionNumber}/file#page={c.PageStart}";
 }

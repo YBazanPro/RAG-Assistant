@@ -1,0 +1,39 @@
+@inject IClipboard Clipboard
+
+@* Spec 020: the answer with its [n] markers and a numbered source list; a blocked clipboard shows the same text to select, like Copy reference. *@
+<div class="copy-answer">
+    <FluentButton Appearance="ButtonAppearance.Transparent" Size="ButtonSize.Small" OnClick="CopyAsync">Copy answer with sources</FluentButton>
+    @if (_copied)
+    {
+        <span role="status" class="copy-confirmation">Copied</span>
+    }
+    @if (_fallback is not null)
+    {
+        <FluentTextArea Label="Answer with sources" ReadOnly="true" Value="@_fallback" Rows="6" Class="copy-fallback" />
+    }
+</div>
+
+@code {
+    private bool _copied;
+    private string? _fallback;
+
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+
+    [Parameter, EditorRequired] public IReadOnlyList<Citation> Cited { get; set; } = [];
+
+    private async Task CopyAsync()
+    {
+        var text = SourceListText.AnswerWithSources(Text, Cited);
+        try
+        {
+            await Clipboard.CopyAsync(text, CancellationToken.None);
+            _copied = true;
+            _fallback = null;
+        }
+        catch (ClipboardUnavailableException)
+        {
+            _copied = false;
+            _fallback = text;
+        }
+    }
+}

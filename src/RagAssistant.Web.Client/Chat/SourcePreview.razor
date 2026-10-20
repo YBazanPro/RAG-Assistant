@@ -33,6 +33,19 @@
         {
             <FluentText Block="true" Class="preview-cited">As cited on <time datetime="@citedAt.ToString("O")" title="@Formatting.UtcTooltip(citedAt)">@Formatting.Local(citedAt)</time></FluentText>
         }
+        @if (SourceStates.PreviewNotice(Citation.SourceState) is { } notice)
+        {
+            <FluentMessageBar Intent="@(Citation.SourceState == SourceStates.NewerUnchanged ? MessageBarIntent.Info : MessageBarIntent.Warning)"
+                              AllowDismiss="false" Class="preview-state">
+                <ChildContent>@notice</ChildContent>
+                <ActionsTemplate>
+                    @if (SourceStates.HasNewerVersion(Citation.SourceState) && Citation.DocumentReadable)
+                    {
+                        <FluentAnchorButton Href="@CitationText.CurrentDocumentLink(Citation)" Appearance="ButtonAppearance.Outline" Class="open-current-version">Open current version</FluentAnchorButton>
+                    }
+                </ActionsTemplate>
+            </FluentMessageBar>
+        }
         @if (Citation.Text is { } text)
         {
             <pre class="passage-text">@text</pre>

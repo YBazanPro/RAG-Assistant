@@ -9,6 +9,7 @@ using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
+using RagAssistant.Modules.Documents.Suggestions;
 using RagAssistant.SharedKernel.Common.Text;
 
 namespace RagAssistant.Modules.Documents.Ingestion;
@@ -25,6 +26,7 @@ internal sealed partial class IngestionRunProcessor(
     IOptions<EmbeddingOptions> embeddingOptions,
     IEnumerable<ISourceExtractor> extractors,
     DocumentsMetrics metrics,
+    SuggestionGenerator suggestions,
     TimeProvider clock,
     ILogger<IngestionRunProcessor> logger)
 {
@@ -115,6 +117,7 @@ internal sealed partial class IngestionRunProcessor(
         catch (IngestionException ex)
         {
             await FailAsync(runId, run.VersionId, run.Attempt, stage, ex.Code, ex.Message, clock.GetElapsedTime(started), activity, cancellationToken);
+            return;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -124,7 +127,11 @@ internal sealed partial class IngestionRunProcessor(
             await FailAsync(
                 runId, run.VersionId, run.Attempt, stage, IngestionErrorCodes.IngestionError, UnexpectedMessage,
                 clock.GetElapsedTime(started), activity, cancellationToken);
+            return;
         }
+
+        // Spec 020: after the commit, so the version is already searchable; this step never fails the run.
+        await suggestions.RunAsync(runId, run.VersionId, cancellationToken);
     }
 
     private async Task<((SourceDocument Document, LanguageDetection Detection) Result, string Summary)> ExtractAsync(VersionInput version, Guid runId, Guid versionId, CancellationToken cancellationToken)
@@ -279,6 +286,7 @@ internal sealed partial class IngestionRunProcessor(
             SectionPath = c.SectionPath,
             SectionOrdinal = c.SectionOrdinal,
             Text = c.Text,
+            TextHash = PassageTextHash.Compute(c.Text),
             PageStart = c.PageStart,
             PageEnd = c.PageEnd,
             CharCount = c.CharCount,
@@ -307,7 +315,11 @@ internal sealed partial class IngestionRunProcessor(
                     .SetProperty(v => v.EmbeddingModel, modelId)
                     .SetProperty(v => v.EmbeddingDimensions, embedding.Dimensions)
                     .SetProperty(v => v.EmbeddingInputVersion, EmbeddingInput.Version)
-                    .SetProperty(v => v.IndexedAt, now),
+                    .SetProperty(v => v.IndexedAt, now)
+                    // Questions the owner carried over on reprocess stay as they are (spec 020); anything else waits for the step.
+                    .SetProperty(
+                        v => v.SuggestionsStatus,
+                        v => (SuggestionsStatus?)(v.SuggestionsStatus == SuggestionsStatus.Edited ? SuggestionsStatus.Edited : SuggestionsStatus.Pending)),
                 cancellationToken);
         // Deliberately leaves Document.UpdatedAt alone: ingestion is the system's work, not an edit by a user.
         await db.Documents.Where(d => d.Id == documentId)
