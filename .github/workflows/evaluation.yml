@@ -40,8 +40,10 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
+      # Debug on purpose: with the Aspire CLI bundle (AspireUseCliBundle), dotnet run starts the AppHost from bin/Debug whatever
+      # configuration is passed, so a Release-only build leaves it nothing to start.
       - name: Build
-        run: dotnet build RagAssistant.slnx -c Release
+        run: dotnet build RagAssistant.slnx
 
       - name: Trust the development certificate
         run: dotnet dev-certs https --trust
@@ -58,7 +60,7 @@ jobs:
       # The deadlines are raised for a 4-core runner without a GPU; the rewrite timeout stays below the total one (spec 014).
       - name: Start the AppHost
         run: |
-          nohup dotnet run --project src/RagAssistant.AppHost -c Release --no-build --launch-profile https -- \
+          nohup dotnet run --project src/RagAssistant.AppHost --no-build --launch-profile https -- \
             --Parameters:chat-model="$CHAT_MODEL" \
             --ApiEnvironment:Chat__Generation__FirstTokenTimeout=00:02:00 \
             --ApiEnvironment:Chat__Generation__TotalTimeout=00:05:00 \
@@ -79,7 +81,7 @@ jobs:
           exit 1
 
       - name: Run the evaluation
-        run: dotnet run --project tools/RagAssistant.Evaluation -c Release --no-build -- run 2>&1 | tee evaluation.log
+        run: dotnet run --project tools/RagAssistant.Evaluation --no-build -- run 2>&1 | tee evaluation.log
 
       - name: Summarize the report
         if: ${{ !cancelled() }}
