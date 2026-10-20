@@ -110,6 +110,8 @@ internal sealed partial class AnswerPipeline(
     private async Task RunStagesAsync(Attempt attempt, ChannelWriter<SseItem<string>> events, CancellationToken aborted)
     {
         var answer = attempt.Answer;
+        Activity.Current?.SetTag("question.language", answer.QuestionLanguage);
+        Activity.Current?.SetTag("question.language_source", answer.QuestionLanguageSource.ToApi());
         await events.WriteAsync(
             AnswerEvents.Item(AnswerEvents.QuestionAcceptedType, new AnswerEvents.QuestionAccepted(answer.ConversationId, answer.UserMessageId, answer.AssistantMessageId)),
             aborted);
@@ -137,9 +139,27 @@ internal sealed partial class AnswerPipeline(
         }
 
         var found = result.Value;
+        if (found.Outcome != EvidenceOutcome.NoEvidence)
+        {
+            // Spec 021: trimmed before the sources are announced, so markers, snapshots and the trace number only what is sent.
+            var language = attempt.RequestedLanguage ?? answer.QuestionLanguage;
+            var budgeted = PromptBudget.Fit(
+                found.Chunks,
+                chunks => PromptBuilder.Build(query, chunks, found.Outcome, Generation.Sentinel, answer.Question, language),
+                Generation.ContextWindowTokens,
+                Generation.MaxOutputTokens);
+            attempt.TrimmedPassageCount = budgeted.Trimmed;
+            attempt.PromptTokenEstimate = budgeted.EstimatedTokens;
+            found = found with { Chunks = budgeted.Sent };
+            if (budgeted.Trimmed > 0)
+            {
+                LogPassagesTrimmed(logger, budgeted.Trimmed, answer.AssistantMessageId);
+            }
+        }
+
         attempt.Search = found;
         var sources = found.Chunks
-            .Select((c, i) => new AnswerEvents.Source(i + 1, c.PassageId, c.DocumentId, c.DocumentTitle, c.VersionNumber, c.SectionPath, c.PageStart, c.PageEnd, c.Score))
+            .Select((c, i) => new AnswerEvents.Source(i + 1, c.PassageId, c.DocumentId, c.DocumentTitle, c.VersionNumber, c.SectionPath, c.PageStart, c.PageEnd, c.Score, c.Language))
             .ToList();
         var scope = new AnswerEvents.ScopeInfo(answer.Language, answer.Tags, answer.DocumentIds);
         await events.WriteAsync(
@@ -189,7 +209,7 @@ internal sealed partial class AnswerPipeline(
             .Take(options.HistoryExchanges * 2)
             .ToListAsync(aborted);
         var history = FollowUpHistory.Build(earlier, options.HistoryExchanges, options.MaxAnswerChars);
-        var messages = PromptBuilder.BuildRewrite(history, answer.Question);
+        var messages = PromptBuilder.BuildRewrite(history, answer.Question, answer.QuestionLanguage);
         attempt.RewritePromptVersion = PromptBuilder.RewritePromptVersion;
 
         var started = clock.GetTimestamp();
@@ -202,7 +222,10 @@ internal sealed partial class AnswerPipeline(
             attempt.RewriteInputTokens = response.Usage?.InputTokenCount;
             attempt.RewriteOutputTokens = response.Usage?.OutputTokenCount;
 
-            var standalone = response.TryGetResult(out var result) ? result.StandaloneQuestion?.Trim() : null;
+            var parsed = response.TryGetResult(out var result);
+            // The request survives an unusable standalone question: it is about the answer, not about retrieval.
+            attempt.RequestedLanguage = parsed ? QuestionLanguages.NormalizeRequested(result!.RequestedLanguage) : null;
+            var standalone = parsed ? result!.StandaloneQuestion?.Trim() : null;
             if (string.IsNullOrEmpty(standalone) || standalone.Length > AcceptQuestion.MaxQuestionLength)
             {
                 attempt.RewriteFallback = RewriteFallback.Invalid;
@@ -244,7 +267,9 @@ internal sealed partial class AnswerPipeline(
     {
         var found = attempt.Search!;
         var filter = attempt.Filter!;
-        var messages = PromptBuilder.Build(attempt.RetrievalQuery!, found.Chunks, found.Outcome, Generation.Sentinel, attempt.Answer.Question);
+        attempt.AnswerLanguage = attempt.RequestedLanguage ?? attempt.Answer.QuestionLanguage;
+        var messages = PromptBuilder.Build(
+            attempt.RetrievalQuery!, found.Chunks, found.Outcome, Generation.Sentinel, attempt.Answer.Question, attempt.AnswerLanguage);
         attempt.PromptVersion = PromptBuilder.PromptVersion;
         attempt.ChatModel = chat.GetService<ChatClientMetadata>()?.DefaultModelId ?? "unknown";
 
@@ -355,7 +380,9 @@ internal sealed partial class AnswerPipeline(
             {
                 await db.Messages
                     .Where(m => m.Id == attempt.Answer.UserMessageId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(m => m.RetrievalQuery, attempt.RetrievalQuery), timeout.Token);
+                    .ExecuteUpdateAsync(
+                        s => s.SetProperty(m => m.RetrievalQuery, attempt.RetrievalQuery).SetProperty(m => m.RequestedLanguage, attempt.RequestedLanguage),
+                        timeout.Token);
             }
 
             message.Citations.Clear();
@@ -405,6 +432,10 @@ internal sealed partial class AnswerPipeline(
             OwnerSub = answer.OwnerSub,
             QuestionText = answer.Question,
             FilterLanguage = answer.Language,
+            QuestionLanguage = answer.QuestionLanguage,
+            QuestionLanguageSource = attempt.RequestedLanguage is null ? answer.QuestionLanguageSource : QuestionLanguageSource.Requested,
+            AnswerLanguage = attempt.AnswerLanguage,
+            RequestedLanguage = attempt.RequestedLanguage,
             FilterTags = answer.Tags,
             FilterDocumentIds = answer.DocumentIds,
             UnavailableDocumentIds = attempt.UnavailableDocumentIds,
@@ -420,6 +451,8 @@ internal sealed partial class AnswerPipeline(
             PromptVersion = attempt.PromptVersion,
             InputTokens = attempt.InputTokens,
             OutputTokens = attempt.OutputTokens,
+            TrimmedPassageCount = attempt.TrimmedPassageCount,
+            PromptTokenEstimate = attempt.PromptTokenEstimate,
             SentinelHit = attempt.Filter?.SentinelHit ?? false,
             StrippedMarkerCount = attempt.Filter?.StrippedMarkerCount ?? 0,
             FinalStatus = status,
@@ -446,6 +479,7 @@ internal sealed partial class AnswerPipeline(
         PageStart = chunk.PageStart,
         PageEnd = chunk.PageEnd,
         Score = chunk.Score,
+        Language = chunk.Language,
         Text = chunk.Text,
     };
 
@@ -453,6 +487,9 @@ internal sealed partial class AnswerPipeline(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The follow-up rewrite fell back to the original question for answer {AssistantMessageId}: {Reason}")]
     private static partial void LogRewriteFallback(ILogger logger, Guid assistantMessageId, RewriteFallback reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The context budget left {Trimmed} passage(s) out of the prompt for answer {AssistantMessageId}")]
+    private static partial void LogPassagesTrimmed(ILogger logger, int trimmed, Guid assistantMessageId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Retrieval failed with {Code} for answer {AssistantMessageId}")]
     private static partial void LogRetrievalFailed(ILogger logger, string code, Guid assistantMessageId);
@@ -507,10 +544,22 @@ internal sealed partial class AnswerPipeline(
 
         public string? RewritePromptVersion { get; set; }
 
+        /// <summary>The answer language the rewrite said the user asked for (spec 018); null when none or no rewrite ran.</summary>
+        public string? RequestedLanguage { get; set; }
+
+        /// <summary>The language the answer prompt named; null until the model is called.</summary>
+        public string? AnswerLanguage { get; set; }
+
         public string? PromptVersion { get; set; }
 
         public long? InputTokens { get; set; }
 
         public long? OutputTokens { get; set; }
+
+        /// <summary>Retrieved passages left out of the prompt by the context budget (spec 021).</summary>
+        public int TrimmedPassageCount { get; set; }
+
+        /// <summary>The budget's estimate for the prompt that is sent; null when no prompt is built.</summary>
+        public int? PromptTokenEstimate { get; set; }
     }
 }

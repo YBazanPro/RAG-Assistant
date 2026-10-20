@@ -76,7 +76,9 @@ internal static partial class UpdateDocument
 
             document.Title = command.Title!.Trim();
             document.OwnerName = command.OwnerName!.Trim();
-            document.Language = DocumentMetadata.NormalizeLanguage(command.Language);
+            var (languageSource, language) = DocumentMetadata.ParseLanguage(command.Language);
+            document.LanguageSource = languageSource;
+            document.Language = language ?? await ActiveDetectionAsync(document, cancellationToken) ?? document.Language;
             document.Tags = DocumentMetadata.NormalizeTags(command.Tags);
             document.Source = string.IsNullOrWhiteSpace(command.Source) ? null : command.Source.Trim();
             _ = DocumentMetadata.TryParseDate(command.EffectiveDate, out var effectiveDate); // the validator already accepted it
@@ -106,6 +108,13 @@ internal static partial class UpdateDocument
             LogUpdated(logger, document.Id, document.Revision);
             return document.Id;
         }
+
+        /// <summary>Going back to detection applies what the active version already detected, if it was sure (spec 018).</summary>
+        private Task<string?> ActiveDetectionAsync(Document document, CancellationToken cancellationToken) =>
+            db.Versions.AsNoTracking()
+                .Where(v => v.Id == document.ActiveVersionId && v.LanguageDetection == LanguageConfidence.Confident)
+                .Select(v => v.DetectedLanguage)
+                .FirstOrDefaultAsync(cancellationToken);
 
         [LoggerMessage(Level = LogLevel.Information, Message = "Document {DocumentId} is now {Visibility}")]
         private static partial void LogVisibilityChanged(ILogger logger, Guid documentId, Visibility visibility);

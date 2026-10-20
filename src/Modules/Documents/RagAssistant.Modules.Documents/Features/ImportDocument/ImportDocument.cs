@@ -76,12 +76,15 @@ internal static partial class ImportDocument
 
             _ = DocumentAccess.TryParseVisibility(command.Visibility, out var visibility); // the validator already accepted it
             var now = clock.GetUtcNow();
+            var (languageSource, language) = DocumentMetadata.ParseLanguage(command.Language);
             var document = new Document
             {
                 Id = Guid.CreateVersion7(),
                 Title = command.Title!.Trim(),
                 OwnerName = command.OwnerName!.Trim(),
-                Language = DocumentMetadata.NormalizeLanguage(command.Language),
+                // Until ingestion detects it, a document left to detection reads as the default language.
+                Language = language ?? DocumentMetadata.DefaultLanguage,
+                LanguageSource = languageSource,
                 Tags = DocumentMetadata.NormalizeTags(command.Tags),
                 Source = string.IsNullOrWhiteSpace(command.Source) ? null : command.Source.Trim(),
                 Status = DocumentStatus.Active,

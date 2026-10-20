@@ -38,6 +38,9 @@ public static class ChatModule
             .Bind(configuration.GetSection(GenerationOptions.Section))
             .ValidateDataAnnotations()
             .Validate(o => o.IsConsistent, "Chat:Generation: every duration must be greater than zero, and TotalTimeout greater than FirstTokenTimeout.")
+            .Validate(
+                o => o.HasRoomForPrompt,
+                $"Chat:Generation:ContextWindowTokens must be greater than MaxOutputTokens + {GenerationOptions.MinPromptTokens}.")
             .ValidateOnStart();
         services.AddOptions<ChatRetrievalOptions>()
             .Bind(configuration.GetSection(ChatRetrievalOptions.Section))

@@ -45,3 +45,18 @@ Modules depend only on the Microsoft.Extensions.AI abstractions. Only `RagAssist
 |---|---|
 | Azure OpenAI / OpenAI as default | Requires an account and keys; breaks clone-and-run. Remains a supported swap. |
 | Anthropic for chat | No embeddings API, so a second provider would be needed anyway. |
+
+## Addendum (2026-10-19, spec 018)
+
+- **The chat model is configuration of the AppHost.** `DefaultChatModel` is used unless the `chat-model` parameter names another Ollama model.
+- **Default chat model: `ministral-3:8b`** (was `llama3.2:3b`), chosen by spec 018's comparison on the CPU-only reference machine (88 GB RAM, Radeon 890M unused, Ollama 0.40.4 in Docker). Same sample corpus, 86 golden questions, prompts 018.1 / rw.018.1, `bge-m3`, topK 8, MinScore 0.55, ConfidentScore 0.60, DuplicateOverlap 0.8, thinking off:
+
+  | Model | Errors | Behaviour | Refusals | Answer language | Citation recall / precision | R@5 / MRR | Median first token |
+  |---|---|---|---|---|---|---|---|
+  | `llama3.2:3b` (baseline) | 0 | 0.77 | 1.00 | 0.98 | 0.89 / 0.84 | 0.92 / 0.89 | 1.5 s |
+  | **`ministral-3:8b`** | 1 | **0.80** | 1.00 | **1.00** | **0.99 / 0.93** | **0.95 / 0.92** | 5.3 s |
+  | `qwen3.5:9b` | 1 | 0.78 | 1.00 | 0.99 | 0.99 / 0.90 | 0.89 / 0.87 | 8.7 s |
+
+  `qwen3.5:9b` misses the < 8 s first-token bar (15.4 s median on follow-ups, whose rewrites also retrieve worse: R@5 0.60). Of the two that pass, `ministral-3:8b` wins on answer language (1.00 against 0.98; 1.00 against 0.75 on explicit language requests), refusals being equal. It also cites better and writes better French, at the cost of a first token about 3.5 times slower than `llama3.2:3b`, which stays the choice for a weaker machine through the `chat-model` parameter. The one error in each 8B run is the first question timing out while the model loaded. The `gemma4:12b` judge's groundedness and relevance were not needed to decide and are added to the reports when that pass ends.
+- **Thinking is off.** The API sends Ollama `think=false` on every chat call unless `Chat:Ollama:Think` is true: answers come from the given passages, and on a CPU the hidden reasoning of thinking models cost the whole output budget and the first-token deadline.
+- **Optional OpenAI-compatible chat provider** (spec 018, second revision). `Chat:Provider = OpenAICompatible` sends chat calls to any OpenAI-compatible endpoint (OpenRouter by default), wired only in the API through `Microsoft.Extensions.AI.OpenAI` 10.11.0 (with its `OpenAI` SDK dependency), which this addendum accepts as a dependency. It is opt-in: the default stays local Ollama so the clone-and-run promise and data locality hold, embeddings stay on `bge-m3`, and the key lives in user secrets or an AppHost secret parameter. Choosing it sends questions and retrieved passages, private documents included, to that provider.

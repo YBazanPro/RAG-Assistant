@@ -1,0 +1,70 @@
+@* A document's language (spec 018): detected at ingestion, English, French, or another two-letter code. Used by the import dialog and the metadata panel. *@
+<FluentStack Orientation="Orientation.Vertical" VerticalGap="8">
+    <FluentSelect Id="@($"{IdPrefix}-language")" Label="Language" TOption="FilterChoice" TValue="string" Items="Choices"
+                  OptionValue="@(c => c.Value)" OptionText="@(c => c.Text)" Disabled="Disabled"
+                  Value="@Selected" ValueChanged="OnSelectedAsync" />
+    @if (Selected == OtherValue)
+    {
+        <FluentTextInput Id="@($"{IdPrefix}-language-code")" Label="Language code" Required="true" MaxLength="2" Immediate="true" ImmediateDelay="0"
+                         Disabled="Disabled" Value="@_code" ValueChanged="OnCodeAsync"
+                         Placeholder="Two letters, for example de"
+                         Message="@Error" MessageCondition="@(_ => Error is not null)" MessageState="MessageState.Error" />
+    }
+    else if (Error is not null)
+    {
+        <FluentText Class="field-error" role="alert">@Error</FluentText>
+    }
+</FluentStack>
+
+@code {
+    public const string DetectValue = "detect";
+    private const string OtherValue = "other";
+
+    private static readonly FilterChoice[] Choices =
+    [
+        new(DetectValue, "Detect from the text"),
+        new("en", "English"),
+        new("fr", "French"),
+        new(OtherValue, "Other…"),
+    ];
+
+    private bool _other;
+    private string? _code;
+
+    /// <summary><c>detect</c>, <c>en</c>, <c>fr</c> or the code typed for another language (possibly incomplete while typing).</summary>
+    [Parameter] public string Value { get; set; } = DetectValue;
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public string IdPrefix { get; set; } = "doc";
+
+    [Parameter] public string? Error { get; set; }
+
+    private string Selected => _other ? OtherValue : Value;
+
+    /// <summary>True when <paramref name="value"/> is something the API accepts (spec 018).</summary>
+    public static bool IsValid(string? value) =>
+        value == DetectValue || value is { Length: 2 } && value.All(char.IsAsciiLetter);
+
+    protected override void OnParametersSet()
+    {
+        // A value that is not one of the fixed choices is another language, shown in the code field; typing "fr" there selects French.
+        _other = Value is not (DetectValue or "en" or "fr");
+        _code = _other ? Value : null;
+    }
+
+    private async Task OnSelectedAsync(string? value)
+    {
+        _other = value == OtherValue;
+        _code = _other ? "" : null;
+        await ValueChanged.InvokeAsync(_other ? "" : value ?? DetectValue);
+    }
+
+    private async Task OnCodeAsync(string? value)
+    {
+        _code = value;
+        await ValueChanged.InvokeAsync((value ?? "").Trim().ToLowerInvariant());
+    }
+}

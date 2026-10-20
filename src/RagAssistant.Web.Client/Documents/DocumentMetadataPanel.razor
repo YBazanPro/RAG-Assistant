@@ -27,9 +27,26 @@
 
         @if (!IsEditing)
         {
+            @if (CanEdit && DetectedOther is { } detected)
+            {
+                @* The owner's choice is kept (spec 018); detection only advises. *@
+                <FluentMessageBar Intent="MessageBarIntent.Info" AllowDismiss="false" Class="language-detected">
+                    <ChildContent>Detected: @Formatting.LanguageName(detected)</ChildContent>
+                    <ActionsTemplate>
+                        <FluentButton Appearance="ButtonAppearance.Outline" Disabled="Saving" OnClick="UseDetectedAsync">Use @Formatting.LanguageName(detected)</FluentButton>
+                    </ActionsTemplate>
+                </FluentMessageBar>
+            }
+
             <MetaRow Label="Title">@Document.Title</MetaRow>
             <MetaRow Label="Owner">@Document.OwnerName</MetaRow>
-            <MetaRow Label="Language">@Document.Language</MetaRow>
+            <MetaRow Label="Language">
+                @Formatting.LanguageName(Document.Language)@(Document.LanguageSource == "detect" ? " (detected)" : "")
+                @if (Document.LanguageDetection == "uncertain")
+                {
+                    <div class="field-hint" role="note">Language could not be detected reliably.</div>
+                }
+            </MetaRow>
             <MetaRow Label="Tags">
                 @if (Document.Tags.Length == 0)
                 {
@@ -61,8 +78,7 @@
                              @bind-Value="_title" Message="@Error("title")" MessageCondition="@(_ => Error("title") is not null)" MessageState="MessageState.Error" />
             <FluentTextInput Id="md-owner" Label="Owner" Required="true" MaxLength="100" Immediate="true" ImmediateDelay="0" Disabled="Saving"
                              @bind-Value="_owner" Message="@Error("ownerName")" MessageCondition="@(_ => Error("ownerName") is not null)" MessageState="MessageState.Error" />
-            <FluentTextInput Id="md-language" Label="Language" Required="true" MaxLength="2" Immediate="true" ImmediateDelay="0" Disabled="Saving"
-                             @bind-Value="_language" Message="@Error("language")" MessageCondition="@(_ => Error("language") is not null)" MessageState="MessageState.Error" />
+            <LanguageChoice @bind-Value="_language" Disabled="Saving" IdPrefix="md" Error="@Error("language")" />
             <FluentTextInput Id="md-tags" Label="Tags (comma-separated)" Immediate="true" ImmediateDelay="0" Disabled="Saving"
                              @bind-Value="_tags" Message="@Error("tags")" MessageCondition="@(_ => Error("tags") is not null)" MessageState="MessageState.Error" />
             <FluentDatePicker TValue="DateTime?" Id="md-effective" Label="Effective date" Disabled="Saving"
@@ -115,7 +131,7 @@
     private Mode _mode = Mode.View;
     private string? _title = "";
     private string? _owner = "";
-    private string? _language = "";
+    private string _language = LanguageChoice.DetectValue;
     private string? _tags = "";
     private string? _effectiveDate;
     private string? _source;
@@ -142,6 +158,12 @@
 
     private bool Saving => _mode == Mode.Saving;
 
+    /// <summary>A confident detection that differs from the language the owner chose, or null.</summary>
+    private string? DetectedOther =>
+        Document is { LanguageSource: "owner", LanguageDetection: "confident", DetectedLanguage: { } detected } && detected != Document.Language
+            ? detected
+            : null;
+
     private static DateTime? ParseDate(string? text) =>
         DateTime.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date) ? date : null;
 
@@ -152,7 +174,7 @@
     {
         _title = Document.Title;
         _owner = Document.OwnerName;
-        _language = Document.Language;
+        _language = Document.LanguageSource == "detect" ? LanguageChoice.DetectValue : Document.Language;
         _tags = string.Join(", ", Document.Tags);
         _effectiveDate = Document.EffectiveDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         _source = Document.Source;
@@ -200,10 +222,9 @@
 
         Require("title", _title ?? "", "Title", 200);
         Require("ownerName", _owner ?? "", "Owner", 100);
-        var language = (_language ?? "").Trim();
-        if (language.Length != 2 || !language.All(char.IsAsciiLetter))
+        if (!LanguageChoice.IsValid(_language))
         {
-            _fieldErrors["language"] = ["Language must be two letters, for example en."];
+            _fieldErrors["language"] = ["Language code must be two letters, for example de."];
         }
 
         var tags = ParseTags();
@@ -247,13 +268,30 @@
 
     private async Task SaveConfirmedAsync()
     {
-        _formError = null;
-        _mode = Mode.Saving;
         var update = new MetadataUpdate(
-            (_title ?? "").Trim(), (_owner ?? "").Trim(), (_language ?? "").Trim(), ParseTags(),
+            (_title ?? "").Trim(), (_owner ?? "").Trim(), _language, ParseTags(),
             string.IsNullOrWhiteSpace(_effectiveDate) ? null : _effectiveDate, string.IsNullOrWhiteSpace(_source) ? null : _source.Trim(),
             Document.IsOwner ? _visibility : null);
+        await SendAsync(update);
+    }
 
+    /// <summary>Adopts the detected language and keeps every other field as it is (spec 018).</summary>
+    private async Task UseDetectedAsync()
+    {
+        if (Saving || DetectedOther is not { } detected)
+        {
+            return;
+        }
+
+        BeginEdit();
+        _language = detected;
+        await SaveConfirmedAsync();
+    }
+
+    private async Task SendAsync(MetadataUpdate update)
+    {
+        _formError = null;
+        _mode = Mode.Saving;
         var result = await Api.UpdateAsync(Document.Id, Document.Revision, update, CancellationToken.None);
         if (result.IsSuccess)
         {

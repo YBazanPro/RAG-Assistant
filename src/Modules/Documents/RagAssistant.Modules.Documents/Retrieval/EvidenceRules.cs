@@ -18,14 +18,15 @@ internal sealed record EvidenceDecision(
 /// <summary>Floor, near-duplicate reduction, cut and outcome over a candidate pool (spec 011, pipeline steps 5–8).</summary>
 internal static class EvidenceRules
 {
+    /// <summary>
+    /// SQL orders by distance only (the HNSW index needs it); the tie-break makes equal scores come out the same way every time.
+    /// </summary>
+    public static List<RetrievedChunk> Rank(IEnumerable<RetrievedChunk> pool) =>
+        [.. pool.OrderByDescending(c => c.Score).ThenBy(c => c.DocumentId).ThenBy(c => c.Position)];
+
     public static EvidenceDecision Apply(IEnumerable<RetrievedChunk> pool, int topK, EvidenceThresholds thresholds)
     {
-        // SQL orders by distance only (the HNSW index needs it); the tie-break makes equal scores come out the same way every time.
-        var ranked = pool
-            .OrderByDescending(c => c.Score)
-            .ThenBy(c => c.DocumentId)
-            .ThenBy(c => c.Position)
-            .ToList();
+        var ranked = Rank(pool);
 
         var discarded = new List<DiscardedPassage>();
         var kept = new List<(RetrievedChunk Passage, HashSet<string> Shingles)>();

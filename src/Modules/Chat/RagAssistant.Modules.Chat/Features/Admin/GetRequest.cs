@@ -85,7 +85,9 @@ internal static partial class GetRequest
                     trace.FilterLanguage,
                     trace.FilterTags,
                     [.. trace.FilterDocumentIds.Select(id => new ScopedDocument(id, TitleOf(id)))],
-                    trace.UnavailableDocumentIds),
+                    trace.UnavailableDocumentIds,
+                    trace.QuestionLanguage,
+                    trace.QuestionLanguageSource?.ToApi()),
                 new RequestRewrite(
                     trace.RewriteUsed, trace.RetrievalQuery, trace.RewriteFallbackReason?.ToApi(), trace.RewriteMs,
                     trace.RewriteInputTokens, trace.RewriteOutputTokens, trace.RewritePromptVersion),
@@ -94,7 +96,8 @@ internal static partial class GetRequest
                     trace.EmbeddingModel, trace.RetrievalMs, passages),
                 new RequestGeneration(
                     trace.ChatModel, trace.PromptVersion, trace.InputTokens, trace.OutputTokens, trace.SentinelHit,
-                    trace.StrippedMarkerCount, trace.FirstTokenMs, trace.TotalMs),
+                    trace.StrippedMarkerCount, trace.FirstTokenMs, trace.TotalMs, trace.AnswerLanguage, trace.TrimmedPassageCount,
+                    trace.PromptTokenEstimate),
                 new RequestResult(trace.FinalStatus.ToApi(), trace.RefusalReason?.ToApi(), trace.ErrorCode),
                 new RequestFeedback(
                     rating?.ToApi(),

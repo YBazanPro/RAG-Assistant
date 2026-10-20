@@ -1,0 +1,110 @@
+name: evaluation
+
+# Spec 021: the evaluation harness of spec 018 every night, against the real AppHost with small local models on the CPU.
+# Report only: weak metrics never fail it; a harness that cannot run, a failed seed, or errors in the report do.
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evaluation
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  CHAT_MODEL: qwen3:1.7b
+  # Keep in sync with EmbeddingModel and OllamaImageTag in src/RagAssistant.AppHost/AppHost.cs.
+  EMBEDDING_MODEL: bge-m3
+  OLLAMA_IMAGE: docker.io/ollama/ollama:0.40.4
+  # On Linux, dotnet dev-certs --trust writes the certificate here, and .NET clients (the API, the harness) read it through SSL_CERT_DIR.
+  SSL_CERT_DIR: /home/runner/.aspnet/dev-certs/trust:/usr/lib/ssl/certs
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - name: Build
+        run: dotnet build RagAssistant.slnx -c Release
+
+      - name: Trust the development certificate
+        run: dotnet dev-certs https --trust
+
+      # Pulled into the AppHost's own model volume before it starts, so the run never waits on a download.
+      - name: Pull the models
+        run: |
+          docker run -d --name ollama-pull -v ragassistant-ollama-models:/root/.ollama "$OLLAMA_IMAGE"
+          for _ in $(seq 1 30); do docker exec ollama-pull ollama list > /dev/null 2>&1 && break; sleep 2; done
+          docker exec ollama-pull ollama pull "$EMBEDDING_MODEL"
+          docker exec ollama-pull ollama pull "$CHAT_MODEL"
+          docker rm -f ollama-pull
+
+      # The deadlines are raised for a 4-core runner without a GPU; the rewrite timeout stays below the total one (spec 014).
+      - name: Start the AppHost
+        run: |
+          nohup dotnet run --project src/RagAssistant.AppHost -c Release --no-build --launch-profile https -- \
+            --Parameters:chat-model="$CHAT_MODEL" \
+            --ApiEnvironment:Chat__Generation__FirstTokenTimeout=00:02:00 \
+            --ApiEnvironment:Chat__Generation__TotalTimeout=00:05:00 \
+            --ApiEnvironment:Chat__FollowUp__RewriteTimeout=00:01:00 \
+            > apphost.log 2>&1 &
+
+      - name: Wait for the API and Keycloak
+        run: |
+          for _ in $(seq 1 120); do
+            if curl -fsSk https://localhost:7043/health > /dev/null 2>&1 \
+              && curl -fsSk https://localhost:8180/realms/ragassistant/.well-known/openid-configuration > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The API or Keycloak was not ready after 10 minutes."
+          tail -n 200 apphost.log
+          exit 1
+
+      - name: Run the evaluation
+        run: dotnet run --project tools/RagAssistant.Evaluation -c Release --no-build -- run 2>&1 | tee evaluation.log
+
+      - name: Summarize the report
+        if: ${{ !cancelled() }}
+        run: |
+          report=$(ls -td .data/evaluation/*/ 2> /dev/null | head -n 1)
+          if [ -z "$report" ]; then
+            echo "No report was written." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          cat "${report}report.md" >> "$GITHUB_STEP_SUMMARY"
+          errors=$(jq '.overall.errors' "${report}report.json")
+          broken=$(jq '.brokenCases | length' "${report}report.json")
+          echo "Errors: $errors, broken cases: $broken"
+          if [ "$errors" -gt 0 ] || [ "$broken" -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Upload the report and logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation
+          path: |
+            .data/evaluation/**
+            apphost.log
+            evaluation.log
+          retention-days: 30
+          if-no-files-found: ignore

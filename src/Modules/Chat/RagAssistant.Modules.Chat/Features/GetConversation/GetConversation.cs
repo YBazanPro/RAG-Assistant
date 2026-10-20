@@ -32,7 +32,8 @@ internal static class GetConversation
         DateTimeOffset? CompletedAt,
         IReadOnlyList<CitationView>? Citations,
         string? Rating = null,
-        int? ReportCount = null);
+        int? ReportCount = null,
+        string? QuestionLanguage = null);
 
     public sealed record ConversationDetail(
         Guid Id, string? Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, IReadOnlyList<MessageView> Messages, ConversationScope Scope);
@@ -79,7 +80,7 @@ internal static class GetConversation
         private static MessageView ToView(Message m, Dictionary<Guid, FeedbackRating> ratings, Dictionary<Guid, int> reportCounts, IReadOnlySet<Guid> readable) => m.Role == MessageRole.User
             ? new MessageView(
                 m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, new MessageFilters(m.FilterLanguage, m.FilterTags),
-                m.RetrievalQuery ?? m.Text, null, null, null, null, null, null, null)
+                m.RetrievalQuery ?? m.Text, null, null, null, null, null, null, null, QuestionLanguage: m.QuestionLanguage)
             : new MessageView(
                 m.Id, m.Role.ToApi(), m.Sequence, m.Text, m.CreatedAt, null, null, m.ReplyToMessageId,
                 m.Status?.ToApi(),

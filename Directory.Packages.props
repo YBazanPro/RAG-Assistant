@@ -43,6 +43,12 @@
   <ItemGroup Label="AI">
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.11.0" />
+    <!-- Optional OpenAI-compatible chat provider, API only (ADR 0003 addendum, spec 018). -->
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
+    <!-- Evaluation harness only (ADR 0001 §7, spec 018): the judge pass and its Ollama client. -->
+    <PackageVersion Include="Microsoft.Extensions.AI.Evaluation" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Evaluation.Quality" Version="10.11.0" />
+    <PackageVersion Include="OllamaSharp" Version="5.4.12" />
   </ItemGroup>
 
   <ItemGroup Label="API kernel">

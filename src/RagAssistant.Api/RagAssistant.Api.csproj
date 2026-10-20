@@ -5,6 +5,7 @@
     <PackageReference Include="Aspire.Npgsql" />
     <PackageReference Include="CommunityToolkit.Aspire.OllamaSharp" />
     <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
@@ -16,6 +17,10 @@
     <ProjectReference Include="..\Modules\Documents\RagAssistant.Modules.Documents\RagAssistant.Modules.Documents.csproj" />
     <ProjectReference Include="..\RagAssistant.ServiceDefaults\RagAssistant.ServiceDefaults.csproj" />
     <ProjectReference Include="..\RagAssistant.SharedKernel\RagAssistant.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RagAssistant.Integration.Tests" />
   </ItemGroup>
 
 </Project>

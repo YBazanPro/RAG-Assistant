@@ -45,8 +45,7 @@
                                  @bind-Value="_title" Message="@Error("title")" MessageCondition="@(_ => Error("title") is not null)" MessageState="MessageState.Error" />
                 <FluentTextInput Id="up-owner" Label="Owner" Required="true" MaxLength="100" Immediate="true" ImmediateDelay="0" Disabled="_busy"
                                  @bind-Value="_owner" Message="@Error("ownerName")" MessageCondition="@(_ => Error("ownerName") is not null)" MessageState="MessageState.Error" />
-                <FluentTextInput Id="up-language" Label="Language" Required="true" MaxLength="2" Immediate="true" ImmediateDelay="0" Disabled="_busy"
-                                 @bind-Value="_language" Message="@Error("language")" MessageCondition="@(_ => Error("language") is not null)" MessageState="MessageState.Error" />
+                <LanguageChoice @bind-Value="_language" Disabled="_busy" IdPrefix="up" Error="@Error("language")" />
                 <FluentTextInput Id="up-tags" Label="Tags (comma-separated)" Immediate="true" ImmediateDelay="0" Disabled="_busy"
                                  @bind-Value="_tags" Message="@Error("tags")" MessageCondition="@(_ => Error("tags") is not null)" MessageState="MessageState.Error" />
                 <FluentDatePicker TValue="DateTime?" Id="up-effective" Label="Effective date" Disabled="_busy"
@@ -102,7 +101,7 @@
     private string? _title = "";
     private string _autoTitle = "";
     private string? _owner = "";
-    private string? _language = DocumentMetadataDefaults.Language;
+    private string _language = DocumentMetadataDefaults.Language;
     private string? _tags = "";
     private string? _effectiveDate;
     private string? _source;
@@ -213,10 +212,9 @@
 
         Require("title", _title ?? "", "Title", 200);
         Require("ownerName", _owner ?? "", "Owner", 100);
-        var language = (_language ?? "").Trim();
-        if (language.Length != 2 || !language.All(char.IsAsciiLetter))
+        if (!LanguageChoice.IsValid(_language))
         {
-            _fieldErrors["language"] = ["Language must be two letters, for example en."];
+            _fieldErrors["language"] = ["Language code must be two letters, for example de."];
         }
 
         var tags = ParseTags();
@@ -242,7 +240,7 @@
         {
             new("title", (_title ?? "").Trim()),
             new("ownerName", (_owner ?? "").Trim()),
-            new("language", (_language ?? "").Trim()),
+            new("language", _language),
             new("visibility", _visibility),
         };
         fields.AddRange(ParseTags().Select(tag => new KeyValuePair<string, string>("tags", tag)));
@@ -451,6 +449,6 @@
 
     private static class DocumentMetadataDefaults
     {
-        public const string Language = "en";
+        public const string Language = LanguageChoice.DetectValue;
     }
 }

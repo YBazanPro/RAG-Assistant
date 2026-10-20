@@ -1,0 +1,11 @@
+IT Equipment Policy
+
+Every new employee receives a laptop on the first day. Laptops are replaced every four years, or earlier when a repair would cost more than half the price of a new one.
+
+Employees may not install software that is not in the company software catalogue. A request for new software goes to the IT service desk, which answers within five working days.
+
+A lost or stolen laptop is reported to the IT service desk and to the security desk within one hour. The device is then locked and erased remotely.
+
+When an employee leaves Corvane, all equipment is returned on the last working day. Equipment that is not returned is deducted from the final salary at its current value.
+
+Personal devices may be used for email and the calendar only after the company management app is installed on them.

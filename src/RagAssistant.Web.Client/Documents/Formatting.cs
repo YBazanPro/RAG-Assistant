@@ -4,6 +4,14 @@ namespace RagAssistant.Web.Client.Documents;
 
 public static class Formatting
 {
+    /// <summary>"English", "French", or the code itself; the UI stays English (spec 018).</summary>
+    public static string LanguageName(string code) => code switch
+    {
+        "en" => "English",
+        "fr" => "French",
+        _ => code,
+    };
+
     /// <summary>Timestamps are shown in the viewer's local time; <see cref="UtcTooltip"/> carries the exact UTC value.</summary>
     public static string Local(DateTimeOffset value) =>
         value.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);

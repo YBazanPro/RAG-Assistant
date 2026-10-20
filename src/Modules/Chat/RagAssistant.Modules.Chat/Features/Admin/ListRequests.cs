@@ -16,7 +16,9 @@ internal static class ListRequests
 
     public const string NegativeFeedback = "negative";
 
-    public sealed record Query(IReadOnlyList<string>? Status, string? Feedback, string? Page, string? PageSize) : IRequest<Result<Page<RequestListItem>>>;
+    /// <param name="QuestionLanguage">Two letters; only requests whose question is written in it (spec 018).</param>
+    public sealed record Query(IReadOnlyList<string>? Status, string? Feedback, string? Page, string? PageSize, string? QuestionLanguage = null)
+        : IRequest<Result<Page<RequestListItem>>>;
 
     public sealed class Validator : AbstractValidator<Query>
     {
@@ -32,6 +34,10 @@ internal static class ListRequests
                 .Must(f => string.IsNullOrEmpty(f) || f == NegativeFeedback)
                 .WithMessage("'feedback' must be 'negative'.")
                 .OverridePropertyName("feedback");
+            RuleFor(q => q.QuestionLanguage)
+                .Must(l => string.IsNullOrWhiteSpace(l) || (l.Trim().Length == 2 && l.Trim().All(char.IsAsciiLetter)))
+                .WithMessage("'questionLanguage' must be two letters.")
+                .OverridePropertyName("questionLanguage");
         }
     }
 
@@ -47,6 +53,12 @@ internal static class ListRequests
             {
                 var statuses = query.Status.Select(s => AdminStatus.TryParse(s, out var status) ? status : default).Distinct().ToArray();
                 traces = traces.Where(t => statuses.Contains(t.FinalStatus));
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.QuestionLanguage))
+            {
+                var language = query.QuestionLanguage.Trim().ToLowerInvariant();
+                traces = traces.Where(t => t.QuestionLanguage == language);
             }
 
             if (query.Feedback == NegativeFeedback)

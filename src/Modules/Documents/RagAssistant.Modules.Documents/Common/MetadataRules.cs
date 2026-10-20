@@ -31,8 +31,8 @@ internal static class MetadataRules
             .OverridePropertyName("OwnerName");
 
         validator.RuleFor(c => language(c))
-            .Must(l => DocumentMetadata.IsValidLanguage(DocumentMetadata.NormalizeLanguage(l)))
-            .WithMessage("Language must be a two-letter ISO 639-1 code such as 'en'.")
+            .Must(DocumentMetadata.IsValidLanguageInput)
+            .WithMessage("Language must be 'detect' or a two-letter ISO 639-1 code such as 'en'.")
             .OverridePropertyName("Language");
 
         validator.RuleFor(c => tags(c)).Cascade(CascadeMode.Stop)

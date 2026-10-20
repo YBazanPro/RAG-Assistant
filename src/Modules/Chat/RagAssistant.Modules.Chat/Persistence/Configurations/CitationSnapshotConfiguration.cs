@@ -12,6 +12,7 @@ internal sealed class CitationSnapshotConfiguration : IEntityTypeConfiguration<C
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Id).ValueGeneratedNever();
         builder.Property(c => c.DocumentTitle).HasMaxLength(300);
+        builder.Property(c => c.Language).HasMaxLength(2);
         builder.HasIndex(c => c.MessageId);
     }
 }

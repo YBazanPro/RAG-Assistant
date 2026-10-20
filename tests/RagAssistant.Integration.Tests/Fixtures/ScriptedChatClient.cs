@@ -42,6 +42,10 @@ public sealed class ScriptedChatClient : IChatClient
     public void ScriptRewrite(string standaloneQuestion) =>
         _rewriteReplies.Enqueue(System.Text.Json.JsonSerializer.Serialize(new { standaloneQuestion }));
 
+    /// <summary>The next rewrite replies with this standalone question and an answer language the user asked for (spec 018).</summary>
+    public void ScriptRewrite(string standaloneQuestion, string? requestedLanguage) =>
+        _rewriteReplies.Enqueue(System.Text.Json.JsonSerializer.Serialize(new { standaloneQuestion, requestedLanguage }));
+
     /// <summary>The next rewrite replies with this raw text, for malformed answers.</summary>
     public void ScriptRewriteRaw(string text) => _rewriteReplies.Enqueue(text);
 

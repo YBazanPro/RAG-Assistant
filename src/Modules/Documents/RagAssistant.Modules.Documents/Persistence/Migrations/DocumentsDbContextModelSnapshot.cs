@@ -55,6 +55,14 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("character varying(2)")
                         .HasColumnName("language");
 
+                    b.Property<string>("LanguageSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Detect")
+                        .HasColumnName("language_source");
+
                     b.Property<string>("LatestContentHash")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -163,6 +171,11 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                         .HasColumnType("character varying(128)")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("DetectedLanguage")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("detected_language");
+
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("uuid")
                         .HasColumnName("document_id");
@@ -170,6 +183,10 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                     b.Property<int?>("EmbeddingDimensions")
                         .HasColumnType("integer")
                         .HasColumnName("embedding_dimensions");
+
+                    b.Property<int?>("EmbeddingInputVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("embedding_input_version");
 
                     b.Property<string>("EmbeddingModel")
                         .HasMaxLength(100)
@@ -179,6 +196,11 @@ namespace RagAssistant.Modules.Documents.Persistence.Migrations
                     b.Property<DateTimeOffset?>("IndexedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("indexed_at");
+
+                    b.Property<string>("LanguageDetection")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("language_detection");
 
                     b.Property<int>("Number")
                         .HasColumnType("integer")

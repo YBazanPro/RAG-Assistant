@@ -41,7 +41,9 @@ internal sealed record RequestQuestion(
     string? Language,
     IReadOnlyList<string> Tags,
     IReadOnlyList<ScopedDocument> Documents,
-    IReadOnlyList<Guid> UnavailableDocumentIds);
+    IReadOnlyList<Guid> UnavailableDocumentIds,
+    string? DetectedLanguage,
+    string? LanguageSource);
 
 /// <param name="Title">Only for a document that is currently shared; null otherwise, whatever the trace stored.</param>
 internal sealed record ScopedDocument(Guid Id, string? Title);
@@ -81,7 +83,10 @@ internal sealed record RequestGeneration(
     bool SentinelHit,
     int StrippedMarkerCount,
     int? FirstTokenMs,
-    int TotalMs);
+    int TotalMs,
+    string? AnswerLanguage,
+    int TrimmedPassageCount,
+    int? PromptTokenEstimate);
 
 internal sealed record RequestResult(string FinalStatus, string? RefusalReason, string? ErrorCode);
 
@@ -124,6 +129,7 @@ internal sealed record ChatConfiguration(
     int MaxMessagesPerConversation,
     int MaxReportsPerAnswer,
     int MaxOutputTokens,
+    int ContextWindowTokens,
     double FirstTokenTimeoutSeconds,
     double TotalTimeoutSeconds,
     double RewriteTimeoutSeconds,

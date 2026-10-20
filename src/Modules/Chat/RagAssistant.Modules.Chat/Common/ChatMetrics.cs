@@ -39,12 +39,14 @@ internal sealed class ChatMetrics
     {
         var status = trace.FinalStatus.ToApi();
         var outcome = trace.EvidenceOutcome ?? "none";
-        _requests.Add(1, Tag("status", status), Tag("evidence_outcome", outcome));
+        // Spec 018: en, fr, or "other"; never an open-ended code, so the label stays low-cardinality.
+        var language = trace.QuestionLanguage is "en" or "fr" ? trace.QuestionLanguage : "other";
+        _requests.Add(1, Tag("status", status), Tag("evidence_outcome", outcome), Tag("question.language", language));
         _requestDuration.Record(trace.TotalMs / 1000d, Tag("status", status));
 
         if (trace.RefusalReason is { } reason)
         {
-            _refusals.Add(1, Tag("reason", reason.ToApi()));
+            _refusals.Add(1, Tag("reason", reason.ToApi()), Tag("question.language", language));
         }
 
         if (trace.EvidenceOutcome is not null)

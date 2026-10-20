@@ -31,6 +31,9 @@ internal sealed class CitationSnapshot
 
     public double Score { get; set; }
 
+    /// <summary>The cited document's language at answer time (spec 018); null on snapshots written before it.</summary>
+    public string? Language { get; set; }
+
     /// <summary>The full passage text.</summary>
     public required string Text { get; set; }
 }

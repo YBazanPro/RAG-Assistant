@@ -42,6 +42,23 @@ internal static class DocumentMetadata
     public static string[] NormalizeTags(IEnumerable<string>? tags) =>
         tags is null ? [] : [.. tags.Select(t => t.Trim().ToLowerInvariant()).Distinct(StringComparer.Ordinal)];
 
+    /// <summary>The <c>language</c> value that asks for detection instead of naming a language (spec 018).</summary>
+    public const string DetectLanguage = "detect";
+
+    /// <summary>Absent, blank or <c>detect</c> asks for detection; anything else is the owner's choice, lowercased.</summary>
+    public static (LanguageSource Source, string? Code) ParseLanguage(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language) || language.Trim().Equals(DetectLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            return (LanguageSource.Detect, null);
+        }
+
+        return (LanguageSource.Owner, language.Trim().ToLowerInvariant());
+    }
+
+    public static bool IsValidLanguageInput(string? language) =>
+        ParseLanguage(language) is not (LanguageSource.Owner, { } code) || IsValidLanguage(code);
+
     public static string NormalizeLanguage(string? language) =>
         string.IsNullOrWhiteSpace(language) ? DefaultLanguage : language.Trim().ToLowerInvariant();
 

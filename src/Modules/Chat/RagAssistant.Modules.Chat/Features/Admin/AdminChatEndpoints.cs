@@ -21,9 +21,10 @@ public sealed class AdminChatEndpoints : IEndpointGroup
                 string? feedback,
                 string? page,
                 string? pageSize,
+                string? questionLanguage,
                 ModuleMediator mediator,
                 CancellationToken cancellationToken) =>
-                (await mediator.Send(new ListRequests.Query(status, feedback, page, pageSize), cancellationToken)).ToHttpResult())
+                (await mediator.Send(new ListRequests.Query(status, feedback, page, pageSize, questionLanguage), cancellationToken)).ToHttpResult())
             .WithName("AdminListRequests")
             .Produces<Page<RequestListItem>>();
 

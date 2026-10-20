@@ -6,8 +6,10 @@ const string OllamaImageTag = "0.40.4";
 // The 1024 dimensions must match Documents:Embeddings:Dimensions and the passages.embedding column. The model name recorded on
 // each version comes from the provider; Documents:Embeddings:Model (default "bge-m3") is only the fallback, so keep them equal.
 const string EmbeddingModel = "bge-m3";
-// Chosen by the spec 012 calibration spike; configuration, not code, for the API (ADR 0003).
-const string ChatModel = "llama3.2:3b";
+// The chat model chosen by spec 018's comparison on a CPU-only machine (ADR 0003 addendum). Another Ollama model is tried with the chat-model
+// parameter, e.g. dotnet run --project src/RagAssistant.AppHost -- --Parameters:chat-model=qwen3.5:9b, or the user secret
+// Parameters:chat-model; the AppHost pulls it, and the evaluation harness reads it back from the request traces.
+const string DefaultChatModel = "ministral-3:8b";
 // Dev-only secret of the ragassistant-web client; keep in sync with ragassistant-realm.json.
 const string WebClientSecret = "ragassistant-web-dev-secret";
 
@@ -43,7 +45,18 @@ var embeddings = ollama.AddModel("embeddings", EmbeddingModel);
 
 // Chat:Provider = Demo (launch profile "https-demo") runs the API's deterministic demo chat client: no chat model is pulled.
 var demoChat = builder.Configuration["Chat:Provider"] == "Demo";
-var chat = demoChat ? null : ollama.AddModel("chat", ChatModel);
+// chat-provider = openai-compatible sends chat calls to a hosted OpenAI-compatible endpoint (OpenRouter unless openai-endpoint says
+// otherwise) with the secret parameter openai-api-key, and chat-model is then the provider's model id (spec 018, ADR 0003).
+// Questions and retrieved passages leave the machine; embeddings stay on the local bge-m3.
+var hostedChat = builder.Configuration["Parameters:chat-provider"] == "openai-compatible";
+var configuredModel = builder.Configuration["Parameters:chat-model"];
+if (hostedChat && string.IsNullOrEmpty(configuredModel))
+{
+    throw new InvalidOperationException("chat-provider=openai-compatible needs chat-model, the provider's model id.");
+}
+
+var chatModel = configuredModel is { Length: > 0 } ? configuredModel : DefaultChatModel;
+var chat = demoChat || hostedChat ? null : ollama.AddModel("chat", chatModel);
 
 var migrations = builder.AddProject<Projects.RagAssistant_MigrationService>("migrations")
     .WithReference(database)
@@ -62,6 +75,17 @@ var api = builder.AddProject<Projects.RagAssistant_Api>("api")
     .WaitFor(database)
     .WaitFor(keycloak)
     .WaitForCompletion(migrations);
+// Spec 021: every ApiEnvironment:<NAME> setting reaches the API as the environment variable <NAME>, so a run can change API options
+// without a parameter per option. The nightly evaluation raises the chat deadlines for a CPU runner, e.g.
+// --ApiEnvironment:Chat__Generation__FirstTokenTimeout=00:02:00 on the command line.
+foreach (var setting in builder.Configuration.GetSection("ApiEnvironment").GetChildren())
+{
+    if (setting.Value is { } value)
+    {
+        api.WithEnvironment(setting.Key, value);
+    }
+}
+
 // A request's detail in /admin links to its trace in the Aspire dashboard (spec 017). The dashboard is served on the AppHost's own
 // first https address; without one the admin page shows the trace id only.
 var dashboardUrl = (builder.Configuration["ASPNETCORE_URLS"] ?? "").Split(';').FirstOrDefault(u => u.StartsWith("https://", StringComparison.Ordinal));
@@ -70,7 +94,18 @@ if (dashboardUrl is not null)
     api.WithEnvironment("Admin__TraceUrlTemplate", $"{dashboardUrl.TrimEnd('/')}/traces/detail/{{traceId}}");
 }
 
-if (chat is null)
+if (hostedChat)
+{
+    var apiKey = builder.AddParameter("openai-api-key", secret: true);
+    api.WithEnvironment("Chat__Provider", "OpenAICompatible")
+        .WithEnvironment("Chat__OpenAICompatible__Model", chatModel)
+        .WithEnvironment("Chat__OpenAICompatible__ApiKey", apiKey);
+    if (builder.Configuration["Parameters:openai-endpoint"] is { Length: > 0 } endpoint)
+    {
+        api.WithEnvironment("Chat__OpenAICompatible__Endpoint", endpoint);
+    }
+}
+else if (chat is null)
 {
     api.WithEnvironment("Chat__Provider", "Demo");
 }

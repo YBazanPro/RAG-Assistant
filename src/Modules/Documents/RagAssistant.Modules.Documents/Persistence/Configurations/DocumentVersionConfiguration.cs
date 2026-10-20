@@ -24,6 +24,7 @@ internal sealed class DocumentVersionConfiguration : IEntityTypeConfiguration<Do
         builder.Property(v => v.ContentHash).HasMaxLength(64);
         builder.Property(v => v.CreatedBy).HasMaxLength(128);
         builder.Property(v => v.EmbeddingModel).HasMaxLength(100);
+        builder.Property(v => v.DetectedLanguage).HasMaxLength(2);
 
         builder.HasIndex(v => new { v.DocumentId, v.Number }).IsUnique().HasDatabaseName(NumberIndex);
         builder.HasMany(v => v.Runs).WithOne().HasForeignKey(r => r.VersionId).OnDelete(DeleteBehavior.Restrict);

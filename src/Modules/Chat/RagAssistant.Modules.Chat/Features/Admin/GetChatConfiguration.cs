@@ -37,6 +37,7 @@ internal static class GetChatConfiguration
                 conversations.Value.MaxMessagesPerConversation,
                 feedback.Value.MaxReportsPerAnswer,
                 generation.Value.MaxOutputTokens,
+                generation.Value.ContextWindowTokens,
                 generation.Value.FirstTokenTimeout.TotalSeconds,
                 generation.Value.TotalTimeout.TotalSeconds,
                 followUp.Value.RewriteTimeout.TotalSeconds,

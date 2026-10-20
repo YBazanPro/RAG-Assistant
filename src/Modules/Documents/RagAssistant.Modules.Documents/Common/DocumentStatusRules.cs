@@ -27,5 +27,9 @@ internal static class DocumentStatusRules
 
     public static string ToApi(this Visibility visibility) => visibility.ToString().ToLowerInvariant();
 
+    public static string ToApi(this LanguageSource source) => source.ToString().ToLowerInvariant();
+
+    public static string? ToApi(this LanguageConfidence? confidence) => confidence?.ToString().ToLowerInvariant();
+
     public static string ToApi(this SourceFormat format) => format.ToString().ToLowerInvariant();
 }

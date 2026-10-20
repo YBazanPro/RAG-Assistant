@@ -2,6 +2,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RagAssistant.Modules.Documents.Domain;
+using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Options;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.SharedKernel.Common;
@@ -43,6 +44,12 @@ internal static class GetHealth
                 .Where(d => d.Visibility == Visibility.Shared && d.Status == DocumentStatus.Active)
                 .CountAsync(d => d.Versions.OrderByDescending(v => v.Number).First().CreatedAt < cutoff, cancellationToken);
 
+            // Spec 021: active documents whose searchable version was embedded with an older input; a reprocess updates them.
+            var outdated = await db.Documents.AsNoTracking()
+                .Where(d => d.Status == DocumentStatus.Active)
+                .Join(db.Versions, d => d.ActiveVersionId, v => (Guid?)v.Id, (d, v) => v)
+                .CountAsync(v => v.EmbeddingModel != null && (v.EmbeddingInputVersion ?? 0) < EmbeddingInput.Version, cancellationToken);
+
             return new DocumentsHealth(
                 new DocumentCounts(
                     Documents(DocumentStatus.Active, Visibility.Shared),
@@ -58,7 +65,8 @@ internal static class GetHealth
                 Versions(VersionStatus.Queued),
                 oldestPending is { } queuedAt ? Math.Max(0, (now - queuedAt).TotalSeconds) : null,
                 stale,
-                staleAfterDays);
+                staleAfterDays,
+                outdated);
         }
     }
 }

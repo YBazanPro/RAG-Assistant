@@ -28,6 +28,10 @@
                     <li>
                         <span class="activity-step-title">Question</span>
                         <span class="activity-step-text">@view.Question</span>
+                        @if (view.QuestionLanguage is { } language)
+                        {
+                            <span class="activity-step-text">Question language: @CitationText.LanguageName(language)@(view.QuestionLanguageSource is { } source ? $" ({source})" : "")</span>
+                        }
                     </li>
                     <li>
                         <span class="activity-step-title">Rewrite</span>

@@ -123,29 +123,35 @@ public sealed class IngestionPipelineTests(PostgresFixture postgres)
             .IsEqualTo("Failed");
     }
 
+    // Spec 021, AC-8: the document title leads the embedding input, and the version records the input version.
     [Test]
-    public async Task Ingest_passageWithHeadings_sendsPathAndTextToTheGenerator()
+    public async Task Ingest_passageWithHeadings_sendsTitlePathAndTextToTheGenerator()
     {
         await using var app = await IngestionHarness.StartAsync(postgres);
         var doc = await app.ImportAsync("# Handbook\n\n## Leave\n\nTwenty days per year.\n");
         await app.WaitForRunAsync(doc.RunId, "Succeeded");
+        var title = await app.ScalarAsync<string>("SELECT title FROM documents.documents WHERE id = $1", doc.DocumentId);
 
         var inputs = app.Generator.Batches.SelectMany(b => b).ToArray();
 
-        await Assert.That(inputs).IsEquivalentTo(["Handbook > Leave\n\nTwenty days per year."]);
+        await Assert.That(inputs).IsEquivalentTo([$"{title} > Handbook > Leave\n\nTwenty days per year."]);
+        await Assert.That(await app.ScalarAsync<int>(
+                "SELECT embedding_input_version FROM documents.document_versions WHERE id = $1", doc.VersionId))
+            .IsEqualTo(2);
     }
 
     [Test]
-    public async Task Ingest_textWithoutHeadings_sendsTheTextOnly()
+    public async Task Ingest_textWithoutHeadings_sendsTheTitleThenTheText()
     {
         await using var app = await IngestionHarness.StartAsync(postgres);
         var doc = await app.ImportAsync($"Just a note {Guid.NewGuid()}\n", "note.txt");
         await app.WaitForRunAsync(doc.RunId, "Succeeded");
+        var title = await app.ScalarAsync<string>("SELECT title FROM documents.documents WHERE id = $1", doc.DocumentId);
 
         var inputs = app.Generator.Batches.SelectMany(b => b).ToArray();
 
         await Assert.That(inputs.Length).IsEqualTo(1);
-        await Assert.That(inputs[0]).StartsWith("Just a note");
+        await Assert.That(inputs[0]).StartsWith($"{title}\n\nJust a note");
     }
 
     [Test]

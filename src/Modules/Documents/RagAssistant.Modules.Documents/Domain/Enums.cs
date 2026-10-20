@@ -13,6 +13,21 @@ internal enum Visibility
     Private,
 }
 
+/// <summary>Where a document's language comes from (spec 018): detection at ingestion, or the owner's explicit choice.</summary>
+/// <remarks>Detect comes first: it is the column default, and EF skips a value equal to the CLR default on insert.</remarks>
+internal enum LanguageSource
+{
+    Detect,
+    Owner,
+}
+
+/// <summary>How sure ingestion was about a version's language (spec 018); an uncertain guess is recorded but never applied.</summary>
+internal enum LanguageConfidence
+{
+    Confident,
+    Uncertain,
+}
+
 internal enum VersionStatus
 {
     Queued,

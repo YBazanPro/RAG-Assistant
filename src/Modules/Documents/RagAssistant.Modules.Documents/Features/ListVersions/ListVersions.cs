@@ -2,6 +2,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using RagAssistant.Modules.Documents.Common;
 using RagAssistant.Modules.Documents.Domain;
+using RagAssistant.Modules.Documents.Ingestion;
 using RagAssistant.Modules.Documents.Persistence;
 using RagAssistant.SharedKernel.Common;
 
@@ -36,7 +37,10 @@ internal static class ListVersions
         string? CreatedBy,
         DateTimeOffset? IndexedAt,
         RunItem[] Runs,
-        int[]? PagesWithoutText);
+        int[]? PagesWithoutText,
+        string? DetectedLanguage,
+        string? LanguageDetection,
+        bool? EmbeddingInputOutdated);
 
     public sealed record Response(VersionItem[] Items);
 
@@ -73,6 +77,10 @@ internal static class ListVersions
                     v.CreatedBy,
                     v.IndexedAt,
                     v.PagesWithoutText,
+                    v.DetectedLanguage,
+                    v.LanguageDetection,
+                    v.EmbeddingModel,
+                    v.EmbeddingInputVersion,
                     Runs = v.Runs
                         .OrderByDescending(r => r.Attempt)
                         .Select(r => new RunRow(
@@ -96,7 +104,11 @@ internal static class ListVersions
                 v.IndexedAt,
                 [.. v.Runs.Select(r => new RunItem(
                     r.Id, r.Attempt, r.Status.ToApi(), r.Stage.ToApi(), r.ErrorCode, r.ErrorMessage, r.QueuedAt, r.StartedAt, r.FinishedAt))],
-                v.PagesWithoutText));
+                v.PagesWithoutText,
+                v.DetectedLanguage,
+                v.LanguageDetection.ToApi(),
+                // Spec 021: only an embedded version can be outdated; reprocessing embeds it with the current input.
+                v.EmbeddingModel is null ? null : (v.EmbeddingInputVersion ?? 0) < EmbeddingInput.Version));
 
             return new Response([.. items]);
         }

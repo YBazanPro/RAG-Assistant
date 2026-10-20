@@ -64,7 +64,10 @@ public sealed record DocumentInfo(
     string? UpdatedBy,
     int Revision = 0,
     string Visibility = "shared",
-    bool IsOwner = false);
+    bool IsOwner = false,
+    string LanguageSource = "owner",
+    string? DetectedLanguage = null,
+    string? LanguageDetection = null);
 
 public sealed record VersionItem(
     Guid Id,

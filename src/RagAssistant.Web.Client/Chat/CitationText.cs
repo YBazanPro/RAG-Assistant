@@ -25,8 +25,21 @@ public static class CitationText
             parts.Add(c.PageEnd is { } end && end > start ? $"pages {start}–{end}" : $"page {start}");
         }
 
+        if (c.Language is { } language)
+        {
+            parts.Add($"in {LanguageName(language)}");
+        }
+
         return $"Source {c.Marker}: {string.Join(", ", parts)}";
     }
+
+    /// <summary>"English", "French", or the code itself for another language; the UI stays English (spec 018).</summary>
+    public static string LanguageName(string code) => code switch
+    {
+        "en" => "English",
+        "fr" => "French",
+        _ => code,
+    };
 
     /// <summary>"Budget Exception Policy — Approval › Thresholds (version 3, p. 4)".</summary>
     public static string Reference(Citation c)

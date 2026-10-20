@@ -55,6 +55,12 @@ internal static class AcceptRetry
             }
 
             var question = await db.Messages.SingleAsync(m => m.Id == answer.ReplyToMessageId, cancellationToken);
+            // A question stored before spec 018 has no language yet: resolve it now, the same way a new question would be.
+            if (question.QuestionLanguage is null)
+            {
+                (question.QuestionLanguage, question.QuestionLanguageSource) =
+                    await QuestionLanguages.ResolveAsync(db, conversation.Id, question.Sequence, question.Text, cancellationToken);
+            }
 
             answer.Status = AnswerStatus.Pending;
             answer.Text = string.Empty;
@@ -75,7 +81,8 @@ internal static class AcceptRetry
             await transaction.CommitAsync(cancellationToken);
 
             return new AcceptedAnswer(
-                conversation.Id, question.Id, answer.Id, conversation.OwnerSub, question.Text, question.FilterLanguage, question.FilterTags, question.FilterDocumentIds, answer.Attempts, question.Sequence);
+                conversation.Id, question.Id, answer.Id, conversation.OwnerSub, question.Text, question.FilterLanguage, question.FilterTags, question.FilterDocumentIds, answer.Attempts, question.Sequence,
+                question.QuestionLanguage, question.QuestionLanguageSource ?? QuestionLanguageSource.Default);
         }
     }
 }

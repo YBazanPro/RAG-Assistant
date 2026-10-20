@@ -45,12 +45,33 @@ internal enum RewriteFallback
     Invalid,
 }
 
+/// <summary>How a question's language was decided (spec 018).</summary>
+internal enum QuestionLanguageSource
+{
+    /// <summary>The detector was sure about the question itself.</summary>
+    Detected,
+
+    /// <summary>The detector was unsure, so the conversation's previous question decided.</summary>
+    Conversation,
+
+    /// <summary>Nothing decided; English.</summary>
+    Default,
+
+    /// <summary>
+    /// The user asked for an answer language, and the follow-up rewrite carried it over. Only traces store it: a user message
+    /// keeps how its written language was decided and holds the request in <c>RequestedLanguage</c>.
+    /// </summary>
+    Requested,
+}
+
 /// <summary>The wire names (spec 012: enums as lowercase strings).</summary>
 internal static class ChatApiNames
 {
     public static string ToApi(this MessageRole role) => role == MessageRole.User ? "user" : "assistant";
 
     public static string ToApi(this AnswerStatus status) => status.ToString().ToLowerInvariant();
+
+    public static string ToApi(this QuestionLanguageSource source) => source.ToString().ToLowerInvariant();
 
     public static string ToApi(this RefusalReason reason) => reason == RefusalReason.NoEvidence ? "no_evidence" : "model_declined";
 

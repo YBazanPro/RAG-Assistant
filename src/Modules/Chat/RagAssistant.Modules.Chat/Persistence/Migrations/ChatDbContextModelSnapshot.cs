@@ -39,6 +39,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("document_title");
 
+                    b.Property<string>("Language")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("language");
+
                     b.Property<int>("Marker")
                         .HasColumnType("integer")
                         .HasColumnName("marker");
@@ -213,6 +218,16 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("pending_since");
 
+                    b.Property<string>("QuestionLanguage")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("question_language");
+
+                    b.Property<string>("QuestionLanguageSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("question_language_source");
+
                     b.Property<string>("RefusalReason")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
@@ -221,6 +236,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                     b.Property<Guid?>("ReplyToMessageId")
                         .HasColumnType("uuid")
                         .HasColumnName("reply_to_message_id");
+
+                    b.Property<string>("RequestedLanguage")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("requested_language");
 
                     b.Property<string>("RetrievalQuery")
                         .HasMaxLength(1000)
@@ -290,6 +310,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<string>("AnswerLanguage")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("answer_language");
 
                     b.Property<Guid>("AssistantMessageId")
                         .HasColumnType("uuid")
@@ -383,10 +408,24 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("owner_sub");
 
+                    b.Property<int?>("PromptTokenEstimate")
+                        .HasColumnType("integer")
+                        .HasColumnName("prompt_token_estimate");
+
                     b.Property<string>("PromptVersion")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("prompt_version");
+
+                    b.Property<string>("QuestionLanguage")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("question_language");
+
+                    b.Property<string>("QuestionLanguageSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("question_language_source");
 
                     b.Property<string>("QuestionText")
                         .IsRequired()
@@ -397,6 +436,11 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("refusal_reason");
+
+                    b.Property<string>("RequestedLanguage")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("requested_language");
 
                     b.Property<int?>("RetrievalMs")
                         .HasColumnType("integer")
@@ -453,6 +497,10 @@ namespace RagAssistant.Modules.Chat.Persistence.Migrations
                     b.Property<int>("TotalMs")
                         .HasColumnType("integer")
                         .HasColumnName("total_ms");
+
+                    b.Property<int>("TrimmedPassageCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("trimmed_passage_count");
 
                     b.PrimitiveCollection<Guid[]>("UnavailableDocumentIds")
                         .IsRequired()
