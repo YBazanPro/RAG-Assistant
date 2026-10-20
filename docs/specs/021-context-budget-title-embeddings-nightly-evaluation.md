@@ -102,3 +102,9 @@ Three gaps found by a review of the RAG pipeline (2026-10-20):
 ## Verification
 
 Unit and integration tests cover AC-1 to AC-9. AC-10 and AC-11 are checked on the first manual dispatch after merge; the result goes here.
+
+**2026-10-20, first dispatches:**
+- **Run [39443083110](https://github.com/YBazanPro/RAG-Assistant/actions/runs/39443083110) failed before the harness:** the AppHost uses the Aspire CLI bundle (`AspireUseCliBundle`), so `dotnet run` starts `bin/Debug` whatever configuration is passed, and the Release-only build gave it nothing to start. The workflow now builds and runs in Debug.
+- **Run [39445089883](https://github.com/YBazanPro/RAG-Assistant/actions/runs/39445089883) passed (AC-10):** both models were pulled, the AppHost started with the dev certificate trusted (Keycloak included), the 17 sample documents were seeded, and the 87 golden cases ran with `qwen3:1.7b` with 0 errors and 0 broken cases. The summary and the artifact are on the run page. The harness took about 10 minutes and the whole job 14, well under the estimate: `qwen3:1.7b` answers in about 4 s median on the 4-core runner.
+- **AC-11:** the pass with weak metrics is shown by this run (behaviour 0.70, injection resisted 0.00). The failing path, a report with errors, has not happened yet.
+- **Findings recorded in [spec 018's Calibration](018-evaluation-and-french-english.md#calibration):** the threshold sweep moved `ConfidentScore` to 0.55, and `qwen3:1.7b` fails the injection case.
