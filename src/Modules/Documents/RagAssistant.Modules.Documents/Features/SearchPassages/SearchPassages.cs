@@ -171,10 +171,10 @@ internal static partial class SearchPassages
 
             var vector = embedded.Value.Vector;
             var vectorPool = await candidates.FetchAsync(vector, model, filter, poolSize, cancellationToken);
+            var keywordHits = await keywords;
             List<RetrievedChunk> ordered;
             if (mode == RetrievalMode.Hybrid)
             {
-                var keywordHits = await keywords;
                 var inVectorPool = vectorPool.Select(p => p.PassageId).ToHashSet();
                 Guid[] missing = [.. keywordHits.Select(h => h.PassageId).Where(id => !inVectorPool.Contains(id))];
                 var keywordOnly = missing.Length == 0 ? [] : await candidates.FetchByIdsAsync(vector, model, filter, missing, cancellationToken);
@@ -210,7 +210,12 @@ internal static partial class SearchPassages
                 }
             }
 
-            var decision = EvidenceRules.ApplyOrdered(ordered, topK, thresholds);
+            // Spec 019: while cosine is the gate, a keyword match that covers enough of the question passes the cosine floor, which
+            // would otherwise drop the exact-term matches dense vectors miss. A rerank score already judged every candidate.
+            IReadOnlySet<Guid>? pastFloor = rerankStatus == RerankStatus.Applied
+                ? null
+                : keywordHits.Where(h => h.Coverage >= settings.Hybrid.MinKeywordCoverage).Select(h => h.PassageId).ToHashSet();
+            var decision = EvidenceRules.ApplyOrdered(ordered, topK, thresholds, pastFloor);
             int? skipped = query.IncludeDiagnostics
                 ? await candidates.CountModelMismatchesAsync(model, filter, cancellationToken)
                 : null;

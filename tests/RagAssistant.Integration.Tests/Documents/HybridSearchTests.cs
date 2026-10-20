@@ -170,6 +170,57 @@ public sealed class HybridSearchTests(PostgresFixture postgres)
         await Assert.That(finance.DocumentId).IsNotEqualTo(hr.DocumentId);
     }
 
+    // AC-23: any of the question's terms is enough to match; how many of them the passage holds is its coverage.
+    [Test]
+    public async Task Search_passageWithoutEveryTermOfTheQuestion_isStillAKeywordMatch()
+    {
+        await using var bed = await StartAsync(postgres, Hybrid);
+        var (_, passages) = await bed.AddAsync("Budget Exception Policy", P(0.6, CodeText));
+
+        var result = await bed.SearchAsync("budget BX-204 for travel", new SearchFilters(QueryLanguage: "en"));
+
+        var stages = result.Value.Chunks.Single(c => c.PassageId == passages[0]).Stages!;
+        await Assert.That(stages.KeywordRank).IsEqualTo(1);
+        await Assert.That(stages.AdmittedBy).IsEqualTo(AdmittedBy.Both);
+        // budget, bx and -204 (the parser's split of "BX-204") of those and travel.
+        await Assert.That(stages.KeywordCoverage).IsEqualTo(0.75);
+    }
+
+    // AC-24
+    [Test]
+    public async Task Search_keywordMatchBelowTheFloor_isAdmittedInHybridModeOnly()
+    {
+        await using var bed = await StartAsync(postgres, Hybrid);
+        var (_, passages) = await bed.AddAsync("Budget Exception Policy", P(0.3, CodeText));
+
+        var hybrid = await bed.SearchAsync(CodeQuery, new SearchFilters(QueryLanguage: "en"));
+        var (_, vector) = await SearchEndpointAsync(bed, $"q={Uri.EscapeDataString(CodeQuery)}&mode=vector");
+
+        var chunk = hybrid.Value.Chunks.Single();
+        await Assert.That(chunk.PassageId).IsEqualTo(passages[0]);
+        await Assert.That(chunk.Score).IsLessThan(0.5);
+        await Assert.That(chunk.Stages!.KeywordCoverage).IsEqualTo(1.0);
+        await Assert.That(hybrid.Value.Outcome).IsEqualTo(EvidenceOutcome.LowConfidence);
+        await Assert.That(vector.GetProperty("outcome").GetString()).IsEqualTo("noEvidence");
+    }
+
+    // AC-25
+    [Test]
+    public async Task Search_keywordMatchOnOneCommonWord_staysBelowTheFloor()
+    {
+        await using var bed = await StartAsync(postgres, Hybrid);
+        await bed.AddAsync("Budget Exception Policy", P(0.3, "The budget is reviewed every spring."));
+
+        var result = await bed.SearchAsync(CodeQuery, new SearchFilters(QueryLanguage: "en"));
+        var (_, diagnostics) = await SearchEndpointAsync(bed, $"q={Uri.EscapeDataString(CodeQuery)}&queryLanguage=en&candidates=true");
+
+        await Assert.That(result.Value.Outcome).IsEqualTo(EvidenceOutcome.NoEvidence);
+        var candidate = diagnostics.GetProperty("candidates")[0];
+        await Assert.That(candidate.GetProperty("dropped").GetString()).IsEqualTo("minScore");
+        // budget alone, of budget, bx, -204 and approv.
+        await Assert.That(candidate.GetProperty("stages").GetProperty("keywordCoverage").GetDouble()).IsEqualTo(0.25);
+    }
+
     // AC-15
     [Test]
     public async Task Endpoint_overrides_reportModeRerankAndStagesWhateverTheConfiguration()

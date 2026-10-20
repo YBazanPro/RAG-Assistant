@@ -140,7 +140,7 @@ internal sealed class ReportWriter(IOptions<EvaluationOptions> options)
     /// <summary>Spec 019: the retrieval stages of the configuration; older reports have none.</summary>
     private static string Stages(RunConfiguration c) => c.RetrievalMode is null ? "—"
         : FormattableString.Invariant(
-            $"{c.RetrievalMode} (RrfK {c.RrfK}) · reranking {(c.Reranking == true ? $"on, {c.RerankerModel ?? "no reranker configured"}, {c.RerankCandidates} candidates, MinScore {c.RerankMinScore}, ConfidentScore {c.RerankConfidentScore}" : "off")}");
+            $"{c.RetrievalMode} (RrfK {c.RrfK}{(c.MinKeywordCoverage is { } coverage ? FormattableString.Invariant($", MinKeywordCoverage {coverage}") : "")}) · reranking {(c.Reranking == true ? $"on, {c.RerankerModel ?? "no reranker configured"}, {c.RerankCandidates} candidates, MinScore {c.RerankMinScore}, ConfidentScore {c.RerankConfidentScore}" : "off")}");
 
     private static string Ms(double? value) => value is { } ms ? FormattableString.Invariant($"{ms:0} ms") : "—";
 

@@ -26,7 +26,7 @@ internal static class HybridRanking
     {
         var ranked = EvidenceRules.Rank(vectorPool);
         var vectorRanks = ranked.Select((c, i) => (c.PassageId, Rank: i + 1)).ToDictionary(x => x.PassageId, x => x.Rank);
-        var keyword = keywordHits.Select((h, i) => (h, Rank: i + 1)).ToDictionary(x => x.h.PassageId, x => (x.Rank, x.h.Score));
+        var keyword = keywordHits.Select((h, i) => (h, Rank: i + 1)).ToDictionary(x => x.h.PassageId, x => (x.Rank, x.h.Score, x.h.Coverage));
 
         var merged = ranked.Concat(keywordOnly.Where(c => !vectorRanks.ContainsKey(c.PassageId)));
         return
@@ -35,10 +35,13 @@ internal static class HybridRanking
                 .Select(c =>
                 {
                     int? vectorRank = vectorRanks.TryGetValue(c.PassageId, out var v) ? v : null;
-                    (int Rank, double Score)? match = keyword.TryGetValue(c.PassageId, out var w) ? w : null;
+                    (int Rank, double Score, double Coverage)? match = keyword.TryGetValue(c.PassageId, out var w) ? w : null;
                     var admitted = vectorRank is null ? AdmittedBy.Keyword : match is null ? AdmittedBy.Vector : AdmittedBy.Both;
                     var fused = Fuse(k, vectorRank, match?.Rank);
-                    return c with { Stages = new PassageStages(vectorRank, c.Score, match?.Rank, match?.Score, fused, null, admitted) };
+                    return c with
+                    {
+                        Stages = new PassageStages(vectorRank, c.Score, match?.Rank, match?.Score, fused, null, admitted, match?.Coverage),
+                    };
                 })
                 .OrderByDescending(c => c.Stages!.FusedScore)
                 .ThenByDescending(c => c.Score)

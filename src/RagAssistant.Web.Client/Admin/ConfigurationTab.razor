@@ -40,7 +40,7 @@
                     <MetaRow Label="Score thresholds">minimum @c.MinScore, confident @c.ConfidentScore, duplicate overlap @c.DuplicateOverlap</MetaRow>
                     @if (c.Stages is { } stages)
                     {
-                        <MetaRow Label="Hybrid search">@(stages.HybridEnabled ? $"on, reciprocal rank fusion k = {stages.RrfK}" : "off")</MetaRow>
+                        <MetaRow Label="Hybrid search">@(stages.HybridEnabled ? $"on, reciprocal rank fusion k = {stages.RrfK}, keyword matches covering at least {stages.MinKeywordCoverage:0.##} of the question pass the floor" : "off")</MetaRow>
                         <MetaRow Label="Reranking">@RerankingText(stages)</MetaRow>
                     }
                     <MetaRow Label="Upload limits">text @Formatting.Size(c.MaxFileSizeBytes), PDF @Formatting.Size(c.MaxPdfSizeBytes), @c.PdfMaxPages pages</MetaRow>

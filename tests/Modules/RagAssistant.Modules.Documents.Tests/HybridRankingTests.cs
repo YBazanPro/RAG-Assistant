@@ -48,17 +48,18 @@ internal sealed class HybridRankingTests
         var third = Chunk(0.8, "third");
         var code = Chunk(0.6, "code BX-204");
         var keywordOnly = Chunk(0.4, "only keywords");
-        KeywordHit[] hits = [new(code.PassageId, 0.5), new(keywordOnly.PassageId, 0.2)];
+        KeywordHit[] hits = [new(code.PassageId, 0.5, 1.0), new(keywordOnly.PassageId, 0.2, 0.25)];
 
         var ordered = HybridRanking.Hybrid([first, second, third, code], hits, [keywordOnly], k: 60);
 
         await Assert.That(ordered[0].PassageId).IsEqualTo(code.PassageId);
         await Assert.That(ordered[0].Stages).IsEqualTo(
-            new PassageStages(4, 0.6, 1, 0.5, HybridRanking.Fuse(60, 4, 1), null, AdmittedBy.Both));
+            new PassageStages(4, 0.6, 1, 0.5, HybridRanking.Fuse(60, 4, 1), null, AdmittedBy.Both, KeywordCoverage: 1.0));
         var onlyKeywords = ordered.Single(c => c.PassageId == keywordOnly.PassageId);
         await Assert.That(onlyKeywords.Stages!.AdmittedBy).IsEqualTo(AdmittedBy.Keyword);
         await Assert.That(onlyKeywords.Stages!.VectorRank).IsNull();
         await Assert.That(onlyKeywords.Score).IsEqualTo(0.4);
+        await Assert.That(onlyKeywords.Stages!.KeywordCoverage).IsEqualTo(0.25);
         await Assert.That(ordered.Single(c => c.PassageId == first.PassageId).Stages!.AdmittedBy).IsEqualTo(AdmittedBy.Vector);
         await Assert.That(ordered.Count).IsEqualTo(5);
     }
@@ -99,5 +100,19 @@ internal sealed class HybridRankingTests
 
         await Assert.That(decision.Kept.SequenceEqual([fusedFirst, best])).IsTrue();
         await Assert.That(decision.Outcome).IsEqualTo(EvidenceOutcome.Sufficient);
+    }
+
+    [Test]
+    public async Task ApplyOrdered_passageAdmittedPastTheFloor_isKeptButLeavesTheEvidenceLowConfidence()
+    {
+        var thresholds = new EvidenceThresholds(MinScore: 0.5, ConfidentScore: 0.7, DuplicateOverlap: 0.8);
+        var keywordMatch = Chunk(0.3, "budget code BX-204 approval");
+        var weak = Chunk(0.3, "nothing in common");
+
+        var decision = EvidenceRules.ApplyOrdered([keywordMatch, weak], topK: 5, thresholds, pastFloor: new HashSet<Guid> { keywordMatch.PassageId });
+
+        await Assert.That(decision.Kept.SequenceEqual([keywordMatch])).IsTrue();
+        await Assert.That(decision.Discarded.Single().Reason).IsEqualTo(DiscardReason.BelowMinScore);
+        await Assert.That(decision.Outcome).IsEqualTo(EvidenceOutcome.LowConfidence);
     }
 }

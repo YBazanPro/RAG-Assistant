@@ -111,7 +111,7 @@ public sealed record SearchDiagnostics(
 
     internal static SearchStages? StagesOf(RetrievedChunk chunk) => chunk.Stages is not { } s ? null : new SearchStages(
         s.VectorRank, Round(s.Cosine), s.KeywordRank, s.KeywordScore is { } k ? Round(k) : null, s.FusedScore is { } f ? Round(f, 6) : null,
-        s.RerankScore is { } r ? Round(r) : null, SearchPassages.AdmittedName(s.AdmittedBy));
+        s.RerankScore is { } r ? Round(r) : null, SearchPassages.AdmittedName(s.AdmittedBy), s.KeywordCoverage is { } c ? Round(c) : null);
 
     private static double Round(double value, int decimals = ScoreDecimals) => Math.Round(value, decimals, MidpointRounding.AwayFromZero);
 }
@@ -120,6 +120,7 @@ public sealed record SearchThresholds(double MinScore, double ConfidentScore, do
 
 /// <summary>What each retrieval stage said about a passage (spec 019); a stage that did not see it leaves its fields null.</summary>
 /// <param name="AdmittedBy"><c>vector</c>, <c>keyword</c> or <c>both</c>.</param>
+/// <param name="KeywordCoverage">The share of the question's terms in the passage; at least <c>Hybrid:MinKeywordCoverage</c> passes the floor.</param>
 public sealed record SearchStages(
     int? VectorRank,
     double Cosine,
@@ -127,7 +128,8 @@ public sealed record SearchStages(
     double? KeywordScore,
     double? FusedScore,
     double? RerankScore,
-    string AdmittedBy);
+    string AdmittedBy,
+    double? KeywordCoverage = null);
 
 public sealed record RankedPassage(
     int Rank,

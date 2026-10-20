@@ -95,6 +95,7 @@ public sealed record RetrievedChunk(
 /// <param name="KeywordScore"><c>ts_rank_cd</c> of the passage for the keyword query.</param>
 /// <param name="FusedScore">Reciprocal rank fusion score; null in vector mode.</param>
 /// <param name="RerankScore">The cross-encoder's score; null when the passage was not reranked.</param>
+/// <param name="KeywordCoverage">The share of the question's distinct terms the passage contains; null without a keyword match.</param>
 public sealed record PassageStages(
     int? VectorRank,
     double Cosine,
@@ -102,4 +103,5 @@ public sealed record PassageStages(
     double? KeywordScore,
     double? FusedScore,
     double? RerankScore,
-    AdmittedBy AdmittedBy);
+    AdmittedBy AdmittedBy,
+    double? KeywordCoverage = null);
