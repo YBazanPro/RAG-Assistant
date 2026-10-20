@@ -48,6 +48,7 @@ internal sealed class RetrievalOptions
         && QueryEmbeddingTimeout > TimeSpan.Zero
         && QueryEmbeddingCacheDuration > TimeSpan.Zero
         && Hybrid.RrfK >= 1
+        && Hybrid.MinKeywordCoverage is >= 0 and <= 1
         && Reranking.Candidates is >= 1 and <= RerankingOptions.MaxCandidates
         && Reranking.MinScore is >= 0 and <= 1
         && Reranking.ConfidentScore >= Reranking.MinScore && Reranking.ConfidentScore <= 1
@@ -63,6 +64,12 @@ internal sealed class HybridOptions
 
     /// <summary>The k of reciprocal rank fusion: score = Σ 1 / (k + rank).</summary>
     public int RrfK { get; set; } = 60;
+
+    /// <summary>
+    /// While cosine is the gate, a keyword match passes the cosine floor when the passage holds at least this share of the question's
+    /// distinct terms (spec 019): one common word such as "office" is not evidence. 0 lets every keyword match through.
+    /// </summary>
+    public double MinKeywordCoverage { get; set; } = 0.5;
 }
 
 /// <summary>A cross-encoder reorders and gates the best candidates (spec 019). Off until the harness shows a gain.</summary>

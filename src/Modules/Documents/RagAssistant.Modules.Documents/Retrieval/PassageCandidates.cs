@@ -19,7 +19,8 @@ internal sealed record CandidateFilter(string? Language, IReadOnlyList<string> T
 }
 
 /// <summary>A keyword match: <c>ts_rank_cd</c> of the passage for the query (spec 019).</summary>
-internal sealed record KeywordHit(Guid PassageId, double Score);
+/// <param name="Coverage">The share of the question's distinct terms the passage contains, in (0, 1].</param>
+internal sealed record KeywordHit(Guid PassageId, double Score, double Coverage);
 
 /// <summary>The eligible-passage queries of retrieval (spec 011, eligibility and pipeline step 3; spec 019, keyword pool).</summary>
 internal sealed class PassageCandidates(DocumentsDbContext db)
@@ -48,17 +49,25 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
 
     /// <summary>
     /// The <paramref name="poolSize"/> eligible passages that best match <paramref name="query"/> as keywords (spec 019), best first:
-    /// <c>websearch_to_tsquery</c> in the configuration of the query's language, ranked with <c>ts_rank_cd</c>. Same eligibility and
+    /// any of the question's lexemes in the configuration of the query's language, ranked with <c>ts_rank_cd</c>. Same eligibility and
     /// filters as the vector pool. A query without lexemes (only stop-words or punctuation) matches nothing.
     /// </summary>
     public async Task<IReadOnlyList<KeywordHit>> KeywordAsync(
         string query, string? queryLanguage, string embeddingModel, CandidateFilter filter, int poolSize, CancellationToken cancellationToken)
     {
         // The configuration comes from the same SQL function that sets each passage's own (migration HybridSearch).
+        // The lexemes are OR-ed: websearch_to_tsquery would AND them, and a passage rarely holds every word of a question. They are
+        // quoted into the tsquery as they are (quotes and backslashes doubled), so nothing parses or stems them a second time.
         var language = queryLanguage ?? string.Empty;
         var matches = db.Database.SqlQuery<KeywordRow>($"""
-            SELECT p.id AS "PassageId", ts_rank_cd(p.search_vector, q.query)::double precision AS "Score"
-            FROM documents.passages p, websearch_to_tsquery(documents.search_config_for({language}), {query}) AS q(query)
+            SELECT p.id AS "PassageId",
+                ts_rank_cd(p.search_vector, q.query)::double precision AS "Score",
+                (SELECT count(*) FROM unnest(q.lexemes) AS l WHERE l = ANY (tsvector_to_array(p.search_vector)))::double precision
+                    / cardinality(q.lexemes) AS "Coverage"
+            FROM documents.passages p,
+                (SELECT array_agg(l) AS lexemes,
+                        string_agg('''' || replace(replace(l, '\', '\\'), '''', '''''') || '''', ' | ')::tsquery AS query
+                    FROM unnest(tsvector_to_array(to_tsvector(documents.search_config_for({language}), {query}))) AS l) AS q
             WHERE p.search_vector @@ q.query
             """);
 
@@ -66,10 +75,10 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
                 from m in matches
                 join e in Eligible(embeddingModel, filter) on m.PassageId equals e.Passage.Id
                 orderby m.Score descending, m.PassageId
-                select new { m.PassageId, m.Score })
+                select new { m.PassageId, m.Score, m.Coverage })
             .Take(poolSize)
             .ToListAsync(cancellationToken);
-        return [.. rows.Select(r => new KeywordHit(r.PassageId, r.Score))];
+        return [.. rows.Select(r => new KeywordHit(r.PassageId, r.Score, r.Coverage))];
     }
 
     /// <summary>The given eligible passages with their cosine to the query, in no guaranteed order: keyword hits the vector pool missed.</summary>
@@ -152,6 +161,8 @@ internal sealed class PassageCandidates(DocumentsDbContext db)
         public Guid PassageId { get; init; }
 
         public double Score { get; init; }
+
+        public double Coverage { get; init; }
     }
 
     // A member-init projection, so EF can keep composing on it (a constructor projection cannot be ordered by).

@@ -48,7 +48,8 @@ internal sealed record RunConfiguration(
     int? RerankCandidates = null,
     string? RerankerModel = null,
     double? RerankMinScore = null,
-    double? RerankConfidentScore = null);
+    double? RerankConfidentScore = null,
+    double? MinKeywordCoverage = null);
 
 /// <summary>A passage of the seeded corpus; the sweep needs the text to redo near-duplicate reduction offline.</summary>
 internal sealed record CorpusPassage(string Document, string Text);

@@ -236,7 +236,8 @@ internal sealed class RunCommand(
             stages?.GetProperty("rerankCandidates").GetInt32(),
             stages is { } r && r.GetProperty("rerankerModel").ValueKind == JsonValueKind.String ? r.GetProperty("rerankerModel").GetString() : null,
             stages?.GetProperty("rerankMinScore").GetDouble(),
-            stages?.GetProperty("rerankConfidentScore").GetDouble());
+            stages?.GetProperty("rerankConfidentScore").GetDouble(),
+            stages is { } k && k.TryGetProperty("minKeywordCoverage", out var coverage) ? coverage.GetDouble() : null);
     }
 
     private static string CorpusHash(string corpusPath, CorpusManifest manifest)

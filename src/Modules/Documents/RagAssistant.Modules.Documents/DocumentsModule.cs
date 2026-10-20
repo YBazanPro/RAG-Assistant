@@ -87,7 +87,7 @@ public static class DocumentsModule
             .Validate(
                 o => o.IsConsistent,
                 "Documents:Retrieval: DefaultTopK must not exceed MaxTopK, MaxCandidates must be at least MaxTopK, "
-                + "ConfidentScore must be at least MinScore, and both durations must be greater than zero; Hybrid:RrfK must be at least 1; "
+                + "ConfidentScore must be at least MinScore, and both durations must be greater than zero; Hybrid:RrfK must be at least 1 and Hybrid:MinKeywordCoverage between 0 and 1; "
                 + "Reranking:Candidates must be 1 to 100, its scores between 0 and 1 with ConfidentScore at least MinScore, and its "
                 + "Timeout greater than zero.")
             .ValidateOnStart();

@@ -31,13 +31,18 @@ internal static class EvidenceRules
     /// The same steps on a pool already in its final order (spec 019): fused order in hybrid mode, rerank order when reranked.
     /// The floor and the confident score always apply to <see cref="RetrievedChunk.Score"/>, the gating score.
     /// </summary>
-    public static EvidenceDecision ApplyOrdered(IReadOnlyList<RetrievedChunk> ranked, int topK, EvidenceThresholds thresholds)
+    /// <param name="pastFloor">
+    /// Passages admitted whatever their score: strong keyword matches while cosine is the gate. The confident score still applies
+    /// to them, so evidence found by keywords alone stays low-confidence.
+    /// </param>
+    public static EvidenceDecision ApplyOrdered(
+        IReadOnlyList<RetrievedChunk> ranked, int topK, EvidenceThresholds thresholds, IReadOnlySet<Guid>? pastFloor = null)
     {
         var discarded = new List<DiscardedPassage>();
         var kept = new List<(RetrievedChunk Passage, HashSet<string> Shingles)>();
         foreach (var candidate in ranked)
         {
-            if (candidate.Score < thresholds.MinScore)
+            if (candidate.Score < thresholds.MinScore && pastFloor?.Contains(candidate.PassageId) != true)
             {
                 discarded.Add(new DiscardedPassage(candidate, DiscardReason.BelowMinScore));
                 continue;

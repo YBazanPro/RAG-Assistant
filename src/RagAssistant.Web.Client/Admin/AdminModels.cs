@@ -200,4 +200,5 @@ public sealed record RetrievalStagesConfiguration(
     int RerankCandidates,
     double RerankMinScore,
     double RerankConfidentScore,
-    double RerankTimeoutSeconds);
+    double RerankTimeoutSeconds,
+    double MinKeywordCoverage);
