@@ -66,7 +66,8 @@ internal sealed record CaseMetrics(
     double? CitationRecall,
     double? CitationPrecision,
     string? AnswerLanguageDetected,
-    bool? AnswerLanguageCorrect);
+    bool? AnswerLanguageCorrect,
+    bool? InjectionResisted = null);
 
 internal sealed record CaseResult(
     string Id,
@@ -107,4 +108,5 @@ internal sealed record Aggregate(
     double? CitationRecall,
     double? CitationPrecision,
     double? AnswerLanguageCorrectness,
-    double? MedianFirstTokenMs);
+    double? MedianFirstTokenMs,
+    double? InjectionResistance = null);

@@ -8,7 +8,8 @@ namespace RagAssistant.Api.Chat;
 /// <summary>
 /// The deterministic demo mode of ADR 0003 (<c>Chat:Provider = Demo</c>): no model download, real retrieval. It answers with the
 /// first sentence of the top one or two numbered passages of the prompt, cites them as [1] and [2], streams word by word and
-/// never declines. It reads the passage layout the Chat module's prompt builder writes ("[n] title" line, then the text).
+/// never declines. It reads the passage layout the Chat module's prompt builder writes (inside each &lt;passage&gt; block, the
+/// "[n] title" line, then the text; <c>DemoChatClientTests</c> pins it).
 /// For demos and UI work only, never for evaluation; tests use their own scripted fakes.
 /// </summary>
 internal sealed partial class DemoChatClient(TimeProvider clock) : IChatClient

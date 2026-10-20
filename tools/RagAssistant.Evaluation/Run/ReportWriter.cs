@@ -94,13 +94,13 @@ internal sealed class ReportWriter(IOptions<EvaluationOptions> options)
         md.AppendLine();
         md.AppendLine("## Cases");
         md.AppendLine();
-        md.AppendLine("| Case | Expected | Status | Behaviour | MRR | Citations R/P | Language | First token |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Case | Expected | Status | Behaviour | MRR | Citations R/P | Language | Injection | First token |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|");
         foreach (var r in report.Cases)
         {
             var m = r.Metrics;
             md.AppendLine(CultureInfo.InvariantCulture,
-                $"| `{r.Id}` | {r.ExpectedBehaviour} | {r.Status}{(r.Error is null ? "" : " ⚠")} | {Mark(m.BehaviourCorrect)} | {Num(m.ReciprocalRank)} | {Num(m.CitationRecall)} / {Num(m.CitationPrecision)} | {r.ExpectedAnswerLanguage}→{m.AnswerLanguageDetected ?? "?"} {Mark(m.AnswerLanguageCorrect)} | {(r.FirstTokenMs is { } ms ? $"{ms} ms" : "—")} |");
+                $"| `{r.Id}` | {r.ExpectedBehaviour} | {r.Status}{(r.Error is null ? "" : " ⚠")} | {Mark(m.BehaviourCorrect)} | {Num(m.ReciprocalRank)} | {Num(m.CitationRecall)} / {Num(m.CitationPrecision)} | {r.ExpectedAnswerLanguage}→{m.AnswerLanguageDetected ?? "?"} {Mark(m.AnswerLanguageCorrect)} | {Mark(m.InjectionResisted)} | {(r.FirstTokenMs is { } ms ? $"{ms} ms" : "—")} |");
         }
 
         return md.ToString();
@@ -108,12 +108,12 @@ internal sealed class ReportWriter(IOptions<EvaluationOptions> options)
 
     private static void AppendTable(StringBuilder md, IEnumerable<(string Name, Aggregate Value)> rows)
     {
-        md.AppendLine("| Group | Cases | Errors | R@1 | R@3 | R@5 | R@topK | MRR | Behaviour | Refusals | Cit. recall | Cit. precision | Answer language | Median first token |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Group | Cases | Errors | R@1 | R@3 | R@5 | R@topK | MRR | Behaviour | Refusals | Cit. recall | Cit. precision | Answer language | Injection resisted | Median first token |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (var (name, a) in rows)
         {
             md.AppendLine(CultureInfo.InvariantCulture,
-                $"| {name} | {a.Cases} | {a.Errors} | {Num(a.RecallAt1)} | {Num(a.RecallAt3)} | {Num(a.RecallAt5)} | {Num(a.RecallAtTopK)} | {Num(a.Mrr)} | {Num(a.BehaviourCorrectness)} | {Num(a.RefusalCorrectness)} | {Num(a.CitationRecall)} | {Num(a.CitationPrecision)} | {Num(a.AnswerLanguageCorrectness)} | {(a.MedianFirstTokenMs is { } ms ? $"{ms:0} ms" : "—")} |");
+                $"| {name} | {a.Cases} | {a.Errors} | {Num(a.RecallAt1)} | {Num(a.RecallAt3)} | {Num(a.RecallAt5)} | {Num(a.RecallAtTopK)} | {Num(a.Mrr)} | {Num(a.BehaviourCorrectness)} | {Num(a.RefusalCorrectness)} | {Num(a.CitationRecall)} | {Num(a.CitationPrecision)} | {Num(a.AnswerLanguageCorrectness)} | {Num(a.InjectionResistance)} | {(a.MedianFirstTokenMs is { } ms ? $"{ms:0} ms" : "—")} |");
         }
     }
 

@@ -136,7 +136,8 @@ internal sealed class RunCommand(
 
         var status = error is not null && last?.Completed is null ? "error" : last?.Status ?? "error";
         var metrics = Scoring.Score(
-            golden.Expected.Behaviour, expectedLanguage, golden.Expected.Evidence.Count, status, retrieved, cited, last?.Text ?? "", topK, answerMetrics);
+            golden.Expected.Behaviour, expectedLanguage, golden.Expected.Evidence.Count, status, retrieved, cited, last?.Text ?? "", topK, answerMetrics,
+            golden.Expected.Forbidden);
 
         return new CaseResult(
             golden.Id, golden.Category, golden.QuestionLanguage, golden.Turns, golden.Expected.Behaviour, expectedLanguage,

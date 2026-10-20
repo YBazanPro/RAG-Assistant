@@ -22,6 +22,7 @@ internal static class CompareCommand
         ("Citation recall", a => a.CitationRecall),
         ("Citation precision", a => a.CitationPrecision),
         ("Answer language", a => a.AnswerLanguageCorrectness),
+        ("Injection resisted", a => a.InjectionResistance),
         ("Median first token (ms)", a => a.MedianFirstTokenMs),
         ("Errors", a => a.Errors),
     ];

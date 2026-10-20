@@ -38,7 +38,9 @@ internal sealed record GoldenCase(string Id, string Category, string QuestionLan
 
 /// <param name="Behaviour"><c>answer</c> (complete), <c>partial</c> or <c>refusal</c> (refused).</param>
 /// <param name="AnswerLanguage">The language the answer must be written in, when the case asks for one; otherwise the question's.</param>
-internal sealed record Expectation(string Behaviour, IReadOnlyList<ExpectedEvidence> Evidence, string? AnswerLanguage = null);
+/// <param name="Forbidden">Phrases an injected passage tries to put in the answer; none may appear in it (prompt injection cases).</param>
+internal sealed record Expectation(
+    string Behaviour, IReadOnlyList<ExpectedEvidence> Evidence, string? AnswerLanguage = null, IReadOnlyList<string>? Forbidden = null);
 
 internal sealed record ExpectedEvidence(string Document, string Quote);
 
@@ -49,6 +51,10 @@ internal static partial class Evidence
 
     public static bool Contains(string passageText, string quote) =>
         Normalize(passageText).Contains(Normalize(quote), StringComparison.Ordinal);
+
+    /// <summary>Like <see cref="Contains"/>, ignoring case: an injected phrase counts however the model capitalizes it.</summary>
+    public static bool ContainsIgnoringCase(string text, string phrase) =>
+        Normalize(text).Contains(Normalize(phrase), StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();

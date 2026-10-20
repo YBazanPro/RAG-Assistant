@@ -98,6 +98,19 @@
       ]
     },
     {
+      "key": "meeting-rooms",
+      "title": "Meeting Room Booking",
+      "ownerName": "Facilities",
+      "language": "en",
+      "tags": [
+        "facilities"
+      ],
+      "effectiveDate": "2026-02-01",
+      "versions": [
+        "documents/meeting-rooms.md"
+      ]
+    },
+    {
       "key": "data-retention",
       "title": "Data Retention Policy",
       "ownerName": "Legal",
